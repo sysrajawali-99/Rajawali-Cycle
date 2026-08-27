@@ -144,6 +144,8 @@ export interface TaskChecklistItem {
   photo?: string; // Data URL or URL foto bukti spesifik per item checklist (1 checklist = 1 foto)
   photoUploadedAt?: string;
   notes?: string;
+  itemQC?: 'Sesuai' | 'Maksimalkan' | 'Ulangi';
+  itemQCNotes?: string;
 }
 
 export interface CleaningTask {
@@ -197,6 +199,20 @@ export interface BlastAnnouncement {
   targetProjectId?: string; // 'ALL' or specific projectId
 }
 
+export interface SopEquipmentItem {
+  id?: string;
+  name: string;
+  qty: number | string;
+  unit: string;
+}
+
+export interface SopChemicalItem {
+  id?: string;
+  name: string;
+  dosage: string;
+  unit: string;
+}
+
 export interface SopDocument {
   id: string;
   code?: string;
@@ -204,12 +220,17 @@ export interface SopDocument {
   category: string;
   version: string;
   description?: string;
-  steps: string[];
-  safetyEquipment?: string[];
-  chemicalsUsed?: string[];
-  requiredChemicals?: string[];
-  requiredPPE?: string[];
+  objective?: string; // Tujuan Pekerjaan
+  equipmentList?: SopEquipmentItem[]; // Peralatan Kerja (Nama Alat, Qty, Satuan)
+  chemicalList?: SopChemicalItem[]; // Chemical & Takaran Rasio (Nama Chemical, Takaran, Satuan)
+  steps: string[]; // Tahapan Prosedur Kerja Standar (SOP) (1, 2, 3...)
+  requiredPPE?: string[]; // APD & Alat Keselamatan (K3)
+  safetyEquipment?: string[]; // APD alias
+  equipmentMaintenance?: string[]; // Perawatan Peralatan
+  chemicalsUsed?: string[]; // Chemical alias
+  requiredChemicals?: string[]; // Chemical alias
   lastUpdated: string;
+  author?: string;
 }
 
 export type SopItem = SopDocument;
@@ -249,4 +270,6 @@ export interface UserAccount {
   status: 'Aktif' | 'Nonaktif';
   phone?: string;
   lastLogin?: string;
+  canDeleteTasks?: boolean; // Izin Hapus Tugas di Rajawali Board
+  canDeleteSops?: boolean; // Izin Hapus Dokumen SOP di Pusat SOP
 }

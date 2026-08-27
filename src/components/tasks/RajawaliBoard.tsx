@@ -24,7 +24,8 @@ import {
   Trash2,
   FileCheck2,
   Calendar,
-  UploadCloud
+  UploadCloud,
+  Download
 } from 'lucide-react';
 import {
   Project,
@@ -42,6 +43,7 @@ import { TaskPhotoUploadModal } from './TaskPhotoUploadModal';
 import { TaskQCModal } from './TaskQCModal';
 import { TaskPhotoViewerModal } from './TaskPhotoViewerModal';
 import { TaskKPIView } from './TaskKPIView';
+import { TaskDownloadReportModal } from './TaskDownloadReportModal';
 
 interface RajawaliBoardProps {
   projects: Project[];
@@ -87,6 +89,8 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   const [activeUploadChecklistId, setActiveUploadChecklistId] = useState<string | undefined>(undefined);
   const [activeQCTask, setActiveQCTask] = useState<CleaningTask | null>(null);
   const [activePhotoViewer, setActivePhotoViewer] = useState<{ url: string; title: string } | null>(null);
+  const [showDownloadModal, setShowDownloadModal] = useState<boolean>(false);
+  const [downloadTargetTask, setDownloadTargetTask] = useState<CleaningTask | null>(null);
 
   // Card direct file upload refs
   const directCardFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -294,6 +298,41 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
     setActiveUploadChecklistId(undefined);
   };
 
+  // Direct move to Audit QC when all checklist items are checked & photos uploaded
+  const handleMoveToAuditDirectly = (taskId: string) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        let durationMinutes = t.durationMinutes || 60;
+        if (t.startedAt) {
+          try {
+            const startMs = new Date(t.startedAt.replace(' ', 'T')).getTime();
+            const nowMs = Date.now();
+            const diffMins = Math.round((nowMs - startMs) / (1000 * 60));
+            if (diffMins > 0 && diffMins < 1440) {
+              durationMinutes = diffMins;
+            }
+          } catch (e) {
+            durationMinutes = 60;
+          }
+        }
+        const firstPhoto = t.checklist.find((c) => c.photo)?.photo;
+
+        return {
+          ...t,
+          status: 'review' as TaskStatus,
+          evidencePhoto: firstPhoto || t.evidencePhoto,
+          submittedAt: now,
+          durationMinutes,
+          qcStatus: 'Pending' as QCStatus,
+          updatedAt: now
+        };
+      }
+      return t;
+    });
+    onUpdateTasks(updated);
+  };
+
   // Action: Save partial progress without moving to QC
   const handleSaveDraftProgress = (taskId: string, updatedChecklist: TaskChecklistItem[], notes: string) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -322,7 +361,8 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   const handleQCDecision = (
     taskId: string,
     decision: 'Sesuai' | 'Maksimalkan' | 'Ulangi',
-    feedback: string
+    feedback: string,
+    updatedChecklist?: TaskChecklistItem[]
   ) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const reviewer = currentUser
@@ -331,11 +371,14 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
 
     const updated = tasks.map((t) => {
       if (t.id === taskId) {
+        const nextChecklist = updatedChecklist || t.checklist;
+
         if (decision === 'Sesuai') {
-          // Move to 'done'
+          // Rule: Sesuai -> Pindah ke kolom Selesai (Done)
           return {
             ...t,
             status: 'done' as TaskStatus,
+            checklist: nextChecklist,
             qcStatus: 'Sesuai' as QCStatus,
             qcReviewedBy: reviewer,
             qcReviewedAt: now,
@@ -344,39 +387,43 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
             updatedAt: now
           };
         } else if (decision === 'Maksimalkan') {
-          // Does NOT move anywhere, stays in 'review'
+          // Rule: Maksimalkan -> Pindah / tetap berada di kolom Sedang Dikerjakan (foto tetap ada)
           return {
             ...t,
-            status: 'review' as TaskStatus,
+            status: 'in_progress' as TaskStatus,
+            checklist: nextChecklist,
             qcStatus: 'Maksimalkan' as QCStatus,
             qcReviewedBy: reviewer,
             qcReviewedAt: now,
-            qcFeedback: feedback || 'Perlu dimaksimalkan pada bagian tertentu.',
+            qcFeedback: feedback || 'Perlu disempurnakan / dimaksimalkan pada item tertentu.',
             updatedAt: now
           };
         } else if (decision === 'Ulangi') {
-          // All checklist photos deleted/reset & task returns to 'todo' (List Tugas)
-          const resetChecklist = t.checklist.map((c) => ({
+          // Rule: Ulangi -> Pindah kembali ke List Tugas & HAPUS SEMUA FOTO yang telah diupload
+          const resetChecklist = nextChecklist.map((c) => ({
             ...c,
             photo: undefined,
             photoUploadedAt: undefined,
+            itemQC: undefined,
+            itemQCNotes: undefined,
             done: false
           }));
 
           return {
             ...t,
-            status: 'todo' as TaskStatus, // Returns to List Tugas
+            status: 'todo' as TaskStatus, // Kembali ke awal / List Tugas
             checklist: resetChecklist,
-            evidencePhoto: undefined, // Photos deleted as requested
+            evidencePhoto: undefined, // Foto bukti dihapus
+            evidencePhotoBefore: undefined,
             evidenceNotes: undefined,
             submittedAt: undefined,
             startedAt: undefined,
             qcStatus: 'Ulangi' as QCStatus,
             qcReviewedBy: reviewer,
             qcReviewedAt: now,
-            qcFeedback: feedback || 'Wajib diulang dari awal. Semua foto checklist direset.',
+            qcFeedback: feedback || 'Wajib diulang dari awal. Semua foto checklist direset dan dihapus.',
             repeatCount: (t.repeatCount || 0) + 1,
-            notes: feedback ? `[CATATAN ULANGI QC]: ${feedback}` : t.notes,
+            notes: feedback ? `[CATATAN EVALUASI ULANGI QC]: ${feedback}` : t.notes,
             updatedAt: now
           };
         }
@@ -388,9 +435,29 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
     setActiveQCTask(null);
   };
 
-  // 5. Action: Delete / Cancel Task
+  // Permission Check: Only Super Admin or users with canDeleteTasks granted by Super Admin
+  const isSuperAdmin =
+    userRole === 'Super Admin (HQ)' ||
+    currentUser?.role === 'Super Admin (HQ)' ||
+    currentUser?.id === 'user-superadmin';
+  const canDeleteTasks = isSuperAdmin || Boolean(currentUser?.canDeleteTasks);
+
+  // 5. Action: Delete / Cancel Task (Gated by permission)
   const handleDeleteTask = (taskId: string) => {
-    if (window.confirm('Hapus tugas kebersihan ini dari board?')) {
+    if (!canDeleteTasks) {
+      alert(
+        'Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat menghapus tugas ini.'
+      );
+      return;
+    }
+    const target = tasks.find((t) => t.id === taskId);
+    if (!target) return;
+
+    if (
+      window.confirm(
+        `Apakah Anda yakin ingin menghapus tugas area "${target.areaName}" (${target.shift})? Tindakan ini tidak dapat dibatalkan.`
+      )
+    ) {
       const updated = tasks.filter((t) => t.id !== taskId);
       onUpdateTasks(updated);
     }
@@ -399,7 +466,17 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   // 5b. Action: Clear All Tasks (Kosongkan Board)
   const handleClearAllTasks = () => {
     if (tasks.length === 0) return;
-    if (window.confirm('Hapus dan kosongkan semua data tugas kebersihan di Rajawali Boards?')) {
+    if (!canDeleteTasks) {
+      alert(
+        'Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat mengosongkan board tugas.'
+      );
+      return;
+    }
+    if (
+      window.confirm(
+        'Hapus dan kosongkan semua data tugas kebersihan di Rajawali Boards? Seluruh riwayat dan foto checklist akan dihapus.'
+      )
+    ) {
       onUpdateTasks([]);
     }
   };
@@ -541,6 +618,21 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
               </select>
             </div>
 
+            {/* Download Report Button (Laporan Tugas Selesai Beserta Foto) */}
+            <button
+              id="download-tasks-report-btn"
+              type="button"
+              onClick={() => {
+                setDownloadTargetTask(null);
+                setShowDownloadModal(true);
+              }}
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+              title="Unduh Laporan Tugas Selesai Beserta Foto & Detail QC"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Laporan Selesai</span>
+            </button>
+
             {/* Add Task Button (Supervisor / Admin / PM Action) */}
             <button
               id="add-adhoc-task-btn"
@@ -556,8 +648,16 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
               <button
                 id="clear-all-tasks-btn"
                 onClick={handleClearAllTasks}
-                className="flex items-center space-x-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs rounded-xl transition cursor-pointer"
-                title="Hapus semua data tugas kebersihan"
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition cursor-pointer ${
+                  canDeleteTasks
+                    ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
+                    : 'bg-slate-900 border-slate-800 text-slate-600 hover:text-slate-500'
+                }`}
+                title={
+                  canDeleteTasks
+                    ? 'Hapus semua data tugas kebersihan di board'
+                    : 'Akses Terbatas: Hanya Super Admin (HQ) atau akun yang diizinkan Super Admin yang dapat mengosongkan board'
+                }
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Kosongkan Board</span>
@@ -651,7 +751,7 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
                   key={task.id}
                   className="bg-slate-900 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl shadow-md space-y-2.5 transition-all text-xs relative group"
                 >
-                  {/* Card Top: Priority, Repeat Count, & Time */}
+                  {/* Card Top: Priority, Repeat Count, Time, & Delete Action */}
                   <div className="flex items-center justify-between gap-1">
                     <div className="flex items-center space-x-1">
                       <span
@@ -674,12 +774,35 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
                       ) : null}
                     </div>
 
-                    {task.targetCompletionTime && (
-                      <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1">
-                        <Clock className="w-3 h-3 text-slate-500" />
-                        <span>Target: {task.targetCompletionTime}</span>
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-1.5">
+                      {task.targetCompletionTime && (
+                        <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>Target: {task.targetCompletionTime}</span>
+                        </span>
+                      )}
+
+                      {/* Delete Task Button - Restricted to Super Admin or Authorized User */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(task.id);
+                        }}
+                        className={`p-1 rounded-lg transition cursor-pointer ${
+                          canDeleteTasks
+                            ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-500/20'
+                            : 'text-slate-700 hover:text-slate-500 hover:bg-slate-800'
+                        }`}
+                        title={
+                          canDeleteTasks
+                            ? `Hapus Tugas: ${task.areaName}`
+                            : 'Akses Terbatas: Hanya Super Admin (HQ) atau pengguna berizin yang dapat menghapus tugas ini'
+                        }
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Area Name & Location */}
@@ -881,28 +1004,36 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
                       </button>
                     )}
 
-                    {/* 2. IN_PROGRESS Actions: Upload Photo Evidence */}
+                    {/* 2. IN_PROGRESS Actions: Upload Photo Evidence & Move to Audit */}
                     {col.id === 'in_progress' && (
-                      <button
-                        type="button"
-                        id={`upload-photo-btn-${task.id}`}
-                        onClick={() => {
-                          setActiveUploadTask(task);
-                          setActiveUploadChecklistId(undefined);
-                        }}
-                        className={`w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow transition cursor-pointer ${
-                          allPhotosUploaded
-                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/20'
-                            : 'bg-slate-800 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40'
-                        }`}
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>
-                          {allPhotosUploaded
-                            ? 'Kirim ke Audit QC (Lengkap)'
-                            : `Lengkapi Foto (${photoCount}/${totalCount})`}
-                        </span>
-                      </button>
+                      <div className="w-full space-y-1.5">
+                        {allPhotosUploaded && allDone ? (
+                          <button
+                            type="button"
+                            id={`move-to-audit-btn-${task.id}`}
+                            onClick={() => handleMoveToAuditDirectly(task.id)}
+                            className="w-full py-2 px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-purple-600/30 transition cursor-pointer"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Pindah ke Kolom Audit (Foto Lengkap)</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            id={`upload-photo-btn-${task.id}`}
+                            onClick={() => {
+                              setActiveUploadTask(task);
+                              setActiveUploadChecklistId(undefined);
+                            }}
+                            className="w-full py-1.5 px-3 bg-slate-800 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 rounded-lg font-semibold text-xs flex items-center justify-center space-x-1.5 shadow transition cursor-pointer"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>
+                              Lengkapi Foto & Ceklist ({photoCount}/{totalCount} Foto)
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     {/* 3. REVIEW Actions: Supervisor Audit QC (Sesuai / Maksimalkan / Ulangi) */}
@@ -918,18 +1049,32 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
                       </button>
                     )}
 
-                    {/* 4. DONE Verified Indicator */}
+                    {/* 4. DONE Verified Indicator & Download Button */}
                     {col.id === 'done' && (
-                      <div className="w-full flex items-center justify-between text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/30">
-                        <span className="flex items-center space-x-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>QC Verified (Sesuai)</span>
-                        </span>
-                        {task.durationMinutes && (
-                          <span className="text-[10px] text-slate-300 font-mono">
-                            ⏱ {task.durationMinutes} Mnt
+                      <div className="w-full space-y-1.5">
+                        <div className="w-full flex items-center justify-between text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/30">
+                          <span className="flex items-center space-x-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>QC Verified (Sesuai)</span>
                           </span>
-                        )}
+                          {task.durationMinutes && (
+                            <span className="text-[10px] text-slate-300 font-mono">
+                              ⏱ {task.durationMinutes} Mnt
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          id={`download-card-task-btn-${task.id}`}
+                          onClick={() => {
+                            setDownloadTargetTask(task);
+                            setShowDownloadModal(true);
+                          }}
+                          className="w-full py-1.5 px-2.5 bg-slate-800 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg font-semibold text-[11px] flex items-center justify-center space-x-1.5 border border-emerald-500/30 transition cursor-pointer"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Unduh Dokumen Laporan</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1074,6 +1219,19 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
           onClose={() => setActivePhotoViewer(null)}
         />
       )}
+
+      {/* MODAL 5: Download & Print Completed Tasks Report */}
+      <TaskDownloadReportModal
+        isOpen={showDownloadModal}
+        onClose={() => {
+          setShowDownloadModal(false);
+          setDownloadTargetTask(null);
+        }}
+        tasks={tasks}
+        projects={projects}
+        initialProjectId={activeProjectFilter}
+        initialTask={downloadTargetTask}
+      />
     </div>
   );
 };

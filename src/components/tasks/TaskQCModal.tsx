@@ -11,9 +11,10 @@ import {
   Image as ImageIcon,
   CheckSquare,
   Eye,
-  Camera
+  Camera,
+  Info
 } from 'lucide-react';
-import { CleaningTask, QCStatus } from '../../types';
+import { CleaningTask, QCStatus, TaskChecklistItem } from '../../types';
 
 interface TaskQCModalProps {
   task: CleaningTask;
@@ -22,7 +23,8 @@ interface TaskQCModalProps {
   onDecision: (
     taskId: string,
     decision: 'Sesuai' | 'Maksimalkan' | 'Ulangi',
-    feedback: string
+    feedback: string,
+    updatedChecklist?: TaskChecklistItem[]
   ) => void;
   onOpenPhotoViewer?: (photoUrl: string, title: string) => void;
 }
@@ -34,14 +36,43 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
   onDecision,
   onOpenPhotoViewer
 }) => {
+  // Local state for each checklist item's evaluation
+  const [itemsChecklist, setItemsChecklist] = useState<TaskChecklistItem[]>(() =>
+    task.checklist.map((c) => ({
+      ...c,
+      itemQC: c.itemQC || 'Sesuai'
+    }))
+  );
+
   const [selectedDecision, setSelectedDecision] = useState<'Sesuai' | 'Maksimalkan' | 'Ulangi'>('Sesuai');
   const [feedback, setFeedback] = useState<string>(task.qcFeedback || '');
 
-  const totalItems = task.checklist.length;
-  const itemsWithPhotos = task.checklist.filter((c) => Boolean(c.photo)).length;
+  const totalItems = itemsChecklist.length;
+  const itemsWithPhotos = itemsChecklist.filter((c) => Boolean(c.photo)).length;
+
+  // Handle individual item QC rating click under photo
+  const handleItemRatingChange = (itemId: string, rating: 'Sesuai' | 'Maksimalkan' | 'Ulangi') => {
+    const updated = itemsChecklist.map((c) => (c.id === itemId ? { ...c, itemQC: rating } : c));
+    setItemsChecklist(updated);
+
+    // Auto-suggest overall decision based on item ratings:
+    // If any item is 'Ulangi', overall defaults to 'Ulangi'
+    // Else if any item is 'Maksimalkan', overall defaults to 'Maksimalkan'
+    // Else all 'Sesuai', overall defaults to 'Sesuai'
+    const hasUlangi = updated.some((c) => c.itemQC === 'Ulangi');
+    const hasMaksimalkan = updated.some((c) => c.itemQC === 'Maksimalkan');
+
+    if (hasUlangi) {
+      setSelectedDecision('Ulangi');
+    } else if (hasMaksimalkan) {
+      setSelectedDecision('Maksimalkan');
+    } else {
+      setSelectedDecision('Sesuai');
+    }
+  };
 
   const handleApplyDecision = () => {
-    onDecision(task.id, selectedDecision, feedback);
+    onDecision(task.id, selectedDecision, feedback, itemsChecklist);
   };
 
   return (
@@ -61,7 +92,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
           <button
             id="close-qc-modal-btn"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -95,11 +126,30 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
             </div>
           </div>
 
-          {/* Checklist & Photos Audit List (1 Checklist = 1 Photo Inspection) */}
+          {/* Workflow Guide Notice */}
+          <div className="p-2.5 bg-purple-950/20 border border-purple-500/30 rounded-xl text-[11px] text-purple-200 space-y-1">
+            <div className="font-bold flex items-center space-x-1.5 text-purple-300">
+              <Info className="w-3.5 h-3.5" />
+              <span>Aturan Penilaian Audit QC:</span>
+            </div>
+            <ul className="list-disc pl-4 space-y-0.5 text-[10.5px] text-purple-300/90">
+              <li>
+                <b>Sesuai:</b> Tugas & foto berpindah ke kolom <b>Selesai</b>.
+              </li>
+              <li>
+                <b>Maksimalkan:</b> Tugas & foto berpindah kembali ke kolom <b>Sedang Dikerjakan</b> untuk disempurnakan.
+              </li>
+              <li>
+                <b>Ulangi:</b> Tugas berpindah kembali ke <b>List Tugas</b> dan <b>menghapus semua foto yang telah diupload</b>.
+              </li>
+            </ul>
+          </div>
+
+          {/* Checklist & Photos Audit List (1 Checklist = 1 Photo Inspection + Rating per item) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between text-slate-300 font-semibold px-1">
               <div className="flex items-center space-x-2">
-                <span>Pemeriksaan Foto Bukti per Item Checklist:</span>
+                <span>Pemeriksaan & Penilaian Foto per Item Checklist:</span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold">
                   {itemsWithPhotos}/{totalItems} Foto Tersedia
                 </span>
@@ -107,14 +157,15 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
               <span className="text-[10px] text-slate-400">Klik foto untuk perbesar (zoom)</span>
             </div>
 
-            <div className="space-y-3">
-              {task.checklist.map((item, index) => {
+            <div className="space-y-3.5">
+              {itemsChecklist.map((item, index) => {
                 const photoSrc = item.photo || task.evidencePhoto;
+                const currentItemQC = item.itemQC || 'Sesuai';
 
                 return (
                   <div
                     key={item.id}
-                    className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5"
+                    className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5 shadow-sm"
                   >
                     {/* Item Title & Check status */}
                     <div className="flex items-start justify-between gap-2">
@@ -143,7 +194,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
 
                     {/* Photo attached directly beneath this checklist item */}
                     {photoSrc ? (
-                      <div className="pt-2 border-t border-slate-800/80">
+                      <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
                         <div
                           onClick={() =>
                             onOpenPhotoViewer &&
@@ -170,6 +221,70 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
                             <span>Foto Bukti #{index + 1}</span>
                           </div>
                         </div>
+
+                        {/* PENILAIAN MASING-MASING ITEM DI BAWAH GAMBAR FOTO */}
+                        <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10.5px]">
+                            <span className="text-slate-400 font-medium">
+                              Penilaian Item #{index + 1} di bawah foto:
+                            </span>
+                            <span
+                              className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                                currentItemQC === 'Sesuai'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : currentItemQC === 'Maksimalkan'
+                                  ? 'bg-amber-500/20 text-amber-300'
+                                  : 'bg-rose-500/20 text-rose-300'
+                              }`}
+                            >
+                              Status: {currentItemQC}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 pt-1">
+                            {/* Sesuai Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleItemRatingChange(item.id, 'Sesuai')}
+                              className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold flex items-center justify-center space-x-1 transition cursor-pointer ${
+                                currentItemQC === 'Sesuai'
+                                  ? 'bg-emerald-600 text-white shadow ring-1 ring-emerald-400'
+                                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              <span>Sesuai</span>
+                            </button>
+
+                            {/* Maksimalkan Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleItemRatingChange(item.id, 'Maksimalkan')}
+                              className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold flex items-center justify-center space-x-1 transition cursor-pointer ${
+                                currentItemQC === 'Maksimalkan'
+                                  ? 'bg-amber-600 text-white shadow ring-1 ring-amber-400'
+                                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                              }`}
+                            >
+                              <AlertTriangle className="w-3 h-3 text-amber-400" />
+                              <span>Maksimalkan</span>
+                            </button>
+
+                            {/* Ulangi Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleItemRatingChange(item.id, 'Ulangi')}
+                              className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold flex items-center justify-center space-x-1 transition cursor-pointer ${
+                                currentItemQC === 'Ulangi'
+                                  ? 'bg-rose-600 text-white shadow ring-1 ring-rose-400'
+                                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                              }`}
+                            >
+                              <RotateCcw className="w-3 h-3 text-rose-400" />
+                              <span>Ulangi</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-300 flex items-center space-x-2 text-[10.5px]">
@@ -193,10 +308,10 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
             </div>
           )}
 
-          {/* 3 Decision Choices */}
+          {/* Overall 3 Decision Choices */}
           <div className="space-y-2 pt-2 border-t border-slate-800">
             <label className="block text-slate-200 font-bold text-xs">
-              Pilih Keputusan Penilaian Audit QC:
+              Keputusan Akhir Penilaian Audit QC Tugas:
             </label>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -221,7 +336,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
                   )}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-tight">
-                  Pindah ke <b>Selesai</b>. Tugas & seluruh {totalItems} foto checklist memenuhi SOP 100%.
+                  Pindah ke <b>Selesai</b>. Tugas & foto dinyatakan bersih sesuai SOP.
                 </p>
               </button>
 
@@ -246,7 +361,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
                   )}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-tight">
-                  <b>Tidak berpindah</b>. Tetap di Audit QC dengan catatan perbaikan minor.
+                  Pindah ke <b>Sedang Dikerjakan</b>. Foto tetap tersimpan untuk disempurnakan.
                 </p>
               </button>
 
@@ -271,7 +386,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
                   )}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-tight">
-                  <b>Semua foto terhapus</b> & tugas kembali menjadi <b>List Tugas</b> untuk diulang.
+                  Pindah ke <b>List Tugas</b> & <b>foto terhapus</b> untuk diulang dari awal.
                 </p>
               </button>
             </div>
@@ -289,17 +404,17 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
           >
             {selectedDecision === 'Sesuai' && (
               <p>
-                ✓ <b>Konsekuensi:</b> Tugas akan berpindah ke kolom <b>Selesai (Done)</b>, tercatat skor QC Sesuai, dan dihitung dalam KPI Ketepatan & Kecepatan.
+                ✓ <b>Konsekuensi Sesuai:</b> List tugas beserta seluruh foto bukti akan berpindah ke kolom <b>Selesai (Done)</b>.
               </p>
             )}
             {selectedDecision === 'Maksimalkan' && (
               <p>
-                ⚠️ <b>Konsekuensi:</b> Tugas <b>TIDAK BERPINDAH</b> dari kolom Audit QC. Seluruh foto tetap tersimpan dan Team Leader diminta menyempurnakan bagian yang kurang.
+                ⚠️ <b>Konsekuensi Maksimalkan:</b> List tugas beserta foto akan berpindah/tetap berada di kolom <b>Sedang Dikerjakan</b> agar Team Leader menyempurnakan area yang belum maksimal.
               </p>
             )}
             {selectedDecision === 'Ulangi' && (
               <p>
-                🔄 <b>Konsekuensi:</b> Seluruh {totalItems} foto checklist bukti saat ini akan <b>DIHAPUS OTOMATIS</b>. Tugas akan <b>DIRESET KEMBALI KE LIST TUGAS</b> agar Team Leader mengulang pengerjaan dan upload foto baru untuk setiap item checklist.
+                🔄 <b>Konsekuensi Ulangi:</b> List tugas akan berpindah <b>KEMBALI KE LIST TUGAS</b> dan <b>SEMUA FOTO YANG TELAH DIUPLOAD AKAN DIHAPUS</b> agar tugas diulang dari awal.
               </p>
             )}
           </div>
@@ -307,7 +422,7 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
           {/* Feedback Input */}
           <div>
             <label className="block text-slate-300 font-semibold mb-1">
-              Catatan / Instruksi Evaluasi Supervisor:
+              Catatan / Evaluasi Supervisor untuk Team Leader:
             </label>
             <textarea
               rows={2}
@@ -315,10 +430,10 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
               onChange={(e) => setFeedback(e.target.value)}
               placeholder={
                 selectedDecision === 'Sesuai'
-                  ? 'Contoh: Pekerjaan rapi, seluruh foto item checklist lengkap dan sesuai SOP.'
+                  ? 'Contoh: Pekerjaan sangat rapi, seluruh foto checklist sesuai SOP.'
                   : selectedDecision === 'Maksimalkan'
-                  ? 'Contoh: Masih ada sedikit flek di sudut wastafel pada foto #2, tolong disempurnakan.'
-                  : 'Contoh: Lantai masih basah berkerak pada foto #1. Wajib diulang dari awal.'
+                  ? 'Contoh: Masih ada noda air di wastafel pada foto #2, tolong dimaksimalkan.'
+                  : 'Contoh: Lantai masih kotor berdebu. Wajib diulang dari awal dan foto ulang.'
               }
               className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
             />
@@ -356,3 +471,4 @@ export const TaskQCModal: React.FC<TaskQCModalProps> = ({
     </div>
   );
 };
+

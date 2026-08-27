@@ -15,6 +15,7 @@ import {
   MutationHistory,
   BlastAnnouncement,
   SopItem,
+  SopDocument,
   AppView,
   UserAccount
 } from './types';
@@ -143,6 +144,11 @@ export default function App() {
     const nextBlasts = [blast, ...blasts];
     setBlasts(nextBlasts);
     storageService.saveBlasts(nextBlasts);
+  };
+
+  const handleUpdateSops = (updatedSops: SopDocument[]) => {
+    setSops(updatedSops);
+    storageService.saveSops(updatedSops);
   };
 
   // User Management Handlers
@@ -423,7 +429,12 @@ export default function App() {
 
             {/* SOP Library & K3 Safety */}
             {(currentView === 'sops' || currentView === 'sop') && (
-              <SopLibrary sops={sops} />
+              <SopLibrary
+                sops={sops}
+                onUpdateSops={handleUpdateSops}
+                userRole={currentUser.role}
+                currentUser={currentUser}
+              />
             )}
 
             {/* Reporting Center & Payroll */}

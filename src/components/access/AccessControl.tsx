@@ -129,6 +129,8 @@ export const AccessControl: React.FC<AccessControlProps> = ({
     assignedProjectId: string;
     isLocationLocked: boolean;
     allowedViews: AppView[];
+    canDeleteTasks: boolean;
+    canDeleteSops: boolean;
   }>({
     username: '',
     name: '',
@@ -147,12 +149,46 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       'blast',
       'sops',
       'reports'
-    ]
+    ],
+    canDeleteTasks: false,
+    canDeleteSops: false
   });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Toggle SOP Delete Permission directly in matrix
+  const handleToggleDeleteSop = (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (target?.role === 'Super Admin (HQ)') {
+      showToast('Super Admin selalu memiliki hak izin hapus dokumen.');
+      return;
+    }
+    const updated = users.map((u) => {
+      if (u.id !== userId) return u;
+      const nextVal = !u.canDeleteSops;
+      return { ...u, canDeleteSops: nextVal };
+    });
+    onUpdateUsers(updated);
+    showToast(`Izin hapus SOP untuk ${target?.name || 'pengguna'} berhasil diperbarui.`);
+  };
+
+  // Toggle Task Delete Permission directly in matrix
+  const handleToggleDeleteTask = (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (target?.role === 'Super Admin (HQ)') {
+      showToast('Super Admin selalu memiliki hak izin hapus tugas.');
+      return;
+    }
+    const updated = users.map((u) => {
+      if (u.id !== userId) return u;
+      const nextVal = !u.canDeleteTasks;
+      return { ...u, canDeleteTasks: nextVal };
+    });
+    onUpdateUsers(updated);
+    showToast(`Izin hapus tugas Rajawali Board untuk ${target?.name || 'pengguna'} berhasil diperbarui.`);
   };
 
   // Toggle specific menu permission for a user directly in the matrix
@@ -286,6 +322,8 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       assignedProjectId: newUserForm.assignedProjectId,
       isLocationLocked: newUserForm.isLocationLocked,
       allowedViews: newUserForm.allowedViews,
+      canDeleteTasks: newUserForm.role === 'Super Admin (HQ)' ? true : newUserForm.canDeleteTasks,
+      canDeleteSops: newUserForm.role === 'Super Admin (HQ)' ? true : newUserForm.canDeleteSops,
       status: 'Aktif'
     };
 
@@ -299,7 +337,9 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       password: 'password123',
       assignedProjectId: projects[0]?.id || 'proj-1',
       isLocationLocked: true,
-      allowedViews: ['dashboard', 'timesheet', 'employees', 'inventory', 'tasks', 'blast', 'sops', 'reports']
+      allowedViews: ['dashboard', 'timesheet', 'employees', 'inventory', 'tasks', 'blast', 'sops', 'reports'],
+      canDeleteTasks: false,
+      canDeleteSops: false
     });
     showToast(`Akun pengguna baru ${newUser.name} berhasil dibuat.`);
   };
@@ -452,6 +492,19 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                     </div>
                   </th>
                 ))}
+                {/* Dedicated Permission Columns: Delete SOP & Delete Task */}
+                <th className="py-3.5 px-2 text-center min-w-[95px] bg-indigo-950/30 border-l border-r border-indigo-900/30" title="Izin menghapus dokumen SOP di Pusat SOP">
+                  <div className="flex flex-col items-center justify-center space-y-1">
+                    <Trash2 className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[10px] normal-case text-indigo-300 font-bold">Hapus SOP</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-2 text-center min-w-[95px] bg-teal-950/30 border-r border-teal-900/30" title="Izin menghapus tugas area di Rajawali Boards">
+                  <div className="flex flex-col items-center justify-center space-y-1">
+                    <Trash2 className="w-3.5 h-3.5 text-teal-400" />
+                    <span className="text-[10px] normal-case text-teal-300 font-bold">Hapus Tugas</span>
+                  </div>
+                </th>
                 <th className="py-3.5 px-3 text-center min-w-[110px]">Aksi Akun</th>
               </tr>
             </thead>
@@ -459,6 +512,8 @@ export const AccessControl: React.FC<AccessControlProps> = ({
               {users.map((u) => {
                 const assignedProj = projects.find((p) => p.id === u.assignedProjectId);
                 const isSuperAdmin = u.role === 'Super Admin (HQ)';
+                const canDelSop = isSuperAdmin || Boolean(u.canDeleteSops);
+                const canDelTask = isSuperAdmin || Boolean(u.canDeleteTasks);
 
                 return (
                   <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
@@ -544,6 +599,48 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                         </td>
                       );
                     })}
+
+                    {/* Toggle: Izin Hapus SOP */}
+                    <td className="py-3 px-2 text-center bg-indigo-950/20 border-l border-r border-indigo-900/30">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDeleteSop(u.id)}
+                        disabled={isSuperAdmin}
+                        title={
+                          isSuperAdmin
+                            ? 'Super Admin selalu memiliki izin hapus dokumen SOP'
+                            : `Klik untuk ${canDelSop ? 'Mencabut' : 'Memberikan'} izin hapus dokumen SOP`
+                        }
+                        className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
+                          canDelSop
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 hover:bg-rose-500/20 hover:text-rose-400'
+                            : 'bg-slate-800/80 text-slate-500 border border-slate-700 hover:bg-indigo-500/20 hover:text-indigo-300'
+                        } ${isSuperAdmin ? 'opacity-80 cursor-default' : ''}`}
+                      >
+                        {canDelSop ? <Check className="w-4 h-4" /> : <X className="w-3.5 h-3.5" />}
+                      </button>
+                    </td>
+
+                    {/* Toggle: Izin Hapus Tugas */}
+                    <td className="py-3 px-2 text-center bg-teal-950/20 border-r border-teal-900/30">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDeleteTask(u.id)}
+                        disabled={isSuperAdmin}
+                        title={
+                          isSuperAdmin
+                            ? 'Super Admin selalu memiliki izin hapus tugas Rajawali Board'
+                            : `Klik untuk ${canDelTask ? 'Mencabut' : 'Memberikan'} izin hapus tugas Rajawali Board`
+                        }
+                        className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
+                          canDelTask
+                            ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50 hover:bg-rose-500/20 hover:text-rose-400'
+                            : 'bg-slate-800/80 text-slate-500 border border-slate-700 hover:bg-teal-500/20 hover:text-teal-300'
+                        } ${isSuperAdmin ? 'opacity-80 cursor-default' : ''}`}
+                      >
+                        {canDelTask ? <Check className="w-4 h-4" /> : <X className="w-3.5 h-3.5" />}
+                      </button>
+                    </td>
 
                     {/* Action Column */}
                     <td className="py-3 px-3 text-center">
@@ -878,6 +975,76 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                 </div>
               </div>
 
+              {/* Special Permissions: Deletion of SOP & Tasks */}
+              <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-rose-400">
+                    <Trash2 className="w-4 h-4" />
+                    <span>Izin Khusus Penghapusan Data (Otorisasi Super Admin)</span>
+                  </div>
+                  {selectedUserForEdit.role === 'Super Admin (HQ)' && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">
+                      Super Admin (Semua Izin Aktif)
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Pengguna dengan izin ini dapat menghapus data penting. Berikan izin hanya kepada personil yang terpercaya.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <label
+                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      selectedUserForEdit.canDeleteSops || selectedUserForEdit.role === 'Super Admin (HQ)'
+                        ? 'bg-indigo-500/10 border-indigo-500/40 text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={selectedUserForEdit.role === 'Super Admin (HQ)'}
+                      checked={Boolean(selectedUserForEdit.canDeleteSops) || selectedUserForEdit.role === 'Super Admin (HQ)'}
+                      onChange={(e) =>
+                        setSelectedUserForEdit({
+                          ...selectedUserForEdit,
+                          canDeleteSops: e.target.checked
+                        })
+                      }
+                      className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-400"
+                    />
+                    <div>
+                      <span className="font-bold text-indigo-300 block">Izin Hapus Dokumen SOP</span>
+                      <span className="text-[10px] text-slate-400">Pusat SOP & Panduan Standar Mutu</span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      selectedUserForEdit.canDeleteTasks || selectedUserForEdit.role === 'Super Admin (HQ)'
+                        ? 'bg-teal-500/10 border-teal-500/40 text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={selectedUserForEdit.role === 'Super Admin (HQ)'}
+                      checked={Boolean(selectedUserForEdit.canDeleteTasks) || selectedUserForEdit.role === 'Super Admin (HQ)'}
+                      onChange={(e) =>
+                        setSelectedUserForEdit({
+                          ...selectedUserForEdit,
+                          canDeleteTasks: e.target.checked
+                        })
+                      }
+                      className="rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-400"
+                    />
+                    <div>
+                      <span className="font-bold text-teal-300 block">Izin Hapus Tugas Area</span>
+                      <span className="text-[10px] text-slate-400">Rajawali Boards / Cleaning Area</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -1091,6 +1258,76 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                       </label>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Special Permissions for New User: Delete SOP & Tasks */}
+              <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-rose-400">
+                    <Trash2 className="w-4 h-4" />
+                    <span>Izin Khusus Penghapusan Data (Otorisasi Super Admin)</span>
+                  </div>
+                  {newUserForm.role === 'Super Admin (HQ)' && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">
+                      Super Admin (Otomatis Aktif)
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Pilih apakah staf ini diizinkan menghapus data dokumen SOP atau tugas di sistem:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <label
+                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      newUserForm.canDeleteSops || newUserForm.role === 'Super Admin (HQ)'
+                        ? 'bg-indigo-500/10 border-indigo-500/40 text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={newUserForm.role === 'Super Admin (HQ)'}
+                      checked={newUserForm.canDeleteSops || newUserForm.role === 'Super Admin (HQ)'}
+                      onChange={(e) =>
+                        setNewUserForm({
+                          ...newUserForm,
+                          canDeleteSops: e.target.checked
+                        })
+                      }
+                      className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-400"
+                    />
+                    <div>
+                      <span className="font-bold text-indigo-300 block">Izin Hapus Dokumen SOP</span>
+                      <span className="text-[10px] text-slate-400">Pusat SOP & Panduan Standar Mutu</span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      newUserForm.canDeleteTasks || newUserForm.role === 'Super Admin (HQ)'
+                        ? 'bg-teal-500/10 border-teal-500/40 text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={newUserForm.role === 'Super Admin (HQ)'}
+                      checked={newUserForm.canDeleteTasks || newUserForm.role === 'Super Admin (HQ)'}
+                      onChange={(e) =>
+                        setNewUserForm({
+                          ...newUserForm,
+                          canDeleteTasks: e.target.checked
+                        })
+                      }
+                      className="rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-400"
+                    />
+                    <div>
+                      <span className="font-bold text-teal-300 block">Izin Hapus Tugas Area</span>
+                      <span className="text-[10px] text-slate-400">Rajawali Boards / Cleaning Area</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

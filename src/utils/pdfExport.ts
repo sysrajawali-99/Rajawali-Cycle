@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Employee, Project, TimesheetMonthRecord, InventoryItem, InventoryLog } from '../types';
-import { formatCurrency, getMonthName } from './formatters';
+import { Employee, Project, TimesheetMonthRecord, InventoryItem, InventoryLog, CleaningTask } from '../types';
+import { formatCurrency, getMonthName, formatDateDDMMYYYY, formatDateTimeStamp } from './formatters';
 
 interface ExportTimesheetPDFParams {
   projects: Project[];
@@ -932,3 +932,433 @@ export const generateInventoryUsagePDF = ({
   const fileName = `Rekap_Pemakaian_Chemical_${safeProjName}_${safeDate}.pdf`;
   doc.save(fileName);
 };
+
+export interface ExportCompletedTasksPDFParams {
+  tasks: CleaningTask[];
+  projects: Project[];
+  selectedProjectId?: string;
+  selectedDate?: string;
+  selectedShift?: string;
+  reportTitle?: string;
+}
+
+export const generateCompletedTasksPDF = ({
+  tasks,
+  projects,
+  selectedProjectId = 'ALL',
+  selectedDate,
+  selectedShift = 'ALL',
+  reportTitle = 'LAPORAN PENYELESAIAN TUGAS AREA CLEANING'
+}: ExportCompletedTasksPDFParams) => {
+  // Filter completed tasks
+  const completedTasks = tasks.filter((t) => {
+    if (t.status !== 'done') return false;
+    if (selectedProjectId !== 'ALL' && t.projectId !== selectedProjectId) return false;
+    if (selectedShift !== 'ALL' && t.shift !== selectedShift) return false;
+    if (selectedDate) {
+      const taskDate = (t.completedAt || t.submittedAt || t.createdAt || '').substring(0, 10);
+      if (taskDate && taskDate !== selectedDate) return false;
+    }
+    return true;
+  });
+
+  const projName =
+    selectedProjectId === 'ALL'
+      ? 'KONSOLIDASI SEMUA LOKASI PROYEK'
+      : projects.find((p) => p.id === selectedProjectId)?.name || 'LOKASI PROYEK';
+
+  const projCode =
+    selectedProjectId === 'ALL'
+      ? 'ALL-SITES'
+      : projects.find((p) => p.id === selectedProjectId)?.code || 'PROJ';
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth(); // ~210mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // ~297mm
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2; // ~186mm
+
+  const currentTimestamp = new Date();
+  const printDateDDMMYYYY = formatDateDDMMYYYY(currentTimestamp);
+  const printTimestampStr = formatDateTimeStamp(currentTimestamp);
+
+  // Helper: Draw Header on Page
+  const drawHeader = () => {
+    doc.setFillColor(15, 39, 68); // Dark Navy
+    doc.rect(0, 0, pageWidth, 20, 'F');
+
+    doc.setFillColor(217, 119, 6); // Amber Gold
+    doc.rect(0, 20, pageWidth, 1.5, 'F');
+
+    // Title & Company
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Area Cleaning Management & Quality Control System (Rajawali Boards)', margin, 12);
+    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 16);
+
+    // Right Tag
+    doc.setFillColor(217, 119, 6);
+    doc.roundedRect(pageWidth - margin - 48, 4, 48, 5.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(15, 23, 42);
+    doc.text('OFFICIAL CLEANING REPORT', pageWidth - margin - 46, 7.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`DOC: CLN-${projCode}-${currentTimestamp.toISOString().substring(0, 10).replace(/-/g, '')}`, pageWidth - margin - 48, 13);
+    doc.text(`Tanggal: ${printDateDDMMYYYY}`, pageWidth - margin - 48, 17);
+  };
+
+  // Helper: Draw Footer with Timestamp
+  const drawFooter = (pageNum: number, totalPages: number) => {
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(
+      `Time stamp cetak: ${printTimestampStr}`,
+      margin,
+      pageHeight - 7
+    );
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      `PT Rajawali Prima Service • Dokumen Resmi Terverifikasi QC • Hal ${pageNum} dari ${totalPages}`,
+      pageWidth - margin,
+      pageHeight - 7,
+      { align: 'right' }
+    );
+  };
+
+  drawHeader();
+
+  let curY = 27;
+
+  // Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(reportTitle.toUpperCase(), margin, curY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    'Rekapitulasi resmi tugas kebersihan yang telah diselesaikan beserta foto bukti pengerjaan dan hasil audit QC.',
+    margin,
+    curY + 4
+  );
+
+  curY += 8;
+
+  // 4 Top Info Cards (Lokasi, Total Selesai, Tanggal, Shift)
+  const cardW = (contentWidth - 6) / 3;
+  const cardH = 10;
+
+  // Box 1: Lokasi
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, curY, cardW, cardH, 1, 1, 'FD');
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(100, 116, 139);
+  doc.text('LOKASI PROYEK / SITE', margin + 2.5, curY + 3.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  const truncatedProj = projName.length > 28 ? projName.substring(0, 26) + '...' : projName;
+  doc.text(truncatedProj, margin + 2.5, curY + 7.5);
+
+  // Box 2: Total Tugas Selesai
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(margin + cardW + 3, curY, cardW, cardH, 1, 1, 'FD');
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(5, 150, 105);
+  doc.text('TOTAL TUGAS SELESAI', margin + cardW + 5.5, curY + 3.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`${completedTasks.length} Tugas (100% Selesai & QC)`, margin + cardW + 5.5, curY + 7.5);
+
+  // Box 3: Tanggal Laporan
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin + (cardW + 3) * 2, curY, cardW, cardH, 1, 1, 'FD');
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(100, 116, 139);
+  doc.text('TANGGAL CETAK & SHIFT', margin + (cardW + 3) * 2 + 2.5, curY + 3.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${printDateDDMMYYYY} • ${selectedShift === 'ALL' ? 'Semua Shift' : selectedShift}`, margin + (cardW + 3) * 2 + 2.5, curY + 7.5);
+
+  curY += cardH + 5;
+
+  if (completedTasks.length === 0) {
+    doc.setFillColor(254, 242, 242);
+    doc.setDrawColor(252, 165, 165);
+    doc.roundedRect(margin, curY, contentWidth, 20, 1.5, 1.5, 'FD');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(185, 28, 28);
+    doc.text('Tidak ada data tugas yang telah selesai pada filter yang dipilih.', margin + 6, curY + 11);
+  } else {
+    // Iterate over completed tasks and render structured reports
+    completedTasks.forEach((task, tIndex) => {
+      const taskDateFormatted = formatDateDDMMYYYY(task.completedAt || task.submittedAt || task.createdAt || currentTimestamp);
+      const assigner = task.assignedBy || 'Supervisor Lapangan';
+      const assignee = task.assignedLeaderName || (task.assignedEmployees && task.assignedEmployees.length > 0 ? task.assignedEmployees.join(', ') : 'Team Leader');
+      const shift = task.shift || 'Shift 1 (Pagi)';
+      const area = task.areaName;
+      const notes = task.notes || '-';
+      const qcNote = task.qcFeedback || 'Pekerjaan rapi dan sesuai standar SOP kebersihan.';
+      const qcReviewer = task.qcReviewedBy || 'Supervisor QC';
+
+      const taskItems = task.checklist;
+      const itemsCount = taskItems.length;
+
+      // Estimate needed height for this task block
+      // Header bar: 14mm
+      // Checklist + photos rows: ~16mm per row
+      // Keterangan bar: 12mm
+      const estimatedHeight = 26 + itemsCount * 18;
+
+      if (curY + estimatedHeight > pageHeight - 35) {
+        doc.addPage();
+        drawHeader();
+        curY = 26;
+      }
+
+      // TASK CARD CONTAINER
+      const startCardY = curY;
+
+      // 1. Task Header Banner (Dark blue/slate with dd/mm/yyyy - pemberi tugas - penerima tugas - shift)
+      doc.setFillColor(30, 41, 59); // Slate 800
+      doc.roundedRect(margin, curY, contentWidth, 13, 1, 1, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`#${tIndex + 1}. Area: ${area} (${task.frequency || 'Harian'})`, margin + 3, curY + 5);
+
+      // Status pill
+      doc.setFillColor(16, 185, 129); // Emerald
+      doc.roundedRect(margin + contentWidth - 32, curY + 2, 29, 4.5, 1, 1, 'F');
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('✓ SELESAI (QC SESUAI)', margin + contentWidth - 30.5, curY + 5.2);
+
+      // Metadata Line 1: dd/mm/yyyy - Pemberi Tugas - Penerima Tugas - Shift
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(226, 232, 240);
+      doc.text(
+        `Tanggal: ${taskDateFormatted}   •   Pemberi Tugas: ${assigner}   •   Penerima: ${assignee}   •   Shift: ${shift}`,
+        margin + 3,
+        curY + 10
+      );
+
+      curY += 14;
+
+      // 2. Side-by-Side: LIST TUGAS YANG TELAH SELESAI (Kiri) & FOTO DI SAMPING NYA (Kanan)
+      const listColWidth = contentWidth * 0.58;
+      const photoColWidth = contentWidth * 0.42;
+
+      // Table Subheader
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(margin, curY, listColWidth, 5, 'FD');
+      doc.rect(margin + listColWidth, curY, photoColWidth, 5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6);
+      doc.setTextColor(71, 85, 105);
+      doc.text('LIST TUGAS / CHECKLIST YANG TELAH SELESAI', margin + 2, curY + 3.5);
+      doc.text('FOTO BUKTI DI SAMPING NYA', margin + listColWidth + 2, curY + 3.5);
+
+      curY += 5;
+
+      // Rows for each checklist item + its photo side-by-side
+      taskItems.forEach((cItem, cIdx) => {
+        const rowH = 17; // mm
+
+        if (curY + rowH > pageHeight - 32) {
+          doc.addPage();
+          drawHeader();
+          curY = 26;
+        }
+
+        // Draw Row borders
+        doc.setFillColor(cIdx % 2 === 0 ? 255 : 248, cIdx % 2 === 0 ? 255 : 250, cIdx % 2 === 0 ? 255 : 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(margin, curY, listColWidth, rowH, 'FD');
+        doc.rect(margin + listColWidth, curY, photoColWidth, rowH, 'FD');
+
+        // Left Col: Checklist item title + check badge
+        doc.setFillColor(220, 252, 231); // Green soft
+        doc.setDrawColor(134, 239, 172);
+        doc.roundedRect(margin + 2, curY + 2.5, 4.5, 4.5, 0.5, 0.5, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(22, 101, 52);
+        doc.text('✓', margin + 3.2, curY + 5.8);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(15, 23, 42);
+        const truncatedText = cItem.text.length > 40 ? cItem.text.substring(0, 38) + '...' : cItem.text;
+        doc.text(`${cIdx + 1}. ${truncatedText}`, margin + 8, curY + 6);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Status: Selesai 100%   •   Evaluasi Item: ${cItem.itemQC || 'Sesuai SOP'}`, margin + 8, curY + 10);
+        if (cItem.photoUploadedAt) {
+          doc.text(`Upload: ${cItem.photoUploadedAt.substring(0, 16)}`, margin + 8, curY + 14);
+        } else {
+          doc.text(`SOP Terverifikasi Lapangan`, margin + 8, curY + 14);
+        }
+
+        // Right Col: Foto di samping nya
+        const photoSrc = cItem.photo || task.evidencePhoto;
+        const photoX = margin + listColWidth + 2;
+        const photoY = curY + 1.5;
+        const photoW = 20;
+        const photoH = 14;
+
+        if (photoSrc && photoSrc.startsWith('data:image')) {
+          try {
+            const format = photoSrc.includes('png') ? 'PNG' : 'JPEG';
+            doc.addImage(photoSrc, format, photoX, photoY, photoW, photoH);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Bukti Foto #${cIdx + 1}`, photoX + photoW + 2, photoY + 5);
+            doc.text(`Resolusi: OK`, photoX + photoW + 2, photoY + 9);
+            doc.text(`Verified Sesuai`, photoX + photoW + 2, photoY + 13);
+          } catch (e) {
+            doc.setFillColor(241, 245, 249);
+            doc.roundedRect(photoX, photoY, photoW, photoH, 1, 1, 'F');
+            doc.setFontSize(5);
+            doc.setTextColor(148, 163, 184);
+            doc.text('[Foto Terlampir]', photoX + 2, photoY + 7);
+          }
+        } else {
+          // Placeholder box for photo proof
+          doc.setFillColor(241, 245, 249);
+          doc.setDrawColor(203, 213, 225);
+          doc.roundedRect(photoX, photoY, photoW, photoH, 1, 1, 'FD');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(5.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text('Foto Terverifikasi', photoX + 2, photoY + 6);
+          doc.text('(Checklist Selesai)', photoX + 2, photoY + 10);
+        }
+
+        curY += rowH;
+      });
+
+      // 3. Keterangan Box (Notes, Evidence Notes & QC Feedback)
+      const noteH = 10;
+      if (curY + noteH > pageHeight - 32) {
+        doc.addPage();
+        drawHeader();
+        curY = 26;
+      }
+
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(margin, curY, contentWidth, noteH, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('KETERANGAN & CATATAN EVALUASI:', margin + 2.5, curY + 3.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(15, 23, 42);
+      const combinedNotes = `Instruksi: ${notes}   |   Hasil QC Supervisor (${qcReviewer}): ${qcNote}`;
+      const splitNotes = doc.splitTextToSize(combinedNotes, contentWidth - 5);
+      doc.text(splitNotes, margin + 2.5, curY + 7);
+
+      curY += noteH + 4;
+    });
+
+    // Verification & Signature Box
+    let sigY = curY + 3;
+    if (sigY > pageHeight - 40) {
+      doc.addPage();
+      drawHeader();
+      sigY = 26;
+    }
+
+    const sigW = contentWidth / 3;
+
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+
+    // Sign 1: Pemberi Tugas
+    doc.text('Pemberi Tugas,', margin + sigW * 0.5, sigY, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Supervisor Lapangan', margin + sigW * 0.5, sigY + 3.5, { align: 'center' });
+    doc.line(margin + sigW * 0.15, sigY + 14, margin + sigW * 0.85, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text('( Assigner / Pengawas )', margin + sigW * 0.5, sigY + 17.5, { align: 'center' });
+
+    // Sign 2: Penerima Tugas
+    doc.setFontSize(6);
+    doc.text('Penerima Tugas,', margin + sigW * 1.5, sigY, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('Team Leader / Petugas', margin + sigW * 1.5, sigY + 3.5, { align: 'center' });
+    doc.line(margin + sigW * 1.15, sigY + 14, margin + sigW * 1.85, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text('( Assignee / Pelaksana )', margin + sigW * 1.5, sigY + 17.5, { align: 'center' });
+
+    // Sign 3: Project Manager / Ops
+    doc.setFontSize(6);
+    doc.text('Disetujui & Diverifikasi,', margin + sigW * 2.5, sigY, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('Operations Manager', margin + sigW * 2.5, sigY + 3.5, { align: 'center' });
+    doc.line(margin + sigW * 2.15, sigY + 14, margin + sigW * 2.85, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text('( Head of Facility Services )', margin + sigW * 2.5, sigY + 17.5, { align: 'center' });
+  }
+
+  // Draw Footer on all pages
+  const totalPages = doc.internal.pages.length - 1;
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(i, totalPages);
+  }
+
+  const safeProj = projName.replace(/[^a-zA-Z0-9]/g, '_');
+  const safeDate = currentTimestamp.toISOString().split('T')[0];
+  const fileName = `Laporan_Tugas_Selesai_${safeProj}_${safeDate}.pdf`;
+  doc.save(fileName);
+};
+

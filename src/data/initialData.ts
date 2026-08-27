@@ -912,6 +912,24 @@ export const INITIAL_SOPS: SopDocument[] = [
     category: 'Restroom Care',
     version: 'v3.2',
     description: 'Prosedur baku pembersihan menyeluruh toilet umum untuk menjamin higienitas, bebas bau, dan kepuasan pengunjung gedung.',
+    objective: 'Menjamin seluruh fasilitas toilet bersih, wangi, higienis bebas kuman/bakteri, serta aman digunakan oleh seluruh pengunjung gedung tanpa risiko licin.',
+    equipmentList: [
+      { name: 'Double Bucket & Wringer Trolley', qty: 1, unit: 'Set' },
+      { name: 'Microfiber Mop Set & Handle', qty: 1, unit: 'Set' },
+      { name: 'Toilet Bowl Brush (Sikat Kloset)', qty: 2, unit: 'Pcs' },
+      { name: 'Kain Microfiber Merah (Kloset/Urinoir)', qty: 3, unit: 'Lembar' },
+      { name: 'Kain Microfiber Biru (Wastafel & Cermin)', qty: 3, unit: 'Lembar' },
+      { name: 'Kain Microfiber Kuning (Dinding & Partisi)', qty: 2, unit: 'Lembar' },
+      { name: 'Warning Sign "Caution Wet Floor"', qty: 2, unit: 'Unit' },
+      { name: 'Sprayer Bottle 500ml Bertanda', qty: 3, unit: 'Botol' }
+    ],
+    chemicalList: [
+      { name: 'Karbol Pine Disinfectant', dosage: '1 : 20', unit: 'ml/L Air' },
+      { name: 'Neutral Floor Cleaner (Pembersih Lantai)', dosage: '20 ml per 5 Liter', unit: 'ml/5L' },
+      { name: 'Glass Cleaner (Pembersih Cermin/Kaca)', dosage: 'Langsung Pakai (RTU)', unit: 'Sprayer' },
+      { name: 'Hand Soap Refill Premium', dosage: 'Sesuai Dispenser', unit: 'ml' },
+      { name: 'Bowl Cleaner (Asam Lembut)', dosage: '50 ml per mangkuk', unit: 'ml/Kloset' }
+    ],
     steps: [
       'Pasang papan peringatan Yellow Caution "Wet Floor" di depan pintu masuk toilet.',
       'Siram kloset dan urinoir dengan air bersih, tuangkan Karbol Disinfectant pada dinding dalam mangkuk kloset dan diamkan 3 menit.',
@@ -923,9 +941,22 @@ export const INITIAL_SOPS: SopDocument[] = [
       'Cek kelengkapan Tissue, Hand Soap, dan Pengharum Ruangan.',
       'Lepas Caution Sign setelah lantai benar-benar kering dan paraf checklist pintu.'
     ],
+    requiredPPE: [
+      'Sarung Tangan Karet (Rubber Gloves)',
+      'Masker Medis / Karbon 3-Ply',
+      'Sepatu Safety Anti-Slip (Rubber Sole)',
+      'Apron Plastik Pelindung'
+    ],
     safetyEquipment: ['Sarung Tangan Karet (Rubber Gloves)', 'Masker Medis', 'Sepatu Anti-Slip'],
     chemicalsUsed: ['Karbol Pine Disinfectant', 'Neutral Floor Cleaner', 'Glass Cleaner', 'Hand Soap'],
-    lastUpdated: '2026-07-15'
+    equipmentMaintenance: [
+      'Cuci bersih seluruh kain microfiber sesuai kode warna dan jemur di ruang jemur berventilasi.',
+      'Kuras dan bilas ember double bucket, jangan biarkan air kotor mengendap di dalam ember.',
+      'Bilas sikat kloset dengan air mengalir dan rendam sebentar dalam larutan disinfektan.',
+      'Pastikan botol semprotan terkunci rapat dan dilap kering sebelum disimpan di rak gudang.'
+    ],
+    lastUpdated: '2026-07-15',
+    author: 'Supervisor Restroom QA'
   },
   {
     id: 'sop-2',
@@ -934,6 +965,21 @@ export const INITIAL_SOPS: SopDocument[] = [
     category: 'Floor Care',
     version: 'v2.1',
     description: 'Prosedur pemulihan kilau alami lantai marmer dan granit gedung menggunakan mesin polisher dan chemical khusus.',
+    objective: 'Mengembalikan dan mempertahankan kilau alami lantai marmer/granit gedung komersial hingga mencapai standar kilau minimal 85 Gloss Unit (GU) tanpa merusak pori-pori batu.',
+    equipmentList: [
+      { name: 'Mesin Polisher Low Speed 175 RPM', qty: 1, unit: 'Unit' },
+      { name: 'Pad Drive Holder 16"', qty: 1, unit: 'Pcs' },
+      { name: 'White Buffing Pad 16"', qty: 2, unit: 'Pcs' },
+      { name: 'Red Scrubbing Pad 16"', qty: 1, unit: 'Pcs' },
+      { name: 'Wet & Dry Vacuum Cleaner 30L', qty: 1, unit: 'Unit' },
+      { name: 'Kabel Roll 20 Meter Heavy Duty', qty: 1, unit: 'Roll' },
+      { name: 'Barricade Cone & Caution Sign', qty: 4, unit: 'Set' }
+    ],
+    chemicalList: [
+      { name: 'Marble Crystallization Compound (K1/K2)', dosage: '20-30 gram per m²', unit: 'gr/m²' },
+      { name: 'Neutral Floor Cleaner (Netralisir)', dosage: '1 : 40', unit: 'ml/L Air' },
+      { name: 'Wax Strip (Jika perlu stripping)', dosage: '1 : 10', unit: 'ml/L Air' }
+    ],
     steps: [
       'Lakukan dry mopping atau vacuuming pada seluruh area yang akan dipoles untuk menghilangkan butiran pasir dan debu tajam.',
       'Pasang barricade cone dan caution sign di sekeliling area kerja.',
@@ -943,9 +989,22 @@ export const INITIAL_SOPS: SopDocument[] = [
       'Lakukan dry buffing akhir untuk menghilangkan sisa residu serbuk kristal.',
       'Periksa kilau dengan alat Glossmeter (standar minimal 85 GU).'
     ],
+    requiredPPE: [
+      'Sepatu Safety Shoes Rubber Sole',
+      'Kacamata Pelindung (Goggles)',
+      'Earplug (Bila tingkat kebisingan tinggi)',
+      'Sarung Tangan Katun Kerja'
+    ],
     safetyEquipment: ['Safety Shoes', 'Kacamata Pelindung (Goggles)', 'Earplug (Bila bising)'],
     chemicalsUsed: ['Marble Crystallization Compound', 'Neutral Cleaner'],
-    lastUpdated: '2026-06-10'
+    equipmentMaintenance: [
+      'Cuci pad buffing dengan air bertekanan hingga residu kristal hilang dan keringkan secara mendatar.',
+      'Bersihkan body mesin polisher dan lap kabel listrik sebelum digulung rapi.',
+      'Periksa kondisi carbon brush mesin dan baut pengunci pad holder secara berkala.',
+      'Simpan mesin di tempat kering dengan posisi tegak terstandar.'
+    ],
+    lastUpdated: '2026-06-10',
+    author: 'Floor Specialist Trainer'
   },
   {
     id: 'sop-3',
@@ -954,6 +1013,18 @@ export const INITIAL_SOPS: SopDocument[] = [
     category: 'K3 & Safety',
     version: 'v4.0',
     description: 'Pedoman keselamatan wajib bagi seluruh staf outsourcing dalam mencampur, menyimpan, dan menggunakan bahan kimia pembersih.',
+    objective: 'Mencegah kecelakaan kerja, paparan zat berbahaya, iritasi kulit/pernapasan, dan reaksi kimia mematikan selama operasional pembersihan berlangsung.',
+    equipmentList: [
+      { name: 'Gelas Ukur Kimia Bertingkat 500ml', qty: 2, unit: 'Pcs' },
+      { name: 'Corong Plastik Kimia', qty: 2, unit: 'Pcs' },
+      { name: 'Botol Pencuci Mata Darurat (Eye Wash)', qty: 1, unit: 'Unit' },
+      { name: 'Kotak P3K Lengkap Khusus Kimia', qty: 1, unit: 'Set' },
+      { name: 'Rak Jerigen Spill Containment Tray', qty: 1, unit: 'Unit' }
+    ],
+    chemicalList: [
+      { name: 'Seluruh Jenis Chemical Pabrikan', dosage: 'Wajib mengacu tabel MSDS resmi', unit: 'Standar Pabrik' },
+      { name: 'Dilarang Mencampur Bleach & Asam', dosage: '0 (DILARANG KERAS)', unit: 'Dilarang' }
+    ],
     steps: [
       'Selalu baca label kemasan dan instruksi dosis sebelum menuangkan chemical.',
       'Gunakan gelas ukur resmi, dilarang menakar chemical hanya dengan perkiraan botol.',
@@ -962,9 +1033,22 @@ export const INITIAL_SOPS: SopDocument[] = [
       'Simpan jerigen chemical di ruang gudang yang memiliki sirkulasi udara baik dan terkunci dari akses publik.',
       'Jika terkena percikan mata, segera basuh dengan air mengalir selama 15 menit dan laporkan ke Spv.'
     ],
+    requiredPPE: [
+      'Chemical Resistant Gloves (Nitrile / Neoprene)',
+      'Eye Protection Safety Goggles',
+      'Masker Respirator / Karbon Aktif',
+      'Celemek / Apron Tahan Kimia',
+      'Safety Rubber Boots'
+    ],
     safetyEquipment: ['Chemical Resistant Gloves', 'Eye Wash Bottle', 'Masker Karbon'],
     chemicalsUsed: ['Semua Jenis Chemical'],
-    lastUpdated: '2026-08-01'
+    equipmentMaintenance: [
+      'Bilas gelas ukur dan corong kimia segera setelah digunakan dengan air mengalir.',
+      'Periksa tanggal kadaluarsa larutan steril pada botol Eye Wash setiap bulan.',
+      'Pastikan kran jerigen tertutup rapat dan tray penampung tumpahan dalam keadaan bersih kering.'
+    ],
+    lastUpdated: '2026-08-01',
+    author: 'HSE Coordinator'
   }
 ];
 
@@ -993,7 +1077,9 @@ export const INITIAL_USERS: UserAccount[] = [
     ],
     status: 'Aktif',
     phone: '0811-9988-7766',
-    lastLogin: '2026-08-26 15:30'
+    lastLogin: '2026-08-26 15:30',
+    canDeleteTasks: true,
+    canDeleteSops: true
   },
   {
     id: 'user-admin',

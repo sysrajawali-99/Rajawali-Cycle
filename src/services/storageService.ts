@@ -217,7 +217,26 @@ export const storageService = {
       return INITIAL_SOPS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const enriched = parsed.map((item: SopDocument) => {
+          const matchedInitial = INITIAL_SOPS.find((init) => init.id === item.id);
+          if (matchedInitial) {
+            return {
+              ...matchedInitial,
+              ...item,
+              objective: item.objective || matchedInitial.objective,
+              equipmentList: item.equipmentList && item.equipmentList.length > 0 ? item.equipmentList : matchedInitial.equipmentList,
+              chemicalList: item.chemicalList && item.chemicalList.length > 0 ? item.chemicalList : matchedInitial.chemicalList,
+              equipmentMaintenance: item.equipmentMaintenance && item.equipmentMaintenance.length > 0 ? item.equipmentMaintenance : matchedInitial.equipmentMaintenance,
+              requiredPPE: item.requiredPPE && item.requiredPPE.length > 0 ? item.requiredPPE : matchedInitial.requiredPPE,
+            };
+          }
+          return item;
+        });
+        return enriched;
+      }
+      return INITIAL_SOPS;
     } catch {
       return INITIAL_SOPS;
     }
