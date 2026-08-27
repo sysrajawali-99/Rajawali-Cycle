@@ -39,6 +39,7 @@ import {
   getMonthName,
   downloadCSV
 } from '../../utils/formatters';
+import { generateTimesheetPDF } from '../../utils/pdfExport';
 
 interface EagleTimesheetProps {
   projects: Project[];
@@ -79,6 +80,10 @@ export const EagleTimesheet: React.FC<EagleTimesheetProps> = ({
     reason: string;
     bonus: number;
   } | null>(null);
+
+  // PDF Export / Print Modal State
+  const [showPDFModal, setShowPDFModal] = useState<boolean>(false);
+  const [pdfSelectedProjectId, setPdfSelectedProjectId] = useState<string>(selectedProjectId || 'ALL');
 
   // Status legend modal or tooltip
   const [showLegend, setShowLegend] = useState(false);
@@ -553,10 +558,25 @@ export const EagleTimesheet: React.FC<EagleTimesheetProps> = ({
             <button
               id="export-timesheet-csv-btn"
               onClick={handleExportCSV}
-              className="flex items-center space-x-1 px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              className="flex items-center space-x-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs rounded-xl border border-slate-700 transition cursor-pointer"
+              title="Unduh Rekap Format CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden xs:inline">Export CSV</span>
+            </button>
+
+            {/* Direct Download PDF Button */}
+            <button
+              id="open-pdf-report-btn"
+              onClick={() => {
+                setPdfSelectedProjectId(selectedProjectId !== 'ALL' ? selectedProjectId : 'ALL');
+                setShowPDFModal(true);
+              }}
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
+              title="Download Rekap Matriks 1-31 Hari sebagai Dokumen PDF Resmi (Ukuran A4)"
             >
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Export CSV</span>
+              <span>Download PDF Rekap</span>
             </button>
           </div>
         </div>
@@ -1261,6 +1281,440 @@ export const EagleTimesheet: React.FC<EagleTimesheetProps> = ({
               >
                 Simpan Potongan
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAVE / PRINT PDF MODAL & PRINTABLE DOCUMENT */}
+      {showPDFModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-7xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh]">
+            {/* Top Control Bar (Hidden when printing) */}
+            <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 rounded-xl shadow-lg shadow-amber-500/20 font-bold">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                    <span>Download PDF Laporan Payroll (Ukuran A4)</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      Standar A4 Landscape
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Dokumen resmi siap unduh berstandar A4 dengan presisi vector tajam & format full color korporat.
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls: Location Filter + Direct PDF Download + Close */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
+                  <span className="text-slate-400 font-semibold">Pilihan Lokasi:</span>
+                  <select
+                    id="pdf-location-selector"
+                    value={pdfSelectedProjectId}
+                    onChange={(e) => setPdfSelectedProjectId(e.target.value)}
+                    className="bg-transparent text-amber-300 font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL" className="bg-slate-900 text-white">
+                      Semua Lokasi Proyek (Konsolidasi)
+                    </option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                        {p.name} ({p.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* DIRECT DOWNLOAD PDF (A4 format via jsPDF) */}
+                <button
+                  id="direct-download-pdf-btn"
+                  onClick={() => {
+                    generateTimesheetPDF({
+                      projects,
+                      employees,
+                      timesheets,
+                      selectedProjectId: pdfSelectedProjectId,
+                      month: currentMonth,
+                      year: currentYear
+                    });
+                  }}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/30 transition cursor-pointer"
+                  title="Download langsung berkas PDF A4 ke perangkat"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF Langsung (A4)</span>
+                </button>
+
+                <button
+                  id="close-pdf-modal-btn"
+                  onClick={() => setShowPDFModal(false)}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+
+            {/* Document Content Area (Scrollable in UI, full printed on paper) */}
+            <div className="overflow-y-auto p-4 sm:p-6 bg-slate-950 flex justify-center">
+              {(() => {
+                const pdfEmployees = employees.filter((emp) => {
+                  if (emp.status === 'Resign') return false;
+                  if (pdfSelectedProjectId !== 'ALL' && emp.projectId !== pdfSelectedProjectId) return false;
+                  return true;
+                });
+
+                const pdfProjName =
+                  pdfSelectedProjectId === 'ALL'
+                    ? 'Semua Lokasi Proyek (Konsolidasi Multi-Site)'
+                    : projects.find((p) => p.id === pdfSelectedProjectId)?.name || 'Lokasi Proyek';
+
+                const pdfProjCode =
+                  pdfSelectedProjectId === 'ALL'
+                    ? 'ALL-SITES'
+                    : projects.find((p) => p.id === pdfSelectedProjectId)?.code || '';
+
+                // Calculate grand totals for print view
+                let totalHadirSum = 0;
+                let totalAlpaSum = 0;
+                let totalIzinSum = 0;
+                let totalDeductionSum = 0;
+                let totalGrossSum = 0;
+                let totalNetSum = 0;
+
+                const rowsData = pdfEmployees.map((emp, index) => {
+                  const rec = getRecordForEmployee(emp.id);
+                  const stats = calculateRowStats(emp, rec);
+
+                  totalHadirSum += stats.hadir;
+                  totalAlpaSum += stats.alpa;
+                  totalIzinSum += stats.izin;
+                  totalDeductionSum += stats.deduction;
+                  totalGrossSum += stats.grossPay;
+                  totalNetSum += stats.netPay;
+
+                  const empProj = projects.find((p) => p.id === emp.projectId);
+
+                  return {
+                    index: index + 1,
+                    emp,
+                    rec,
+                    stats,
+                    empProj
+                  };
+                });
+
+                return (
+                  <div
+                    id="printable-payroll-sheet"
+                    className="bg-white text-slate-950 w-full max-w-6xl p-6 sm:p-8 rounded-xl shadow-2xl space-y-5 text-xs font-sans"
+                    style={{ minWidth: '950px' }}
+                  >
+                    {/* Header Kop Resmi */}
+                    <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-black text-lg text-slate-900 tracking-wider">
+                            PT RAJAWALI PRIMA SERVICE
+                          </span>
+                          <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">
+                            OFFICIAL PAYROLL REPORT
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-medium">
+                          Integrated Facility Management, Commercial Cleaning, & Hospitality Support Services
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Head Office: Menara Rajawali Lt. 12, Kawasan Mega Kuningan, Jakarta Selatan • Hotline: (021) 5299-8800
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
+                          Dokumen Terverifikasi
+                        </span>
+                        <span className="font-mono text-xs font-bold text-slate-800">
+                          DOC-{currentYear}{String(currentMonth).padStart(2, '0')}-{pdfProjCode}
+                        </span>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          Tgl Cetak: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Judul Laporan */}
+                    <div className="text-center space-y-1">
+                      <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
+                        REKAPITULASI TIMESHEET & PAYROLL CLEANING SERVICE
+                      </h2>
+                      <p className="text-xs text-slate-600 font-medium">
+                        Laporan Akumulasi Kehadiran Harian & Perhitungan Gaji Bersih Personil Lapangan
+                      </p>
+                    </div>
+
+                    {/* Metadata Box (Periode, Lokasi, Total Personil, Nilai Payroll) */}
+                    <div className="bg-slate-50 border border-slate-300 rounded-lg p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="border-r border-slate-200 pr-2">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Periode Penggajian</span>
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {getMonthName(currentMonth)} {currentYear}
+                        </span>
+                      </div>
+
+                      <div className="border-r border-slate-200 pr-2">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Lokasi Proyek</span>
+                        <span className="font-bold text-slate-900 text-xs truncate block" title={pdfProjName}>
+                          {pdfProjName}
+                        </span>
+                      </div>
+
+                      <div className="border-r border-slate-200 pr-2">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Personil</span>
+                        <span className="font-black text-emerald-700 text-xs sm:text-sm">
+                          {pdfEmployees.length} Personil Aktif
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Nilai Payroll</span>
+                        <span className="font-black text-slate-900 text-xs sm:text-sm font-mono">
+                          {formatCurrency(totalNetSum)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Attendance Summary Chip */}
+                    <div className="flex items-center justify-between text-[11px] bg-slate-100 px-3 py-1.5 rounded border border-slate-200 font-medium text-slate-700">
+                      <span>
+                        Akumulasi: <strong>{totalHadirSum}</strong> Hadir •{' '}
+                        <strong>{totalAlpaSum}</strong> Alpa •{' '}
+                        <strong>{totalIzinSum}</strong> Izin
+                      </span>
+                      <span>
+                        Total Potongan / Denda:{' '}
+                        <strong className="text-rose-700 font-mono">
+                          {formatCurrency(totalDeductionSum)}
+                        </strong>
+                      </span>
+                    </div>
+
+                    {/* Table Data: Kolom #, Nama & Posisi, Project & Shift, Rate/Hari, Tanggal 1-31, Hadir, Alpa, Izin, Potongan, Gaji Bersih */}
+                    <div className="border border-slate-300 rounded-lg overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-[10px]">
+                        <thead>
+                          <tr className="bg-slate-800 text-white font-bold border-b border-slate-900">
+                            <th className="py-2 px-1.5 text-center w-6 border-r border-slate-700">#</th>
+                            <th className="py-2 px-2 border-r border-slate-700 min-w-[140px]">
+                              Nama & Posisi
+                            </th>
+                            <th className="py-2 px-2 border-r border-slate-700 min-w-[110px]">
+                              Project & Shift
+                            </th>
+                            <th className="py-2 px-2 text-right border-r border-slate-700 min-w-[70px]">
+                              Rate / Hari
+                            </th>
+
+                            {/* 31 Date Columns (1 to 31) */}
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                              const isDayInMonth = day <= totalDays;
+                              const weekend = isDayInMonth ? isWeekend(currentYear, currentMonth, day) : false;
+                              return (
+                                <th
+                                  key={day}
+                                  className={`py-1 px-0.5 text-center w-5 border-r border-slate-700 text-[9px] ${
+                                    !isDayInMonth
+                                      ? 'bg-slate-900 text-slate-600'
+                                      : weekend
+                                      ? 'bg-slate-700 text-amber-300'
+                                      : 'text-white'
+                                  }`}
+                                  title={`Tanggal ${day} ${getMonthName(currentMonth)}`}
+                                >
+                                  {day}
+                                </th>
+                              );
+                            })}
+
+                            <th className="py-2 px-1.5 text-center border-r border-slate-700 bg-emerald-900 text-emerald-100 w-8">
+                              H
+                            </th>
+                            <th className="py-2 px-1.5 text-center border-r border-slate-700 bg-rose-900 text-rose-100 w-8">
+                              A
+                            </th>
+                            <th className="py-2 px-1.5 text-center border-r border-slate-700 bg-amber-900 text-amber-100 w-8">
+                              I
+                            </th>
+                            <th className="py-2 px-2 text-right border-r border-slate-700 bg-slate-900 text-rose-300 min-w-[75px]">
+                              Potongan (Rp)
+                            </th>
+                            <th className="py-2 px-2 text-right bg-slate-950 text-amber-300 min-w-[85px] font-black">
+                              Gaji Bersih
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-200">
+                          {rowsData.length === 0 ? (
+                            <tr>
+                              <td colSpan={40} className="py-8 text-center text-slate-400 font-semibold">
+                                Tidak ada data personil pada lokasi ini.
+                              </td>
+                            </tr>
+                          ) : (
+                            rowsData.map((row) => (
+                              <tr key={row.emp.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-1.5 px-1 text-center font-mono font-bold text-slate-500 border-r border-slate-200">
+                                  {row.index}
+                                </td>
+                                <td className="py-1.5 px-2 border-r border-slate-200">
+                                  <div className="font-bold text-slate-900 leading-tight">
+                                    {row.emp.name}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 flex items-center space-x-1">
+                                    <span>{row.emp.position}</span>
+                                    <span>•</span>
+                                    <span className="font-mono">{row.emp.nik}</span>
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2 border-r border-slate-200">
+                                  <div className="font-semibold text-slate-800 truncate max-w-[105px]">
+                                    {row.empProj?.name || '-'}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 truncate max-w-[105px]">
+                                    {row.emp.shift.split(' ')[0]}
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-700 border-r border-slate-200">
+                                  {formatCurrency(row.emp.dailyRate)}
+                                </td>
+
+                                {/* 31 Day Cells */}
+                                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                                  const isDayInMonth = day <= totalDays;
+                                  const status = isDayInMonth ? row.rec.days[day] || '' : '';
+                                  const weekend = isDayInMonth ? isWeekend(currentYear, currentMonth, day) : false;
+
+                                  let cellBg = '';
+                                  let textColor = 'text-slate-700';
+                                  let displayTxt = status;
+
+                                  if (!isDayInMonth) {
+                                    cellBg = 'bg-slate-100 text-slate-300';
+                                    displayTxt = '-';
+                                  } else if (status === 'H') {
+                                    cellBg = 'bg-emerald-50 text-emerald-800 font-bold';
+                                  } else if (status === 'A') {
+                                    cellBg = 'bg-rose-100 text-rose-800 font-black';
+                                  } else if (status === 'I') {
+                                    cellBg = 'bg-amber-100 text-amber-800 font-bold';
+                                  } else if (status === 'O') {
+                                    cellBg = 'bg-slate-100 text-slate-400';
+                                    displayTxt = 'OFF';
+                                  } else if (weekend) {
+                                    cellBg = 'bg-amber-50/50';
+                                  }
+
+                                  return (
+                                    <td
+                                      key={day}
+                                      className={`py-1 px-0.5 text-center text-[9px] border-r border-slate-200 ${cellBg} ${textColor}`}
+                                    >
+                                      {displayTxt}
+                                    </td>
+                                  );
+                                })}
+
+                                <td className="py-1.5 px-1.5 text-center font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-200">
+                                  {row.stats.hadir}
+                                </td>
+                                <td className="py-1.5 px-1.5 text-center font-bold text-rose-800 bg-rose-50/50 border-r border-slate-200">
+                                  {row.stats.alpa}
+                                </td>
+                                <td className="py-1.5 px-1.5 text-center font-bold text-amber-800 bg-amber-50/50 border-r border-slate-200">
+                                  {row.stats.izin}
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-mono text-rose-700 border-r border-slate-200">
+                                  {row.stats.deduction > 0 ? formatCurrency(row.stats.deduction) : '-'}
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-mono font-black text-slate-900 bg-slate-50">
+                                  {formatCurrency(row.stats.netPay)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+
+                        {/* Footer Summary Row */}
+                        <tfoot className="bg-slate-100 font-black border-t-2 border-slate-800 text-slate-900">
+                          <tr>
+                            <td colSpan={4} className="py-2.5 px-3 text-right uppercase tracking-wider border-r border-slate-300">
+                              TOTAL REKAPITULASI (KONSOLIDASI):
+                            </td>
+                            <td colSpan={31} className="py-2.5 px-1 text-center text-slate-500 border-r border-slate-300 text-[9px]">
+                              {totalDays} Hari Operasional
+                            </td>
+                            <td className="py-2.5 px-1.5 text-center text-emerald-800 bg-emerald-100 border-r border-slate-300">
+                              {totalHadirSum}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-center text-rose-800 bg-rose-100 border-r border-slate-300">
+                              {totalAlpaSum}
+                            </td>
+                            <td className="py-2.5 px-1.5 text-center text-amber-800 bg-amber-100 border-r border-slate-300">
+                              {totalIzinSum}
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-mono text-rose-800 bg-rose-50 border-r border-slate-300">
+                              {formatCurrency(totalDeductionSum)}
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-mono text-slate-950 bg-amber-200 text-xs font-black">
+                              {formatCurrency(totalNetSum)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Lembar Tanda Tangan & Pengesahan Resmi (3 Pihak) */}
+                    <div className="pt-6 border-t border-slate-300 grid grid-cols-3 gap-6 text-center text-xs page-break-inside-avoid">
+                      <div className="space-y-12">
+                        <div>
+                          <p className="text-slate-500 font-medium">Dibuat & Diverifikasi Oleh,</p>
+                          <p className="font-bold text-slate-800">Site Supervisor / Admin Project</p>
+                        </div>
+                        <div className="border-b border-slate-400 w-36 mx-auto"></div>
+                        <p className="text-[11px] text-slate-600 font-semibold">( ............................................ )</p>
+                      </div>
+
+                      <div className="space-y-12">
+                        <div>
+                          <p className="text-slate-500 font-medium">Diperiksa Oleh,</p>
+                          <p className="font-bold text-slate-800">Finance & Payroll Officer</p>
+                        </div>
+                        <div className="border-b border-slate-400 w-36 mx-auto"></div>
+                        <p className="text-[11px] text-slate-600 font-semibold">( ............................................ )</p>
+                      </div>
+
+                      <div className="space-y-12">
+                        <div>
+                          <p className="text-slate-500 font-medium">Disetujui Oleh,</p>
+                          <p className="font-bold text-slate-800">Operations Director / Management</p>
+                        </div>
+                        <div className="border-b border-slate-400 w-36 mx-auto"></div>
+                        <p className="text-[11px] text-slate-600 font-semibold">( ............................................ )</p>
+                      </div>
+                    </div>
+
+                    {/* Footer Footnote */}
+                    <div className="text-[9px] text-slate-400 text-center border-t border-slate-100 pt-2 flex items-center justify-between">
+                      <span>Dokumen ini sah dan diterbitkan secara digital oleh Rajawali Cleaning Eagle Management System.</span>
+                      <span>Halaman 1 dari 1</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

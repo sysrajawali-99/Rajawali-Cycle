@@ -42,18 +42,62 @@
 
 /* Print Specific Rules */
 @media print {
-  body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
+  @page {
+    size: landscape;
+    margin: 6mm 6mm;
   }
 
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 10pt;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide website UI elements during print */
   .no-print,
   nav,
   aside,
   header,
+  footer,
   #mobile-bottom-nav,
-  #app-sidebar {
+  #app-sidebar,
+  button {
     display: none !important;
+  }
+
+  /* Ensure modal backdrop doesn't dim or black out print */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .bg-slate-900,
+  .bg-slate-950 {
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  #printable-payroll-sheet,
+  #printable-payslip-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    color: #0f172a !important;
+    background-color: #ffffff !important;
+    display: block !important;
   }
 
   .print-only {
@@ -63,6 +107,23 @@
   .page-break-inside-avoid {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /* Table styling during print */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
   }
 }
 

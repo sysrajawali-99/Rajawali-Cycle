@@ -28,6 +28,10 @@ import {
   getDaysInMonth,
   downloadCSV
 } from '../../utils/formatters';
+import {
+  generateTimesheetPDF,
+  generateIndividualPayslipPDF
+} from '../../utils/pdfExport';
 
 interface ReportingCenterProps {
   projects: Project[];
@@ -210,14 +214,35 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
           </div>
 
           <div className="flex items-center flex-wrap gap-2">
+            {/* Direct Download Payroll PDF */}
+            <button
+              id="download-payroll-pdf-btn"
+              onClick={() => {
+                generateTimesheetPDF({
+                  projects,
+                  employees,
+                  timesheets,
+                  selectedProjectId: filterProject,
+                  month: reportMonth,
+                  year: reportYear
+                });
+              }}
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/25 transition cursor-pointer"
+              title="Download dokumen rekapitulasi payroll lengkap sebagai file PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download PDF Rekap</span>
+            </button>
+
             {/* Export CSV */}
             <button
               id="export-payroll-report-btn"
               onClick={handleExportPayrollCSV}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20"
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs rounded-xl border border-slate-700 transition cursor-pointer"
+              title="Unduh Rekap Format Spreadsheet CSV"
             >
-              <Download className="w-4 h-4" />
-              <span>Export Rekap CSV</span>
+              <Download className="w-4 h-4 text-amber-400" />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>
@@ -356,14 +381,36 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
                       </td>
 
                       <td className="p-3.5 text-center">
-                        <button
-                          id={`print-slip-btn-${row.employee.id}`}
-                          onClick={() => setSlipEmployee(row)}
-                          className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold text-[11px] rounded-lg transition-colors border border-slate-700 mx-auto"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Slip Gaji</span>
-                        </button>
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            id={`print-slip-btn-${row.employee.id}`}
+                            onClick={() => setSlipEmployee(row)}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold text-[11px] rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                            title="Buka Pratinjau Slip Gaji"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Preview</span>
+                          </button>
+
+                          <button
+                            id={`direct-download-slip-btn-${row.employee.id}`}
+                            onClick={() => {
+                              const empProj = projects.find((p) => p.id === row.employee.projectId);
+                              generateIndividualPayslipPDF({
+                                employee: row.employee,
+                                timesheet: row.timesheet,
+                                project: empProj,
+                                month: reportMonth,
+                                year: reportYear
+                              });
+                            }}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 font-bold text-[11px] rounded-lg transition-colors border border-emerald-700/50 cursor-pointer"
+                            title="Download langsung file PDF Slip Gaji Karyawan"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>PDF</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -376,120 +423,209 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
 
       {/* Slip Gaji Modal / Print Preview */}
       {slipEmployee && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 text-xs">
-            {/* Header Slip */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-xl">🦅</span>
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+            {/* Modal Header Controls (Hidden when printing) */}
+            <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between no-print">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                  <CreditCard className="w-4 h-4" />
+                </div>
                 <div>
-                  <h3 className="font-extrabold text-white text-base tracking-tight">PT RAJAWALI CYCLE INDONESIA</h3>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-                    SLIP GAJI RESMI OUTSOURCING CLEANING SERVICE
-                  </p>
+                  <h3 className="font-bold text-white text-sm">Pratinjau & Cetak Slip Gaji</h3>
+                  <p className="text-[11px] text-slate-400">Slip penghasilan resmi personil cleaning service</p>
                 </div>
               </div>
               <button
                 onClick={() => setSlipEmployee(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
               >
                 ✕
               </button>
             </div>
 
-            {/* Employee Info Header */}
-            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-slate-500 text-[10px]">Nama Personil:</span>
-                <div className="font-bold text-white text-sm">{slipEmployee.employee.name}</div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px]">NIK / Kode:</span>
-                <div className="font-bold text-amber-400 font-mono">{slipEmployee.employee.nik}</div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px]">Posisi / Jabatan:</span>
-                <div className="text-slate-300 font-medium">{slipEmployee.employee.position}</div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px]">Lokasi Penempatan:</span>
-                <div className="text-slate-300 font-medium truncate">
-                  {projects.find((p) => p.id === slipEmployee.employee.projectId)?.name}
+            {/* Printable Slip Paper Area (Pure White Background, Full Color High-Contrast) */}
+            <div className="p-4 sm:p-6 overflow-y-auto bg-slate-950 flex justify-center">
+              <div
+                id="printable-payslip-sheet"
+                className="bg-white text-slate-950 w-full p-6 rounded-2xl shadow-xl space-y-4 border border-slate-200 text-xs font-sans"
+              >
+                {/* Kop Slip */}
+                <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
+                  <div>
+                    <h3 className="font-black text-base text-slate-900 tracking-wider">PT RAJAWALI PRIMA SERVICE</h3>
+                    <p className="text-[10px] text-slate-600 font-medium">Facility Management & Cleaning Services</p>
+                    <p className="text-[9px] text-slate-500">Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-2 py-0.5 rounded border border-amber-300 uppercase block">
+                      SLIP GAJI RESMI
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-800 font-mono mt-1 block">
+                      {getMonthName(reportMonth).toUpperCase()} {reportYear}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px]">Periode Gaji:</span>
-                <div className="text-slate-300">{getMonthName(reportMonth)} {reportYear}</div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px]">Rekening Payroll:</span>
-                <div className="text-slate-300">{slipEmployee.employee.bankName} - {slipEmployee.employee.bankAccount}</div>
+
+                {/* Employee Info Header */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">Nama Personil:</span>
+                    <div className="font-bold text-slate-900 text-sm">{slipEmployee.employee.name}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">NIK / Kode:</span>
+                    <div className="font-bold text-slate-900 font-mono">{slipEmployee.employee.nik}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">Posisi / Jabatan:</span>
+                    <div className="text-slate-800 font-medium">{slipEmployee.employee.position}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">Lokasi Penempatan:</span>
+                    <div className="text-slate-800 font-medium truncate">
+                      {projects.find((p) => p.id === slipEmployee.employee.projectId)?.name || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">Shift Kerja:</span>
+                    <div className="text-slate-800">{slipEmployee.employee.shift}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-semibold block">Rekening Payroll:</span>
+                    <div className="text-slate-800 font-mono text-[11px]">
+                      {slipEmployee.employee.bankName} - {slipEmployee.employee.bankAccount || '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Presensi Summary Badges */}
+                <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+                  <div className="bg-emerald-50 border border-emerald-200 p-1.5 rounded-lg">
+                    <span className="text-emerald-700 font-bold block">HADIR</span>
+                    <span className="text-xs font-black text-emerald-900">{slipEmployee.hadirCount} Hari</span>
+                  </div>
+                  <div className="bg-rose-50 border border-rose-200 p-1.5 rounded-lg">
+                    <span className="text-rose-700 font-bold block">ALPA</span>
+                    <span className="text-xs font-black text-rose-900">{slipEmployee.alpaCount} Hari</span>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 p-1.5 rounded-lg">
+                    <span className="text-amber-700 font-bold block">IZIN</span>
+                    <span className="text-xs font-black text-amber-900">{slipEmployee.izinCount} Hari</span>
+                  </div>
+                  <div className="bg-slate-100 border border-slate-200 p-1.5 rounded-lg">
+                    <span className="text-slate-600 font-bold block">RATE / HARI</span>
+                    <span className="text-xs font-black text-slate-900 font-mono">{formatCurrency(slipEmployee.employee.dailyRate)}</span>
+                  </div>
+                </div>
+
+                {/* Calculations Breakdown */}
+                <div className="space-y-2 border border-slate-200 rounded-xl p-3.5 bg-slate-50/50">
+                  <div className="font-bold text-slate-900 text-xs pb-1 border-b border-slate-200 flex justify-between">
+                    <span>Rincian Pendapatan (Penghasilan):</span>
+                    <span>Jumlah (Rp)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-800">
+                    <span>
+                      Gaji Pokok ({slipEmployee.hadirCount} hari x {formatCurrency(slipEmployee.employee.dailyRate)}):
+                    </span>
+                    <span className="font-semibold text-slate-950 font-mono">
+                      {formatCurrency(slipEmployee.hadirCount * slipEmployee.employee.dailyRate)}
+                    </span>
+                  </div>
+                  {slipEmployee.timesheet.bonusAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Insentif / Tambahan Lembur:</span>
+                      <span className="font-semibold font-mono">
+                        +{formatCurrency(slipEmployee.timesheet.bonusAmount)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="font-bold text-slate-900 text-xs pt-2 pb-1 border-b border-slate-200">
+                    Rincian Potongan:
+                  </div>
+                  {slipEmployee.timesheet.deductionAmount > 0 ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>
+                        Potongan Denda / Absensi ({slipEmployee.timesheet.deductionReason || 'Disiplin'}):
+                      </span>
+                      <span className="font-semibold font-mono">
+                        -{formatCurrency(slipEmployee.timesheet.deductionAmount)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 italic text-[11px]">Tidak ada potongan denda</div>
+                  )}
+
+                  {/* Net Total Take Home Pay */}
+                  <div className="pt-3 border-t-2 border-slate-900 flex justify-between items-center bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                    <span className="font-black text-slate-950 text-xs sm:text-sm">TOTAL GAJI BERSIH (TAKE HOME PAY):</span>
+                    <span className="text-base font-black text-slate-950 font-mono">
+                      {formatCurrency(slipEmployee.netPay)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-2 gap-4 pt-3 text-center text-slate-600 text-[10px]">
+                  <div className="space-y-8">
+                    <div>
+                      <p>Penerima,</p>
+                      <p className="font-bold text-slate-900">{slipEmployee.employee.name}</p>
+                    </div>
+                    <div className="border-b border-slate-400 w-28 mx-auto"></div>
+                    <p>( Karyawan Bersangkutan )</p>
+                  </div>
+                  <div className="space-y-8">
+                    <div>
+                      <p>Petugas Payroll / HRD,</p>
+                      <p className="font-bold text-slate-900">PT Rajawali Prima Service</p>
+                    </div>
+                    <div className="border-b border-slate-400 w-28 mx-auto"></div>
+                    <p>( Finance & HR Dept )</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Calculations Breakdown */}
-            <div className="space-y-2 border border-slate-800 rounded-2xl p-3.5 bg-slate-950/50">
-              <div className="font-bold text-slate-300 text-xs pb-1 border-b border-slate-800">
-                Rincian Pendapatan (Penghasilan):
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>
-                  Gaji Pokok ({slipEmployee.hadirCount} hari x {formatCurrency(slipEmployee.employee.dailyRate)}):
-                </span>
-                <span className="font-semibold text-white">
-                  {formatCurrency(slipEmployee.hadirCount * slipEmployee.employee.dailyRate)}
-                </span>
-              </div>
-              {slipEmployee.timesheet.bonusAmount > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Insentif / Tambahan Lembur:</span>
-                  <span className="font-semibold">
-                    +{formatCurrency(slipEmployee.timesheet.bonusAmount)}
-                  </span>
-                </div>
-              )}
-
-              <div className="font-bold text-slate-300 text-xs pt-2 pb-1 border-b border-slate-800">
-                Rincian Potongan:
-              </div>
-              {slipEmployee.timesheet.deductionAmount > 0 ? (
-                <div className="flex justify-between text-rose-400">
-                  <span>
-                    Potongan Denda ({slipEmployee.timesheet.deductionReason || 'Disiplin'}):
-                  </span>
-                  <span className="font-semibold">
-                    -{formatCurrency(slipEmployee.timesheet.deductionAmount)}
-                  </span>
-                </div>
-              ) : (
-                <div className="text-slate-500 italic">Tidak ada potongan denda</div>
-              )}
-
-              {/* Net Total Take Home Pay */}
-              <div className="pt-3 border-t border-slate-700 flex justify-between items-center">
-                <span className="font-extrabold text-white text-sm">TOTAL GAJI BERSIH (TAKE HOME PAY):</span>
-                <span className="text-lg font-black text-amber-400 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/30">
-                  {formatCurrency(slipEmployee.netPay)}
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+            {/* Modal Bottom Actions */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-end space-x-2.5 no-print">
               <button
                 onClick={() => setSlipEmployee(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
               >
                 Tutup
               </button>
+
+              {/* Direct PDF Download */}
+              <button
+                id="download-single-slip-pdf-btn"
+                onClick={() => {
+                  const empProj = projects.find((p) => p.id === slipEmployee.employee.projectId);
+                  generateIndividualPayslipPDF({
+                    employee: slipEmployee.employee,
+                    timesheet: slipEmployee.timesheet,
+                    project: empProj,
+                    month: reportMonth,
+                    year: reportYear
+                  });
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-amber-500/20 flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download PDF Slip</span>
+              </button>
+
+              {/* Browser Print */}
               <button
                 onClick={() => {
                   window.print();
                 }}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 flex items-center space-x-1.5 cursor-pointer"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-600 flex items-center space-x-1.5 cursor-pointer"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Cetak Slip (Print)</span>
+                <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Cetak (Print)</span>
               </button>
             </div>
           </div>

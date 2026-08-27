@@ -432,31 +432,65 @@ export const INITIAL_EMPLOYEES: Employee[] = [
   }
 ];
 
-// Helper to seed realistic 1-31 timesheet matrix for August 2026
+// Helper to seed realistic 1-31 timesheet matrix for August & July 2026
 export function generateSeedTimesheets(employees: Employee[]): TimesheetMonthRecord[] {
-  const currentMonth = 8; // Agustus
   const currentYear = 2026;
+  const allRecords: TimesheetMonthRecord[] = [];
 
-  return employees.map((emp, index) => {
-    const days: Record<number, 'H' | 'A' | 'I' | 'O' | ''> = {};
+  // 1. Generate July 2026 (Month 7 - Previous Month, Full 31 Days Completed)
+  employees.forEach((emp, index) => {
+    const daysJul: Record<number, 'H' | 'A' | 'I' | 'O' | ''> = {};
+    for (let day = 1; day <= 31; day++) {
+      const isOffDay = day % 6 === 0;
+      if (isOffDay) {
+        daysJul[day] = 'O';
+      } else if (index % 3 === 0 && day === 15) {
+        daysJul[day] = 'I';
+      } else if (index === 1 && day === 22) {
+        daysJul[day] = 'A';
+      } else {
+        daysJul[day] = 'H';
+      }
+    }
+
+    const deductionAmount = index === 1 ? 40000 : 0;
+    const deductionReason = index === 1 ? 'Potongan atribut seragam tgl 22' : '';
+    const bonusAmount = index % 2 === 0 ? 75000 : 0;
+
+    allRecords.push({
+      id: `ts-${emp.id}-${currentYear}-7`,
+      employeeId: emp.id,
+      projectId: emp.projectId,
+      month: 7,
+      year: currentYear,
+      days: daysJul,
+      deductionAmount,
+      deductionReason,
+      bonusAmount,
+      notes: 'Rekap Final Payroll Bulan Juli 2026'
+    });
+  });
+
+  // 2. Generate August 2026 (Month 8 - Current Month, in progress)
+  employees.forEach((emp, index) => {
+    const daysAug: Record<number, 'H' | 'A' | 'I' | 'O' | ''> = {};
     
     // Fill up to day 25 (today's date in prompt metadata)
     for (let day = 1; day <= 31; day++) {
       if (day > 25) {
-        days[day] = ''; // Upcoming days in month
+        daysAug[day] = ''; // Upcoming days in month
       } else {
-        // Calculate day of week assuming 2026-08-01 was Saturday (day % 7 == 1 or 2 is weekend)
         const isOffDay = (day % 6 === 0);
         if (isOffDay) {
-          days[day] = 'O'; // Day off
+          daysAug[day] = 'O'; // Day off
         } else if (index === 0 && day === 14) {
-          days[day] = 'A'; // Alpa sample for emp-101
+          daysAug[day] = 'A'; // Alpa sample for emp-101
         } else if (index === 2 && day === 10) {
-          days[day] = 'I'; // Izin sample for emp-103
+          daysAug[day] = 'I'; // Izin sample for emp-103
         } else if (index === 5 && (day === 8 || day === 9)) {
-          days[day] = 'I'; // Sick sample
+          daysAug[day] = 'I'; // Sick sample
         } else {
-          days[day] = 'H'; // Present
+          daysAug[day] = 'H'; // Present
         }
       }
     }
@@ -477,19 +511,21 @@ export function generateSeedTimesheets(employees: Employee[]): TimesheetMonthRec
       deductionReason = 'Mangkir tanpa kabar briefing tgl 15';
     }
 
-    return {
-      id: `ts-${emp.id}-${currentYear}-${currentMonth}`,
+    allRecords.push({
+      id: `ts-${emp.id}-${currentYear}-8`,
       employeeId: emp.id,
       projectId: emp.projectId,
-      month: currentMonth,
+      month: 8,
       year: currentYear,
-      days,
+      days: daysAug,
       deductionAmount,
       deductionReason,
       bonusAmount,
       notes: ''
-    };
+    });
   });
+
+  return allRecords;
 }
 
 export const INITIAL_MUTATIONS: MutationHistory[] = [
@@ -687,6 +723,7 @@ export const INITIAL_PROJECT_STOCKS: ProjectStock[] = [
 ];
 
 export const INITIAL_INVENTORY_LOGS: InventoryLog[] = [
+  // Project 1: Mall Gandaria City
   {
     id: 'log-1',
     projectId: 'proj-1',
@@ -721,10 +758,36 @@ export const INITIAL_INVENTORY_LOGS: InventoryLog[] = [
     newStock: 4,
     date: '2026-08-25 07:00',
     pic: 'Ahmad Fauzi (Cleaner)',
-    notes: 'Distribusi trash bag harian ke seluruh tong sampah mall zona A & B'
+    notes: 'Distribusi trash bag harian ke seluruh standing bin mall atrium'
   },
   {
     id: 'log-4',
+    projectId: 'proj-1',
+    itemId: 'item-3',
+    type: 'OUT',
+    quantity: 1,
+    previousStock: 3,
+    newStock: 2,
+    date: '2026-08-24 10:00',
+    pic: 'Fitri Handayani (Cleaner)',
+    notes: 'Pembersihan railing kaca void lt. 2 & pintu entrance utama'
+  },
+
+  // Project 2: RS Medika Utama
+  {
+    id: 'log-5',
+    projectId: 'proj-2',
+    itemId: 'item-1',
+    type: 'OUT',
+    quantity: 3,
+    previousStock: 17,
+    newStock: 14,
+    date: '2026-08-25 08:00',
+    pic: 'Gunawan Hidayat (Team Leader)',
+    notes: 'Disinfeksi berkala koridor IGD, ruang rawat inap Flamboyan & ICU'
+  },
+  {
+    id: 'log-6',
     projectId: 'proj-2',
     itemId: 'item-4',
     type: 'IN',
@@ -734,6 +797,72 @@ export const INITIAL_INVENTORY_LOGS: InventoryLog[] = [
     date: '2026-08-23 11:00',
     pic: 'Bambang Supriyadi (Spv)',
     notes: 'Restock sabun cuci tangan standar RS Akreditasi KARS'
+  },
+  {
+    id: 'log-7',
+    projectId: 'proj-2',
+    itemId: 'item-8',
+    type: 'OUT',
+    quantity: 8,
+    previousStock: 26,
+    newStock: 18,
+    date: '2026-08-24 16:30',
+    pic: 'Hadi Susilo (Cleaner)',
+    notes: 'Penggantian kantong sampah non-medis poli rawat jalan'
+  },
+
+  // Project 3: Menara Bintang Tower
+  {
+    id: 'log-8',
+    projectId: 'proj-3',
+    itemId: 'item-2',
+    type: 'OUT',
+    quantity: 2,
+    previousStock: 9,
+    newStock: 7,
+    date: '2026-08-25 06:45',
+    pic: 'Kusuma Wardana (Leader)',
+    notes: 'Pel basah marmer lobby lift zona high-zone lt. 20-35'
+  },
+  {
+    id: 'log-9',
+    projectId: 'proj-3',
+    itemId: 'item-3',
+    type: 'OUT',
+    quantity: 1,
+    previousStock: 6,
+    newStock: 5,
+    date: '2026-08-24 13:00',
+    pic: 'Lukman Hakim (Gondola)',
+    notes: 'Pembersihan kaca curtain wall kanopi drop-off lobby'
+  },
+
+  // Project 4: Senopati Park Residence
+  {
+    id: 'log-10',
+    projectId: 'proj-4',
+    itemId: 'item-1',
+    type: 'OUT',
+    quantity: 1,
+    previousStock: 6,
+    newStock: 5,
+    date: '2026-08-25 09:00',
+    pic: 'Nugroho Tri (Leader)',
+    notes: 'Sanitasi area public toilet clubhouse & fitness center'
+  },
+
+  // Project 5: Kawasan Industri Jababeka
+  {
+    id: 'log-11',
+    projectId: 'proj-5',
+    itemId: 'item-5',
+    type: 'OUT',
+    quantity: 2,
+    previousStock: 6,
+    newStock: 4,
+    date: '2026-08-25 10:15',
+    pic: 'Qori Ramadhan (Floor Spv)',
+    notes: 'Degreasing oli dan strip wax lantai bengkel workshop area C'
   }
 ];
 

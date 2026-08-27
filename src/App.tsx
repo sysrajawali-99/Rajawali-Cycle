@@ -123,6 +123,11 @@ export default function App() {
     storageService.saveInventoryItems(nextItems);
   };
 
+  const handleUpdateInventoryItems = (updatedItems: InventoryItem[]) => {
+    setInventoryItems(updatedItems);
+    storageService.saveInventoryItems(updatedItems);
+  };
+
   const handleUpdateTasks = (updated: CleaningTask[]) => {
     setTasks(updated);
     storageService.saveTasks(updated);
@@ -388,6 +393,7 @@ export default function App() {
                 onUpdateStocks={handleUpdateStocks}
                 onAddLog={handleAddInventoryLog}
                 onAddMasterItem={handleAddMasterItem}
+                onUpdateInventoryItems={handleUpdateInventoryItems}
                 userRole={currentUser.role}
               />
             )}

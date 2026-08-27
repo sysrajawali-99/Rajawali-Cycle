@@ -27,6 +27,7 @@ import {
   UserRole
 } from '../../types';
 import { formatCurrency, formatNumber, getMonthName } from '../../utils/formatters';
+import { ComparativeCharts } from './ComparativeCharts';
 
 interface DashboardOverviewProps {
   projects: Project[];
@@ -300,6 +301,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* EXECUTIVE COMPARATIVE ANALYTICS (Payroll MoM & Manpower Quota vs Actual) */}
+      <ComparativeCharts
+        projects={projects}
+        employees={employees}
+        timesheets={timesheets}
+        currentMonth={currentMonth}
+        currentYear={currentYear}
+        selectedProjectId={selectedProjectId}
+      />
 
       {/* Main Grid: Live Tasks & Latest Blasts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
