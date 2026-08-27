@@ -218,7 +218,7 @@ export const storageService = {
     }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         const enriched = parsed.map((item: SopDocument) => {
           const matchedInitial = INITIAL_SOPS.find((init) => init.id === item.id);
           if (matchedInitial) {
@@ -254,7 +254,7 @@ export const storageService = {
     }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
       return INITIAL_USERS;

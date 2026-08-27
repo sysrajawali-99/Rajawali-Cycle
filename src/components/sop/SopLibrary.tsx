@@ -18,10 +18,14 @@ import {
   Layers,
   Award,
   BadgeCheck,
-  Info
+  Info,
+  FileDown,
+  Download
 } from 'lucide-react';
 import { SopItem, SopDocument, UserAccount } from '../../types';
 import { SopFormModal } from './SopFormModal';
+import { generateSingleSopPDF, generateSopsCatalogPDF } from '../../utils/pdfExport';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface SopLibraryProps {
   sops: SopItem[];
@@ -47,6 +51,8 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSop, setEditingSop] = useState<SopItem | null>(null);
+  const [sopToDelete, setSopToDelete] = useState<SopItem | null>(null);
+  const [deniedMessage, setDeniedMessage] = useState<string | null>(null);
 
   // Categories list
   const categoryFilters = [
@@ -93,20 +99,28 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
   // Handle Delete (Secured by Super Admin / Granted Permission)
   const handleDeleteSop = (sopId: string) => {
     if (!canDeleteSop) {
-      alert('Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat menghapus dokumen SOP ini.');
+      setDeniedMessage(
+        'Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat menghapus dokumen SOP ini.'
+      );
       return;
     }
 
-    const target = sops.find(s => s.id === sopId);
+    const target = sops.find((s) => s.id === sopId);
     if (!target) return;
-    const confirmDelete = window.confirm(`Apakah Anda yakin ingin menghapus dokumen SOP "${target.title}" (${target.code || 'SOP-MUTU'})? Tindakan ini tidak dapat dibatalkan.`);
-    if (!confirmDelete) return;
+    setSopToDelete(target);
+  };
 
-    const nextList = sops.filter(s => s.id !== sopId);
+  const confirmExecuteDeleteSop = () => {
+    if (!sopToDelete) return;
+    const targetId = sopToDelete.id;
+    const nextList = sops.filter((s) => s.id !== targetId);
     if (onUpdateSops) {
       onUpdateSops(nextList);
     }
-    setSelectedSop(nextList[0] || null);
+    if (selectedSop?.id === targetId) {
+      setSelectedSop(nextList[0] || null);
+    }
+    setSopToDelete(null);
   };
 
   // Print function
@@ -132,7 +146,19 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tombol Download Katalog PDF */}
+          <button
+            id="download-catalog-pdf-btn"
+            type="button"
+            onClick={() => generateSopsCatalogPDF(sops, selectedCategory)}
+            className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+            title={`Download Katalog PDF (${selectedCategory === 'ALL' ? 'Semua Kategori' : selectedCategory})`}
+          >
+            <FileDown className="w-4 h-4 text-emerald-400" />
+            <span>Download Katalog PDF</span>
+          </button>
+
           {/* Tombol Tambah SOP Baru */}
           <button
             id="add-sop-btn"
@@ -204,9 +230,39 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
                     <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
                       {sop.category}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {sop.code || `v${sop.version}`}
-                    </span>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {sop.code || `v${sop.version}`}
+                      </span>
+
+                      {/* Quick Download PDF */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateSingleSopPDF(sop);
+                        }}
+                        className="p-1 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition cursor-pointer"
+                        title={`Download PDF: ${sop.title}`}
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Quick Delete SOP (Gated by permission) */}
+                      {canDeleteSop && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSop(sop.id);
+                          }}
+                          className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition cursor-pointer"
+                          title={`Hapus SOP: ${sop.title}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <h4 className="font-bold text-white text-xs leading-snug">{sop.title}</h4>
                   <p className="text-slate-400 text-[11px] line-clamp-2 leading-relaxed">
@@ -253,14 +309,25 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
                   )}
                 </div>
 
-                {/* Actions (Edit SOP & Hapus SOP) */}
-                <div className="flex items-center space-x-2 shrink-0">
+                {/* Actions (Download PDF, Cetak, Edit SOP & Hapus SOP) */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    id="download-single-sop-pdf-btn"
+                    type="button"
+                    onClick={() => generateSingleSopPDF(selectedSop)}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                    title="Download Dokumen SOP Resmi (PDF)"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    <span>Download PDF</span>
+                  </button>
+
                   <button
                     id="print-sop-btn"
                     type="button"
                     onClick={handlePrintSop}
                     className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
-                    title="Cetak SOP"
+                    title="Cetak SOP via Browser"
                   >
                     <Printer className="w-4 h-4" />
                   </button>
@@ -500,6 +567,30 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({
         }}
         onSave={handleSaveSop}
         initialSop={editingSop}
+      />
+
+      {/* CONFIRM DELETE MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(sopToDelete)}
+        title="Hapus Dokumen Standar Mutu (SOP)"
+        message={`Apakah Anda yakin ingin menghapus dokumen SOP "${sopToDelete?.title}" (${sopToDelete?.code || 'SOP-MUTU'})? Seluruh panduan, takaran chemical, dan langkah pengerjaan di SOP ini akan dihapus.`}
+        confirmText="Ya, Hapus Dokumen"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteDeleteSop}
+        onCancel={() => setSopToDelete(null)}
+      />
+
+      {/* ACCESS DENIED MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(deniedMessage)}
+        title="Akses Ditolak (Izin Khusus)"
+        message={deniedMessage || ''}
+        confirmText="Mengerti"
+        cancelText="Tutup"
+        confirmVariant="warning"
+        onConfirm={() => setDeniedMessage(null)}
+        onCancel={() => setDeniedMessage(null)}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Employee, Project, TimesheetMonthRecord, InventoryItem, InventoryLog, CleaningTask } from '../types';
+import { Employee, Project, TimesheetMonthRecord, InventoryItem, InventoryLog, CleaningTask, SopItem, SopDocument } from '../types';
 import { formatCurrency, getMonthName, formatDateDDMMYYYY, formatDateTimeStamp } from './formatters';
 
 interface ExportTimesheetPDFParams {
@@ -1361,4 +1361,564 @@ export const generateCompletedTasksPDF = ({
   const fileName = `Laporan_Tugas_Selesai_${safeProj}_${safeDate}.pdf`;
   doc.save(fileName);
 };
+
+/**
+ * Generate Official SOP Document PDF (Standar Operasional Prosedur Mutu Rajawali)
+ */
+export const generateSingleSopPDF = (sop: SopItem) => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth(); // ~210mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // ~297mm
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2; // ~186mm
+
+  const currentTimestamp = new Date();
+  const printDateDDMMYYYY = formatDateDDMMYYYY(currentTimestamp);
+  const printTimestampStr = formatDateTimeStamp(currentTimestamp);
+
+  const drawHeader = () => {
+    // 1. Dark Navy Top Banner
+    doc.setFillColor(15, 39, 68); // #0f2744 Dark Navy
+    doc.rect(0, 0, pageWidth, 21, 'F');
+
+    // 2. Gold Accent Line
+    doc.setFillColor(217, 119, 6); // #d97706 Gold
+    doc.rect(0, 21, pageWidth, 1.8, 'F');
+
+    // Company Name & Logo text
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8.5);
+
+    // Subtitles
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Pusat Standar Operasional Prosedur (SOP) & Jaminan Mutu Kebersihan', margin, 13);
+    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 17);
+
+    // Right Header Tag
+    doc.setFillColor(217, 119, 6);
+    doc.roundedRect(pageWidth - margin - 52, 4, 52, 5.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(15, 23, 42);
+    doc.text('DOKUMEN RESMI STANDAR MUTU', pageWidth - margin - 50, 7.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`KODE: ${sop.code || 'SOP-MUTU'} • v${sop.version || '1.0'}`, pageWidth - margin - 52, 13.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Revisi: ${sop.lastUpdated || printDateDDMMYYYY}`, pageWidth - margin - 52, 17.5);
+  };
+
+  const drawFooter = (pageNum: number, totalPages: number) => {
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Time stamp cetak: ${printTimestampStr}`, margin, pageHeight - 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      `PT Rajawali Prima Service • Dokumen Terkendali Mutu SOP • Halaman ${pageNum} dari ${totalPages}`,
+      pageWidth - margin,
+      pageHeight - 7,
+      { align: 'right' }
+    );
+  };
+
+  drawHeader();
+
+  let curY = 28;
+
+  // Title Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, curY, contentWidth, 18, 1.5, 1.5, 'FD');
+
+  // Category Tag
+  doc.setFillColor(217, 119, 6);
+  doc.roundedRect(margin + 3, curY + 3, 35, 4.5, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(sop.category.toUpperCase(), margin + 4.5, curY + 6.2);
+
+  if (sop.code) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`KODE DOKUMEN: ${sop.code}`, margin + 42, curY + 6.2);
+  }
+
+  // Title Text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(sop.title, margin + 3, curY + 12);
+
+  // Author & Version Info
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    `Penyusun: ${sop.author || 'Divisi Standar Mutu & Operasional Rajawali'}  •  Versi Dokumen: ${sop.version || '1.0'}  •  Terakhir Diperbarui: ${sop.lastUpdated || printDateDDMMYYYY}`,
+    margin + 3,
+    curY + 16
+  );
+
+  curY += 21;
+
+  // 1. TUJUAN PEKERJAAN (Objective)
+  doc.setFillColor(254, 243, 199); // Light Amber
+  doc.setDrawColor(251, 191, 36);
+  doc.roundedRect(margin, curY, contentWidth, 12, 1, 1, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(146, 64, 14);
+  doc.text('1. TUJUAN & RUANG LINGKUP PEKERJAAN (OBJECTIVE):', margin + 3, curY + 4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(15, 23, 42);
+  const objText = sop.objective || sop.description || 'Menjaga standar kebersihan, higienitas, dan estetika area kerja sesuai standar operasional PT Rajawali Prima Service.';
+  const splitObj = doc.splitTextToSize(objText, contentWidth - 6);
+  doc.text(splitObj, margin + 3, curY + 8);
+
+  curY += 15;
+
+  // 2 & 3. TABEL PERALATAN KERJA & TABEL CHEMICAL (Side by side tables or stacked)
+  const equipmentItems = sop.equipmentList || [];
+  const chemicalItems = sop.chemicalList || [];
+
+  // Peralatan Kerja Table
+  const eqHead = [['No', 'Peralatan Kerja / Tools', 'Qty', 'Satuan']];
+  const eqBody = equipmentItems.length > 0
+    ? equipmentItems.map((e, idx) => [String(idx + 1), e.name, String(e.qty), e.unit])
+    : [['1', 'Alat kebersihan standar operasional', '1', 'Set']];
+
+  // Chemical Table
+  const chHead = [['No', 'Nama Chemical / Pembersih', 'Takaran / Rasio', 'Satuan']];
+  const chBody = chemicalItems.length > 0
+    ? chemicalItems.map((c, idx) => [String(idx + 1), c.name, c.dosage, c.unit])
+    : (sop.chemicalsUsed && sop.chemicalsUsed.length > 0
+      ? sop.chemicalsUsed.map((c, idx) => [String(idx + 1), c, 'Sesuai takaran botol', 'Pcs'])
+      : [['1', 'Chemical standar sesuai material permukaan', '1:20 / Sesuai instruksi', 'Botol']]);
+
+  const halfWidth = (contentWidth - 4) / 2;
+
+  // Section Header for Equipment & Chemical
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('2. PERALATAN KERJA (EQUIPMENT)', margin, curY + 3);
+  doc.text('3. CHEMICAL & TAKARAN RASIO (DOSAGE)', margin + halfWidth + 4, curY + 3);
+
+  curY += 5;
+
+  // Draw Equipment table on the left
+  autoTable(doc, {
+    startY: curY,
+    margin: { left: margin, right: pageWidth - margin - halfWidth },
+    head: eqHead,
+    body: eqBody,
+    theme: 'grid',
+    styles: {
+      fontSize: 6,
+      cellPadding: 1.2,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.15
+    },
+    headStyles: {
+      fillColor: [15, 39, 68],
+      textColor: [255, 255, 255],
+      fontSize: 6,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 'auto', halign: 'left', fontStyle: 'bold' },
+      2: { cellWidth: 10, halign: 'center' },
+      3: { cellWidth: 15, halign: 'right' }
+    }
+  });
+
+  const eqFinalY = (doc as any).lastAutoTable?.finalY || curY + 20;
+
+  // Draw Chemical table on the right
+  autoTable(doc, {
+    startY: curY,
+    margin: { left: margin + halfWidth + 4, right: margin },
+    head: chHead,
+    body: chBody,
+    theme: 'grid',
+    styles: {
+      fontSize: 6,
+      cellPadding: 1.2,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.15
+    },
+    headStyles: {
+      fillColor: [217, 119, 6],
+      textColor: [15, 23, 42],
+      fontSize: 6,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 'auto', halign: 'left', fontStyle: 'bold' },
+      2: { cellWidth: 24, halign: 'center' },
+      3: { cellWidth: 14, halign: 'right' }
+    }
+  });
+
+  const chFinalY = (doc as any).lastAutoTable?.finalY || curY + 20;
+  curY = Math.max(eqFinalY, chFinalY) + 5;
+
+  // 4. TAHAPAN PROSEDUR KERJA STANDAR (SOP)
+  if (curY > pageHeight - 60) {
+    doc.addPage();
+    drawHeader();
+    curY = 28;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`4. TAHAPAN PROSEDUR KERJA STANDAR (SOP) - TOTAL ${sop.steps.length} LANGKAH`, margin, curY + 3);
+
+  curY += 5;
+
+  const stepsHead = [['Step', 'Instruksi Langkah Kerja & Prosedur Operasional', 'Standar Mutu / Kunci Keberhasilan']];
+  const stepsBody = sop.steps.map((stepText, idx) => [
+    String(idx + 1),
+    stepText,
+    'Sesuai Standar K3 & Bersih Higienis'
+  ]);
+
+  autoTable(doc, {
+    startY: curY,
+    margin: { left: margin, right: margin },
+    head: stepsHead,
+    body: stepsBody,
+    theme: 'grid',
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 2,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.15,
+      textColor: [15, 23, 42]
+    },
+    headStyles: {
+      fillColor: [15, 39, 68],
+      textColor: [255, 255, 255],
+      fontSize: 6.5,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 'auto', halign: 'left' },
+      2: { cellWidth: 46, halign: 'center', textColor: [5, 150, 105] }
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252]
+    }
+  });
+
+  curY = (doc as any).lastAutoTable?.finalY + 5;
+
+  // 5 & 6. APD K3 & PERAWATAN PERALATAN
+  if (curY > pageHeight - 55) {
+    doc.addPage();
+    drawHeader();
+    curY = 28;
+  }
+
+  const ppeList = sop.requiredPPE || sop.safetyEquipment || ['Sarung tangan karet (Hand Gloves)', 'Masker medis / N95', 'Sepatu safety / Boots kerja', 'Kacamata pelindung (Goggles saat chemical keras)'];
+  const maintList = sop.equipmentMaintenance || ['Cuci dan bilas kain microfiber serta mop head setelah selesai digunakan.', 'Kosongkan dan keringkan ember/bucket di tempat berventilasi baik.', 'Periksa kabel mesin kebersihan sebelum dan sesudah operasional.'];
+
+  // Two columns for APD and Maintenance
+  doc.setFillColor(240, 253, 244); // Light Emerald
+  doc.setDrawColor(167, 243, 208);
+  doc.roundedRect(margin, curY, halfWidth, 22, 1, 1, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(6, 95, 70);
+  doc.text('5. APD & ALAT KESELAMATAN (K3):', margin + 3, curY + 4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
+  doc.setTextColor(15, 23, 42);
+  let ppeY = curY + 7.5;
+  ppeList.slice(0, 4).forEach((p) => {
+    doc.text(`• ${p}`, margin + 3, ppeY);
+    ppeY += 3.5;
+  });
+
+  doc.setFillColor(238, 242, 255); // Light Indigo
+  doc.setDrawColor(199, 210, 254);
+  doc.roundedRect(margin + halfWidth + 4, curY, halfWidth, 22, 1, 1, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(55, 48, 163);
+  doc.text('6. PERAWATAN & PENYIMPANAN ALAT:', margin + halfWidth + 7, curY + 4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
+  doc.setTextColor(15, 23, 42);
+  let maintY = curY + 7.5;
+  maintList.slice(0, 4).forEach((m) => {
+    const splitM = doc.splitTextToSize(`• ${m}`, halfWidth - 6);
+    doc.text(splitM, margin + halfWidth + 7, maintY);
+    maintY += 3.5;
+  });
+
+  curY += 26;
+
+  // 7. APPROVAL & VALIDATION BLOCK
+  if (curY > pageHeight - 38) {
+    doc.addPage();
+    drawHeader();
+    curY = 28;
+  }
+
+  const sigColW = contentWidth / 3;
+  const sigY = curY + 2;
+
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+
+  // Sign 1: Penyusun / Trainer
+  doc.text('Disusun Oleh,', margin + sigColW * 0.5, sigY, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Supervisor Mutu & Standarisasi', margin + sigColW * 0.5, sigY + 3.5, { align: 'center' });
+  doc.line(margin + sigColW * 0.15, sigY + 13, margin + sigColW * 0.85, sigY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.5);
+  doc.text(`( ${sop.author || 'Tim Standar Mutu HQ'} )`, margin + sigColW * 0.5, sigY + 16.5, { align: 'center' });
+
+  // Sign 2: HSE & Quality Assurance
+  doc.setFontSize(6);
+  doc.text('Divalidasi Oleh,', margin + sigColW * 1.5, sigY, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text('HSE & Quality Assurance Lead', margin + sigColW * 1.5, sigY + 3.5, { align: 'center' });
+  doc.line(margin + sigColW * 1.15, sigY + 13, margin + sigColW * 1.85, sigY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.5);
+  doc.text('( Safety & Quality Specialist )', margin + sigColW * 1.5, sigY + 16.5, { align: 'center' });
+
+  // Sign 3: Operations Director
+  doc.setFontSize(6);
+  doc.text('Disetujui Oleh,', margin + sigColW * 2.5, sigY, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text('Operations Director', margin + sigColW * 2.5, sigY + 3.5, { align: 'center' });
+  doc.line(margin + sigColW * 2.15, sigY + 13, margin + sigColW * 2.85, sigY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.5);
+  doc.text('( Direktur Operasional )', margin + sigColW * 2.5, sigY + 16.5, { align: 'center' });
+
+  // Draw Footer on all pages
+  const totalPages = doc.internal.pages.length - 1;
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(i, totalPages);
+  }
+
+  const safeTitle = (sop.code || sop.title).replace(/[^a-zA-Z0-9]/g, '_');
+  const fileName = `SOP_${safeTitle}_Rajawali.pdf`;
+  doc.save(fileName);
+};
+
+/**
+ * Generate Entire SOP Catalog / Compilation Book PDF
+ */
+export const generateSopsCatalogPDF = (sops: SopItem[], categoryFilter: string = 'ALL') => {
+  const targetSops = categoryFilter === 'ALL'
+    ? sops
+    : sops.filter(s => s.category === categoryFilter);
+
+  if (targetSops.length === 0) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+
+  const currentTimestamp = new Date();
+  const printDateDDMMYYYY = formatDateDDMMYYYY(currentTimestamp);
+  const printTimestampStr = formatDateTimeStamp(currentTimestamp);
+
+  const drawHeader = () => {
+    doc.setFillColor(15, 39, 68);
+    doc.rect(0, 0, pageWidth, 21, 'F');
+    doc.setFillColor(217, 119, 6);
+    doc.rect(0, 21, pageWidth, 1.8, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Kompilasi Buku Pedoman Standar Operasional Prosedur (SOP) & Mutu', margin, 13);
+    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 17);
+
+    doc.setFillColor(217, 119, 6);
+    doc.roundedRect(pageWidth - margin - 52, 4, 52, 5.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BUKU KATALOG STANDAR MUTU', pageWidth - margin - 50, 7.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`TOTAL: ${targetSops.length} DOKUMEN SOP`, pageWidth - margin - 52, 13.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Cetak: ${printDateDDMMYYYY}`, pageWidth - margin - 52, 17.5);
+  };
+
+  const drawFooter = (pageNum: number, totalPages: number) => {
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Time stamp cetak: ${printTimestampStr}`, margin, pageHeight - 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      `PT Rajawali Prima Service • Buku Pedoman SOP Resmi • Hal ${pageNum} dari ${totalPages}`,
+      pageWidth - margin,
+      pageHeight - 7,
+      { align: 'right' }
+    );
+  };
+
+  drawHeader();
+
+  let curY = 28;
+
+  // Title Box
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text(
+    categoryFilter === 'ALL'
+      ? 'KATALOG LENGKAP STANDAR OPERASIONAL PROSEDUR (SOP)'
+      : `KATALOG SOP: ${categoryFilter.toUpperCase()}`,
+    margin,
+    curY
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    'Daftar resmi seluruh standar mutu kebersihan, peralatan, takaran chemical, dan alur pengerjaan operasional Rajawali.',
+    margin,
+    curY + 4.5
+  );
+
+  curY += 9;
+
+  // Table summary of all SOPs
+  const tableHead = [['No', 'Kode', 'Judul Standar Operasional (SOP)', 'Kategori', 'Total Langkah', 'Peralatan & Chemical', 'Versi / Tanggal']];
+  const tableBody = targetSops.map((s, index) => [
+    String(index + 1),
+    s.code || `SOP-${index + 1}`,
+    s.title,
+    s.category,
+    `${s.steps.length} Langkah`,
+    `${s.equipmentList?.length || 0} Alat • ${s.chemicalList?.length || (s.chemicalsUsed?.length || 0)} Chem`,
+    `v${s.version} (${s.lastUpdated})`
+  ]);
+
+  autoTable(doc, {
+    startY: curY,
+    margin: { left: margin, right: margin },
+    head: tableHead,
+    body: tableBody,
+    theme: 'grid',
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 2,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.15,
+      textColor: [15, 23, 42]
+    },
+    headStyles: {
+      fillColor: [15, 39, 68],
+      textColor: [255, 255, 255],
+      fontSize: 6.5,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+      2: { cellWidth: 'auto', halign: 'left', fontStyle: 'bold' },
+      3: { cellWidth: 32, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 28, halign: 'center' },
+      6: { cellWidth: 24, halign: 'center' }
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252]
+    }
+  });
+
+  const totalPages = doc.internal.pages.length - 1;
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(i, totalPages);
+  }
+
+  const safeCat = categoryFilter.replace(/[^a-zA-Z0-9]/g, '_');
+  const fileName = `Katalog_SOP_Rajawali_${safeCat}_${currentTimestamp.toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+};
+
 

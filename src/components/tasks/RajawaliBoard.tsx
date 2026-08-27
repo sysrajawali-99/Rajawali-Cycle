@@ -44,6 +44,7 @@ import { TaskQCModal } from './TaskQCModal';
 import { TaskPhotoViewerModal } from './TaskPhotoViewerModal';
 import { TaskKPIView } from './TaskKPIView';
 import { TaskDownloadReportModal } from './TaskDownloadReportModal';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface RajawaliBoardProps {
   projects: Project[];
@@ -91,6 +92,11 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   const [activePhotoViewer, setActivePhotoViewer] = useState<{ url: string; title: string } | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState<boolean>(false);
   const [downloadTargetTask, setDownloadTargetTask] = useState<CleaningTask | null>(null);
+
+  // Delete & Security Modals
+  const [taskToDelete, setTaskToDelete] = useState<CleaningTask | null>(null);
+  const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
+  const [deniedMessage, setDeniedMessage] = useState<string | null>(null);
 
   // Card direct file upload refs
   const directCardFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -445,40 +451,39 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   // 5. Action: Delete / Cancel Task (Gated by permission)
   const handleDeleteTask = (taskId: string) => {
     if (!canDeleteTasks) {
-      alert(
+      setDeniedMessage(
         'Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat menghapus tugas ini.'
       );
       return;
     }
     const target = tasks.find((t) => t.id === taskId);
     if (!target) return;
+    setTaskToDelete(target);
+  };
 
-    if (
-      window.confirm(
-        `Apakah Anda yakin ingin menghapus tugas area "${target.areaName}" (${target.shift})? Tindakan ini tidak dapat dibatalkan.`
-      )
-    ) {
-      const updated = tasks.filter((t) => t.id !== taskId);
-      onUpdateTasks(updated);
-    }
+  const confirmExecuteDeleteTask = () => {
+    if (!taskToDelete) return;
+    const targetId = taskToDelete.id;
+    const updated = tasks.filter((t) => t.id !== targetId);
+    onUpdateTasks(updated);
+    setTaskToDelete(null);
   };
 
   // 5b. Action: Clear All Tasks (Kosongkan Board)
   const handleClearAllTasks = () => {
     if (tasks.length === 0) return;
     if (!canDeleteTasks) {
-      alert(
+      setDeniedMessage(
         'Akses Ditolak: Hanya Super Admin (HQ) atau pengguna yang diizinkan Super Admin yang dapat mengosongkan board tugas.'
       );
       return;
     }
-    if (
-      window.confirm(
-        'Hapus dan kosongkan semua data tugas kebersihan di Rajawali Boards? Seluruh riwayat dan foto checklist akan dihapus.'
-      )
-    ) {
-      onUpdateTasks([]);
-    }
+    setIsClearAllConfirmOpen(true);
+  };
+
+  const confirmExecuteClearAllTasks = () => {
+    onUpdateTasks([]);
+    setIsClearAllConfirmOpen(false);
   };
 
   // 6. Action: Save New Ad-Hoc Task
@@ -1231,6 +1236,42 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
         projects={projects}
         initialProjectId={activeProjectFilter}
         initialTask={downloadTargetTask}
+      />
+
+      {/* CONFIRM DELETE SINGLE TASK MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(taskToDelete)}
+        title="Hapus Tugas Kebersihan Area"
+        message={`Apakah Anda yakin ingin menghapus tugas area "${taskToDelete?.areaName}" (${taskToDelete?.shift})? Seluruh riwayat checklist dan foto bukti pada kartu ini akan dihapus.`}
+        confirmText="Ya, Hapus Tugas"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteDeleteTask}
+        onCancel={() => setTaskToDelete(null)}
+      />
+
+      {/* CONFIRM CLEAR ALL TASKS MODAL */}
+      <ConfirmModal
+        isOpen={isClearAllConfirmOpen}
+        title="Kosongkan Semua Tugas Board"
+        message="Hapus dan kosongkan semua data tugas kebersihan di Rajawali Boards? Seluruh antrean tugas, checklist, foto sebelum/sesudah, dan riwayat QC akan dibersihkan."
+        confirmText="Ya, Kosongkan Board"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteClearAllTasks}
+        onCancel={() => setIsClearAllConfirmOpen(false)}
+      />
+
+      {/* ACCESS DENIED MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(deniedMessage)}
+        title="Akses Ditolak (Izin Khusus)"
+        message={deniedMessage || ''}
+        confirmText="Mengerti"
+        cancelText="Tutup"
+        confirmVariant="warning"
+        onConfirm={() => setDeniedMessage(null)}
+        onCancel={() => setDeniedMessage(null)}
       />
     </div>
   );

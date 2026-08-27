@@ -27,6 +27,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { UserAccount, AppView, Project, UserRole } from '../../types';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface AccessControlProps {
   users: UserAccount[];
@@ -118,6 +119,11 @@ export const AccessControl: React.FC<AccessControlProps> = ({
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserAccount | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Deletion and reset modals
+  const [userToDelete, setUserToDelete] = useState<UserAccount | null>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
+  const [alertModalMsg, setAlertModalMsg] = useState<string | null>(null);
 
   // New user form state
   const [newUserForm, setNewUserForm] = useState<{
@@ -347,19 +353,32 @@ export const AccessControl: React.FC<AccessControlProps> = ({
   // Delete user (cannot delete self or primary superadmin)
   const handleDeleteUser = (userId: string) => {
     if (userId === currentUser.id) {
-      alert('Anda tidak dapat menghapus akun Anda sendiri.');
+      setAlertModalMsg('Anda tidak dapat menghapus akun Anda sendiri.');
       return;
     }
     if (userId === 'user-superadmin') {
-      alert('Akun Super Admin Utama tidak boleh dihapus.');
+      setAlertModalMsg('Akun Super Admin Utama tidak boleh dihapus demi keamanan sistem.');
       return;
     }
 
-    if (confirm('Apakah Anda yakin ingin menghapus akun pengguna ini?')) {
-      const updated = users.filter((u) => u.id !== userId);
-      onUpdateUsers(updated);
-      showToast(`Pengguna berhasil dihapus.`);
-    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+    setUserToDelete(target);
+  };
+
+  const confirmExecuteDeleteUser = () => {
+    if (!userToDelete) return;
+    const targetId = userToDelete.id;
+    const updated = users.filter((u) => u.id !== targetId);
+    onUpdateUsers(updated);
+    showToast(`Pengguna ${userToDelete.name} berhasil dihapus.`);
+    setUserToDelete(null);
+  };
+
+  const confirmExecuteResetDefault = () => {
+    onResetUsersToDefault();
+    showToast('Hak akses dan akun berhasil direset ke bawaan.');
+    setIsResetConfirmOpen(false);
   };
 
   return (
@@ -398,12 +417,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
           <div className="flex items-center space-x-3 shrink-0">
             <button
               id="reset-users-default-btn"
-              onClick={() => {
-                if (confirm('Kembalikan semua daftar akun dan hak akses menu ke pengaturan bawaan pabrik?')) {
-                  onResetUsersToDefault();
-                  showToast('Hak akses dan akun berhasil direset ke bawaan.');
-                }
-              }}
+              onClick={() => setIsResetConfirmOpen(true)}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
@@ -1350,6 +1364,42 @@ export const AccessControl: React.FC<AccessControlProps> = ({
           </div>
         </div>
       )}
+
+      {/* CONFIRM DELETE USER MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(userToDelete)}
+        title="Hapus Akun Pengguna"
+        message={`Apakah Anda yakin ingin menghapus akun pengguna "${userToDelete?.name}" (@${userToDelete?.username})? Pengguna tidak akan dapat login lagi ke sistem.`}
+        confirmText="Ya, Hapus Pengguna"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteDeleteUser}
+        onCancel={() => setUserToDelete(null)}
+      />
+
+      {/* CONFIRM RESET DEFAULT MODAL */}
+      <ConfirmModal
+        isOpen={isResetConfirmOpen}
+        title="Reset Akun & Hak Akses ke Bawaan"
+        message="Kembalikan semua daftar akun dan hak akses menu ke pengaturan bawaan pabrik? Seluruh perubahan konfigurasi kustom akan direset."
+        confirmText="Ya, Reset Bawaan"
+        cancelText="Batal"
+        confirmVariant="warning"
+        onConfirm={confirmExecuteResetDefault}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
+
+      {/* SYSTEM ALERT MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(alertModalMsg)}
+        title="Peringatan Keamanan Sistem"
+        message={alertModalMsg || ''}
+        confirmText="Mengerti"
+        cancelText="Tutup"
+        confirmVariant="primary"
+        onConfirm={() => setAlertModalMsg(null)}
+        onCancel={() => setAlertModalMsg(null)}
+      />
     </div>
   );
 };

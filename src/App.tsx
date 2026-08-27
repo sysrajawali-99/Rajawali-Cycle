@@ -146,6 +146,11 @@ export default function App() {
     storageService.saveBlasts(nextBlasts);
   };
 
+  const handleUpdateBlasts = (updatedBlasts: BlastAnnouncement[]) => {
+    setBlasts(updatedBlasts);
+    storageService.saveBlasts(updatedBlasts);
+  };
+
   const handleUpdateSops = (updatedSops: SopDocument[]) => {
     setSops(updatedSops);
     storageService.saveSops(updatedSops);
@@ -423,6 +428,7 @@ export default function App() {
               <EagleBlast
                 blasts={blasts}
                 onAddBlast={handleAddBlast}
+                onUpdateBlasts={handleUpdateBlasts}
                 userRole={currentUser.role}
               />
             )}

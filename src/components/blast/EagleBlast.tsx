@@ -9,24 +9,29 @@ import {
   Tag,
   AlertCircle,
   Sparkles,
-  Share2
+  Share2,
+  Trash2
 } from 'lucide-react';
 import { BlastAnnouncement, UserRole } from '../../types';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface EagleBlastProps {
   blasts: BlastAnnouncement[];
   onAddBlast: (blast: BlastAnnouncement) => void;
+  onUpdateBlasts?: (blasts: BlastAnnouncement[]) => void;
   userRole: UserRole;
 }
 
 export const EagleBlast: React.FC<EagleBlastProps> = ({
   blasts,
   onAddBlast,
+  onUpdateBlasts,
   userRole
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [blastToDelete, setBlastToDelete] = useState<BlastAnnouncement | null>(null);
 
   const [form, setForm] = useState<{
     title: string;
@@ -75,6 +80,13 @@ export const EagleBlast: React.FC<EagleBlastProps> = ({
 
     onAddBlast(newBlast);
     setShowAddModal(false);
+  };
+
+  const confirmExecuteDeleteBlast = () => {
+    if (!blastToDelete || !onUpdateBlasts) return;
+    const updated = blasts.filter((b) => b.id !== blastToDelete.id);
+    onUpdateBlasts(updated);
+    setBlastToDelete(null);
   };
 
   return (
@@ -189,6 +201,17 @@ export const EagleBlast: React.FC<EagleBlastProps> = ({
                   <Calendar className="w-3.5 h-3.5 text-slate-500" />
                   <span>{blast.date}</span>
                 </span>
+
+                {userRole === 'Super Admin (HQ)' && onUpdateBlasts && (
+                  <button
+                    type="button"
+                    onClick={() => setBlastToDelete(blast)}
+                    title="Hapus Pengumuman"
+                    className="p-1 rounded-lg hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -293,6 +316,18 @@ export const EagleBlast: React.FC<EagleBlastProps> = ({
           </div>
         </div>
       )}
+
+      {/* CONFIRM DELETE BLAST MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(blastToDelete)}
+        title="Hapus Siaran Pengumuman"
+        message={`Apakah Anda yakin ingin menghapus pengumuman "${blastToDelete?.title}"? Pengumuman tidak akan ditampilkan lagi ke seluruh lokasi.`}
+        confirmText="Ya, Hapus Pengumuman"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteDeleteBlast}
+        onCancel={() => setBlastToDelete(null)}
+      />
     </div>
   );
 };

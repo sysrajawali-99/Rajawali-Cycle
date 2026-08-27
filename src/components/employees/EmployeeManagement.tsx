@@ -48,6 +48,7 @@ import {
   exportEmployeesToXLSX,
   parseEmployeeFile
 } from '../../utils/employeeExcel';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface EmployeeManagementProps {
   projects: Project[];
@@ -129,6 +130,12 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
     reason: ''
   });
 
+  // Delete & Roster replace modal states
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [isReplaceRosterConfirmOpen, setIsReplaceRosterConfirmOpen] = useState<boolean>(false);
+  const [pendingReplaceEmployees, setPendingReplaceEmployees] = useState<Employee[]>([]);
+  const [bulkAlertMsg, setBulkAlertMsg] = useState<string | null>(null);
+
   // Filtered employees
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
@@ -184,21 +191,13 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
     const validEmployees = bulkParsedList.filter((item) => item.isValid).map((item) => item.employee);
 
     if (validEmployees.length === 0) {
-      alert('Tidak ada data karyawan valid untuk di-import.');
+      setBulkAlertMsg('Tidak ada data karyawan valid untuk di-import.');
       return;
     }
 
     if (bulkImportMode === 'replace') {
-      if (confirm(`PERINGATAN: Mode Ganti Roster akan menghapus ${employees.length} data karyawan yang ada dan menggantikannya dengan ${validEmployees.length} karyawan baru. Lanjutkan?`)) {
-        onUpdateEmployees(validEmployees);
-        setBulkSuccessMsg(`Berhasil mengganti seluruh roster dengan ${validEmployees.length} karyawan baru!`);
-        setTimeout(() => {
-          setShowBulkModal(false);
-          setBulkFile(null);
-          setBulkParsedList([]);
-          setBulkSuccessMsg(null);
-        }, 1200);
-      }
+      setPendingReplaceEmployees(validEmployees);
+      setIsReplaceRosterConfirmOpen(true);
     } else {
       // Append mode - avoid exact duplicate NIKs if any
       const existingNiks = new Set(employees.map((e) => e.nik));
@@ -221,6 +220,19 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
         setBulkSuccessMsg(null);
       }, 1200);
     }
+  };
+
+  const confirmExecuteReplaceRoster = () => {
+    if (pendingReplaceEmployees.length === 0) return;
+    onUpdateEmployees(pendingReplaceEmployees);
+    setBulkSuccessMsg(`Berhasil mengganti seluruh roster dengan ${pendingReplaceEmployees.length} karyawan baru!`);
+    setIsReplaceRosterConfirmOpen(false);
+    setTimeout(() => {
+      setShowBulkModal(false);
+      setBulkFile(null);
+      setBulkParsedList([]);
+      setBulkSuccessMsg(null);
+    }, 1200);
   };
 
   // Open Edit Modal
@@ -330,17 +342,30 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
     setMutatingEmployee(null);
   };
 
-  // Delete / Resign employee
-  const handleDeleteEmployee = (empId: string) => {
-    if (confirm('Yakin ingin mengubah status karyawan ini menjadi Resign / Nonaktif?')) {
-      const updated = employees.map((emp) => {
-        if (emp.id === empId) {
-          return { ...emp, status: 'Resign' as EmployeeStatus };
-        }
-        return emp;
-      });
-      onUpdateEmployees(updated);
-    }
+  // Open Delete / Resign Modal
+  const handleOpenDeleteEmployee = (emp: Employee) => {
+    setEmployeeToDelete(emp);
+  };
+
+  const handleConfirmResignEmployee = () => {
+    if (!employeeToDelete) return;
+    const targetId = employeeToDelete.id;
+    const updated = employees.map((emp) => {
+      if (emp.id === targetId) {
+        return { ...emp, status: 'Resign' as EmployeeStatus };
+      }
+      return emp;
+    });
+    onUpdateEmployees(updated);
+    setEmployeeToDelete(null);
+  };
+
+  const handleConfirmPermanentDeleteEmployee = () => {
+    if (!employeeToDelete) return;
+    const targetId = employeeToDelete.id;
+    const updated = employees.filter((emp) => emp.id !== targetId);
+    onUpdateEmployees(updated);
+    setEmployeeToDelete(null);
   };
 
   return (
@@ -711,16 +736,14 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
-                                {emp.status !== 'Resign' && (
-                                  <button
-                                    id={`table-delete-btn-${emp.id}`}
-                                    onClick={() => handleDeleteEmployee(emp.id)}
-                                    title="Nonaktifkan / Resign"
-                                    className="p-1.5 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-lg transition cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
+                                <button
+                                  id={`table-delete-btn-${emp.id}`}
+                                  onClick={() => handleOpenDeleteEmployee(emp)}
+                                  title={emp.status === 'Resign' ? 'Hapus Data Karyawan' : 'Nonaktifkan / Resign / Hapus'}
+                                  className="p-1.5 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-lg transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -834,16 +857,14 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
 
-                        {emp.status !== 'Resign' && (
-                          <button
-                            id={`delete-emp-btn-${emp.id}`}
-                            onClick={() => handleDeleteEmployee(emp.id)}
-                            title="Nonaktifkan Karyawan"
-                            className="p-2 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-xl transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          id={`delete-emp-btn-${emp.id}`}
+                          onClick={() => handleOpenDeleteEmployee(emp)}
+                          title={emp.status === 'Resign' ? 'Hapus Data Karyawan' : 'Nonaktifkan / Resign / Hapus'}
+                          className="p-2 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-xl transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1540,6 +1561,93 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: DELETE / RESIGN EMPLOYEE */}
+      {employeeToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-start space-x-3">
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-white">Kelola Status / Hapus Karyawan</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Pilih tindakan yang ingin dilakukan untuk <b>{employeeToDelete.name}</b> (NIK: {employeeToDelete.nik}, Jabatan: {employeeToDelete.position}).
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {employeeToDelete.status !== 'Resign' && (
+                <button
+                  type="button"
+                  onClick={handleConfirmResignEmployee}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-left transition cursor-pointer group"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-amber-300 group-hover:text-amber-200">
+                      Ubah Status Jadi Resign / Nonaktif
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Karyawan tidak akan aktif di roster penugasan namun riwayatnya tetap tersimpan.
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleConfirmPermanentDeleteEmployee}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-rose-950/30 hover:bg-rose-900/40 border border-rose-500/30 text-left transition cursor-pointer group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-rose-300 group-hover:text-rose-200">
+                    Hapus Data Karyawan Secara Permanen
+                  </div>
+                  <div className="text-[11px] text-rose-300/70 mt-0.5">
+                    Menghapus data karyawan dari database secara permanen.
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEmployeeToDelete(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM BULK REPLACE ROSTER */}
+      <ConfirmModal
+        isOpen={isReplaceRosterConfirmOpen}
+        title="Ganti Seluruh Roster Karyawan"
+        message={`PERINGATAN: Mode Ganti Roster akan menghapus ${employees.length} data karyawan yang ada dan menggantikannya dengan ${pendingReplaceEmployees.length} karyawan baru dari file import. Lanjutkan?`}
+        confirmText="Ya, Ganti Semua Roster"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteReplaceRoster}
+        onCancel={() => setIsReplaceRosterConfirmOpen(false)}
+      />
+
+      {/* BULK ALERT MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(bulkAlertMsg)}
+        title="Informasi Import"
+        message={bulkAlertMsg || ''}
+        confirmText="Mengerti"
+        cancelText="Tutup"
+        confirmVariant="primary"
+        onConfirm={() => setBulkAlertMsg(null)}
+        onCancel={() => setBulkAlertMsg(null)}
+      />
     </div>
   );
 };
