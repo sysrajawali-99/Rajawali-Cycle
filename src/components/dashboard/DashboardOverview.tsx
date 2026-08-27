@@ -336,65 +336,71 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {filteredTasks.slice(0, 4).map((task) => {
-              const doneCount = task.checklist.filter((c) => c.done).length;
-              const totalCount = task.checklist.length;
-              const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+            {filteredTasks.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-xs italic bg-slate-950/40 rounded-xl border border-dashed border-slate-800/80 p-4">
+                Belum ada tugas kebersihan harian yang dibuat. Klik menu "Rajawali Boards" untuk menambahkan tugas baru.
+              </div>
+            ) : (
+              filteredTasks.slice(0, 4).map((task) => {
+                const doneCount = task.checklist.filter((c) => c.done).length;
+                const totalCount = task.checklist.length;
+                const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
-              return (
-                <div
-                  key={task.id}
-                  className="bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 p-3.5 rounded-xl transition-colors space-y-2"
-                >
-                  <div className="flex items-start justify-between">
+                return (
+                  <div
+                    key={task.id}
+                    className="bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 p-3.5 rounded-xl transition-colors space-y-2"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-white text-xs">{task.areaName}</h4>
+                        <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
+                          <span className="text-slate-300">Petugas: {task.assignedEmployees.join(', ')}</span>
+                          <span>•</span>
+                          <span className="text-slate-500">{task.shift}</span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          task.status === 'done'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : task.status === 'review'
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            : task.status === 'in_progress'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {task.status === 'done'
+                          ? 'Selesai'
+                          : task.status === 'review'
+                          ? 'Audit QC'
+                          : task.status === 'in_progress'
+                          ? 'Sedang Dikerjakan'
+                          : 'Jadwal'}
+                      </span>
+                    </div>
+
+                    {/* Checklist progress bar */}
                     <div>
-                      <h4 className="font-bold text-white text-xs">{task.areaName}</h4>
-                      <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
-                        <span className="text-slate-300">Petugas: {task.assignedEmployees.join(', ')}</span>
-                        <span>•</span>
-                        <span className="text-slate-500">{task.shift}</span>
+                      <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                        <span>Checklist Pengerjaan ({doneCount}/{totalCount} item)</span>
+                        <span className="font-semibold text-slate-300">{percent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            percent === 100 ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        />
                       </div>
                     </div>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                        task.status === 'done'
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                          : task.status === 'review'
-                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                          : task.status === 'in_progress'
-                          ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                          : 'bg-slate-800 text-slate-400 border-slate-700'
-                      }`}
-                    >
-                      {task.status === 'done'
-                        ? 'Selesai'
-                        : task.status === 'review'
-                        ? 'Audit QC'
-                        : task.status === 'in_progress'
-                        ? 'Sedang Dikerjakan'
-                        : 'Jadwal'}
-                    </span>
                   </div>
-
-                  {/* Checklist progress bar */}
-                  <div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                      <span>Checklist Pengerjaan ({doneCount}/{totalCount} item)</span>
-                      <span className="font-semibold text-slate-300">{percent}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${
-                          percent === 100 ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 

@@ -406,6 +406,8 @@ export default function App() {
                 tasks={tasks}
                 selectedProjectId={selectedProjectId}
                 onUpdateTasks={handleUpdateTasks}
+                currentUser={currentUser}
+                users={users}
                 userRole={currentUser.role}
               />
             )}

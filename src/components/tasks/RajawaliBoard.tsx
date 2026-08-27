@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   KanbanSquare,
   Plus,
@@ -12,7 +12,19 @@ import {
   Sparkles,
   CheckSquare,
   Square,
-  ArrowRight
+  ArrowRight,
+  Camera,
+  RotateCcw,
+  ShieldCheck,
+  BarChart3,
+  Layers,
+  Image as ImageIcon,
+  UserCheck,
+  Eye,
+  Trash2,
+  FileCheck2,
+  Calendar,
+  UploadCloud
 } from 'lucide-react';
 import {
   Project,
@@ -20,8 +32,16 @@ import {
   CleaningTask,
   TaskStatus,
   ShiftType,
-  UserRole
+  UserRole,
+  UserAccount,
+  QCStatus,
+  TaskChecklistItem
 } from '../../types';
+import { NewAdHocTaskModal } from './NewAdHocTaskModal';
+import { TaskPhotoUploadModal } from './TaskPhotoUploadModal';
+import { TaskQCModal } from './TaskQCModal';
+import { TaskPhotoViewerModal } from './TaskPhotoViewerModal';
+import { TaskKPIView } from './TaskKPIView';
 
 interface RajawaliBoardProps {
   projects: Project[];
@@ -29,6 +49,8 @@ interface RajawaliBoardProps {
   tasks: CleaningTask[];
   selectedProjectId: string;
   onUpdateTasks: (updated: CleaningTask[]) => void;
+  currentUser?: UserAccount | null;
+  users?: UserAccount[];
   userRole: UserRole;
 }
 
@@ -38,53 +60,102 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
   tasks = [],
   selectedProjectId = 'ALL',
   onUpdateTasks,
+  currentUser = null,
+  users = [],
   userRole
 }) => {
-  const [activeProjectFilter, setActiveProjectFilter] = useState<string>(
-    selectedProjectId !== 'ALL' ? selectedProjectId : projects[0]?.id || 'proj-1'
-  );
+  // Tab View State: 'board' (Kanban) or 'kpi' (Diagram KPI)
+  const [activeTab, setActiveTab] = useState<'board' | 'kpi'>('board');
+
+  // Location filter state
+  const initialProjectId = useMemo(() => {
+    if (currentUser?.isLocationLocked && currentUser.assignedProjectId !== 'ALL') {
+      return currentUser.assignedProjectId;
+    }
+    if (selectedProjectId !== 'ALL') return selectedProjectId;
+    return projects[0]?.id || 'proj-1';
+  }, [currentUser, selectedProjectId, projects]);
+
+  const [activeProjectFilter, setActiveProjectFilter] = useState<string>(initialProjectId);
   const [searchQuery, setSearchQuery] = useState('');
   const [shiftFilter, setShiftFilter] = useState<string>('ALL');
+  const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
 
-  // Modal State for New Task
+  // Modals
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [taskForm, setTaskForm] = useState<{
-    areaName: string;
-    frequency: 'Harian' | 'Per-Shift' | 'Mingguan' | 'Deep Cleaning';
-    assignedEmployees: string[];
-    shift: ShiftType;
-    priority: 'Rutin' | 'Sedang' | 'Tinggi' | 'Urgent';
-    checklistItemsText: string;
-    notes: string;
-  }>({
-    areaName: '',
-    frequency: 'Harian',
-    assignedEmployees: [],
-    shift: 'Pagi (06:00 - 14:00)',
-    priority: 'Sedang',
-    checklistItemsText: 'Dusting meja & furniture\nMopping lantai dengan Neutral Cleaner\nRefill tissue & sabun cuci tangan\nKuras tempat sampah',
-    notes: ''
-  });
+  const [activeUploadTask, setActiveUploadTask] = useState<CleaningTask | null>(null);
+  const [activeUploadChecklistId, setActiveUploadChecklistId] = useState<string | undefined>(undefined);
+  const [activeQCTask, setActiveQCTask] = useState<CleaningTask | null>(null);
+  const [activePhotoViewer, setActivePhotoViewer] = useState<{ url: string; title: string } | null>(null);
 
-  // Filtered tasks for selected project
+  // Card direct file upload refs
+  const directCardFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [directUploadTarget, setDirectUploadTarget] = useState<{ taskId: string; checklistId: string } | null>(null);
+
+  // Sync active project if prop changes
+  React.useEffect(() => {
+    if (currentUser?.isLocationLocked && currentUser.assignedProjectId !== 'ALL') {
+      setActiveProjectFilter(currentUser.assignedProjectId);
+    } else if (selectedProjectId !== 'ALL') {
+      setActiveProjectFilter(selectedProjectId);
+    }
+  }, [selectedProjectId, currentUser]);
+
+  // Filtered tasks for selected project and query
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (t.projectId !== activeProjectFilter) return false;
+      if (activeProjectFilter !== 'ALL' && t.projectId !== activeProjectFilter) return false;
       if (shiftFilter !== 'ALL' && !t.shift.includes(shiftFilter)) return false;
+      if (priorityFilter !== 'ALL' && t.priority !== priorityFilter) return false;
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
         return (
           t.areaName.toLowerCase().includes(q) ||
           t.assignedEmployees.some((e) => e.toLowerCase().includes(q)) ||
-          t.notes.toLowerCase().includes(q)
+          (t.assignedLeaderName && t.assignedLeaderName.toLowerCase().includes(q)) ||
+          (t.assignedBy && t.assignedBy.toLowerCase().includes(q)) ||
+          (t.notes && t.notes.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [tasks, activeProjectFilter, shiftFilter, searchQuery]);
+  }, [tasks, activeProjectFilter, shiftFilter, priorityFilter, searchQuery]);
 
-  // Toggle single checklist item
+  // Quick Counter Summary for Badges
+  const taskCounts = useMemo(() => {
+    return {
+      todo: filteredTasks.filter((t) => t.status === 'todo').length,
+      in_progress: filteredTasks.filter((t) => t.status === 'in_progress').length,
+      review: filteredTasks.filter((t) => t.status === 'review').length,
+      done: filteredTasks.filter((t) => t.status === 'done').length
+    };
+  }, [filteredTasks]);
+
+  // 1. Action: Start working on task (Move to In Progress)
+  const handleStartTask = (taskId: string) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        // Mark first item as done if not done
+        const nextChecklist = t.checklist.map((c, idx) =>
+          idx === 0 ? { ...c, done: true } : c
+        );
+        return {
+          ...t,
+          status: 'in_progress' as TaskStatus,
+          startedAt: t.startedAt || now,
+          checklist: nextChecklist,
+          updatedAt: now
+        };
+      }
+      return t;
+    });
+    onUpdateTasks(updated);
+  };
+
+  // 2. Action: Toggle single checklist item (Automatic transition from todo <-> in_progress)
   const handleToggleChecklist = (taskId: string, checkId: string) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const updated = tasks.map((t) => {
       if (t.id === taskId) {
         const nextChecklist = t.checklist.map((c) => {
@@ -94,13 +165,26 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
           return c;
         });
 
-        // Auto move to 'done' if all items are checked
-        const allDone = nextChecklist.every((c) => c.done);
+        const anyDoneOrPhoto = nextChecklist.some((c) => c.done || Boolean(c.photo));
+        let nextStatus = t.status;
+        let startedAt = t.startedAt;
+
+        // Rule: If task is in 'todo' and any checklist item is checked or has photo,
+        // it automatically transitions to 'in_progress'
+        if (t.status === 'todo' && anyDoneOrPhoto) {
+          nextStatus = 'in_progress';
+          startedAt = startedAt || now;
+        } else if (t.status === 'in_progress' && !anyDoneOrPhoto) {
+          // If all checklist items are unchecked and no photos exist, return to 'todo'
+          nextStatus = 'todo';
+        }
+
         return {
           ...t,
+          status: nextStatus,
+          startedAt,
           checklist: nextChecklist,
-          status: allDone ? ('done' as TaskStatus) : t.status,
-          updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          updatedAt: now
         };
       }
       return t;
@@ -108,90 +192,259 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
     onUpdateTasks(updated);
   };
 
-  // Move task to next status
-  const handleMoveStatus = (taskId: string, newStatus: TaskStatus) => {
+  // Direct Card Item Photo Upload Handler
+  const handleTriggerDirectUpload = (taskId: string, checklistId: string) => {
+    setDirectUploadTarget({ taskId, checklistId });
+    if (directCardFileInputRef.current) {
+      directCardFileInputRef.current.value = '';
+      directCardFileInputRef.current.click();
+    }
+  };
+
+  const handleDirectFileChanged = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Harap pilih file berupa gambar / foto (JPG, PNG, WEBP).');
+      return;
+    }
+    if (!directUploadTarget) return;
+
+    const { taskId, checklistId } = directUploadTarget;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        const photoDataUrl = e.target.result as string;
+        const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+        const updated = tasks.map((t) => {
+          if (t.id === taskId) {
+            const nextChecklist = t.checklist.map((c) => {
+              if (c.id === checklistId) {
+                return {
+                  ...c,
+                  photo: photoDataUrl,
+                  done: true,
+                  photoUploadedAt: now
+                };
+              }
+              return c;
+            });
+
+            const firstPhoto = nextChecklist.find((c) => c.photo)?.photo;
+            const anyDoneOrPhoto = nextChecklist.some((c) => c.done || Boolean(c.photo));
+
+            return {
+              ...t,
+              status: (t.status === 'todo' && anyDoneOrPhoto) ? ('in_progress' as TaskStatus) : t.status,
+              startedAt: t.startedAt || now,
+              checklist: nextChecklist,
+              evidencePhoto: firstPhoto || t.evidencePhoto,
+              updatedAt: now
+            };
+          }
+          return t;
+        });
+
+        onUpdateTasks(updated);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 3. Action: Submit Checklist Photos Evidence -> Moves task to 'review' (Audit QC)
+  const handlePhotoSubmitted = (taskId: string, updatedChecklist: TaskChecklistItem[], notes: string) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const updated = tasks.map((t) => {
       if (t.id === taskId) {
+        // Calculate turnaround time in minutes if startedAt exists
+        let durationMinutes = t.durationMinutes;
+        if (t.startedAt) {
+          try {
+            const startMs = new Date(t.startedAt.replace(' ', 'T')).getTime();
+            const nowMs = Date.now();
+            const diffMins = Math.round((nowMs - startMs) / (1000 * 60));
+            if (diffMins > 0 && diffMins < 1440) {
+              durationMinutes = diffMins;
+            }
+          } catch (e) {
+            durationMinutes = 60;
+          }
+        } else {
+          durationMinutes = 60;
+        }
+
+        const firstPhoto = updatedChecklist.find((c) => c.photo)?.photo;
+
         return {
           ...t,
-          status: newStatus,
-          updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          status: 'review' as TaskStatus, // Automatic move to Audit QC
+          checklist: updatedChecklist,
+          evidencePhoto: firstPhoto || t.evidencePhoto,
+          evidenceNotes: notes,
+          submittedAt: now,
+          durationMinutes: durationMinutes || 60,
+          qcStatus: 'Pending' as QCStatus,
+          updatedAt: now
+        };
+      }
+      return t;
+    });
+
+    onUpdateTasks(updated);
+    setActiveUploadTask(null);
+    setActiveUploadChecklistId(undefined);
+  };
+
+  // Action: Save partial progress without moving to QC
+  const handleSaveDraftProgress = (taskId: string, updatedChecklist: TaskChecklistItem[], notes: string) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        const anyDoneOrPhoto = updatedChecklist.some((c) => c.done || Boolean(c.photo));
+        const firstPhoto = updatedChecklist.find((c) => c.photo)?.photo;
+        return {
+          ...t,
+          status: (t.status === 'todo' && anyDoneOrPhoto) ? ('in_progress' as TaskStatus) : t.status,
+          startedAt: t.startedAt || now,
+          checklist: updatedChecklist,
+          evidencePhoto: firstPhoto || t.evidencePhoto,
+          evidenceNotes: notes,
+          updatedAt: now
         };
       }
       return t;
     });
     onUpdateTasks(updated);
+    setActiveUploadTask(null);
+    setActiveUploadChecklistId(undefined);
   };
 
-  // Save new task
-  const handleSaveTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!taskForm.areaName.trim()) return;
+  // 4. Action: QC Decision (Sesuai, Maksimalkan, Ulangi)
+  const handleQCDecision = (
+    taskId: string,
+    decision: 'Sesuai' | 'Maksimalkan' | 'Ulangi',
+    feedback: string
+  ) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const reviewer = currentUser
+      ? `${currentUser.name} (${currentUser.role})`
+      : 'Supervisor Lapangan';
 
-    const lines = taskForm.checklistItemsText
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        if (decision === 'Sesuai') {
+          // Move to 'done'
+          return {
+            ...t,
+            status: 'done' as TaskStatus,
+            qcStatus: 'Sesuai' as QCStatus,
+            qcReviewedBy: reviewer,
+            qcReviewedAt: now,
+            completedAt: now,
+            qcFeedback: feedback || 'Disetujui. Seluruh foto bukti checklist sesuai SOP.',
+            updatedAt: now
+          };
+        } else if (decision === 'Maksimalkan') {
+          // Does NOT move anywhere, stays in 'review'
+          return {
+            ...t,
+            status: 'review' as TaskStatus,
+            qcStatus: 'Maksimalkan' as QCStatus,
+            qcReviewedBy: reviewer,
+            qcReviewedAt: now,
+            qcFeedback: feedback || 'Perlu dimaksimalkan pada bagian tertentu.',
+            updatedAt: now
+          };
+        } else if (decision === 'Ulangi') {
+          // All checklist photos deleted/reset & task returns to 'todo' (List Tugas)
+          const resetChecklist = t.checklist.map((c) => ({
+            ...c,
+            photo: undefined,
+            photoUploadedAt: undefined,
+            done: false
+          }));
 
-    const checklist = lines.map((line, idx) => ({
-      id: `chk-${Date.now()}-${idx}`,
-      text: line,
-      done: false
-    }));
+          return {
+            ...t,
+            status: 'todo' as TaskStatus, // Returns to List Tugas
+            checklist: resetChecklist,
+            evidencePhoto: undefined, // Photos deleted as requested
+            evidenceNotes: undefined,
+            submittedAt: undefined,
+            startedAt: undefined,
+            qcStatus: 'Ulangi' as QCStatus,
+            qcReviewedBy: reviewer,
+            qcReviewedAt: now,
+            qcFeedback: feedback || 'Wajib diulang dari awal. Semua foto checklist direset.',
+            repeatCount: (t.repeatCount || 0) + 1,
+            notes: feedback ? `[CATATAN ULANGI QC]: ${feedback}` : t.notes,
+            updatedAt: now
+          };
+        }
+      }
+      return t;
+    });
 
-    const newTask: CleaningTask = {
-      id: `tsk-${Date.now()}`,
-      projectId: activeProjectFilter,
-      areaName: taskForm.areaName,
-      frequency: taskForm.frequency,
-      assignedEmployees:
-        taskForm.assignedEmployees.length > 0
-          ? taskForm.assignedEmployees
-          : ['Petugas Standby'],
-      shift: taskForm.shift,
-      status: 'todo',
-      priority: taskForm.priority,
-      checklist,
-      notes: taskForm.notes,
-      updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
+    onUpdateTasks(updated);
+    setActiveQCTask(null);
+  };
 
+  // 5. Action: Delete / Cancel Task
+  const handleDeleteTask = (taskId: string) => {
+    if (window.confirm('Hapus tugas kebersihan ini dari board?')) {
+      const updated = tasks.filter((t) => t.id !== taskId);
+      onUpdateTasks(updated);
+    }
+  };
+
+  // 5b. Action: Clear All Tasks (Kosongkan Board)
+  const handleClearAllTasks = () => {
+    if (tasks.length === 0) return;
+    if (window.confirm('Hapus dan kosongkan semua data tugas kebersihan di Rajawali Boards?')) {
+      onUpdateTasks([]);
+    }
+  };
+
+  // 6. Action: Save New Ad-Hoc Task
+  const handleSaveNewTask = (newTask: CleaningTask) => {
     onUpdateTasks([newTask, ...tasks]);
     setShowAddTaskModal(false);
   };
 
-  // Available employees for the active project
-  const projectEmployees = useMemo(() => {
-    return employees.filter(
-      (e) => e.projectId === activeProjectFilter && e.status !== 'Resign'
-    );
-  }, [employees, activeProjectFilter]);
-
   const activeProjectObj = projects.find((p) => p.id === activeProjectFilter);
 
-  // Columns definition
-  const columns: { id: TaskStatus; title: string; color: string; badgeBg: string }[] = [
+  // 4 Columns definition
+  const columns: {
+    id: TaskStatus;
+    title: string;
+    description: string;
+    color: string;
+    badgeBg: string;
+  }[] = [
     {
       id: 'todo',
-      title: 'Jadwal / To-Do',
+      title: 'List Tugas',
+      description: 'Tugas tambahan baru didelegasikan ke Team Leader',
       color: 'border-slate-700 bg-slate-900/60',
       badgeBg: 'bg-slate-800 text-slate-300'
     },
     {
       id: 'in_progress',
       title: 'Sedang Dikerjakan',
+      description: 'Team Leader mengeksekusi & upload 1 foto per checklist',
       color: 'border-blue-600/40 bg-blue-950/10',
       badgeBg: 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
     },
     {
       id: 'review',
-      title: 'Audit QC Supervisor',
+      title: 'Audit QC',
+      description: 'Supervisor mengaudit foto per item (Sesuai/Maksimalkan/Ulangi)',
       color: 'border-purple-600/40 bg-purple-950/10',
       badgeBg: 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
     },
     {
       id: 'done',
       title: 'Selesai (Done)',
+      description: 'Lulus QC Sesuai & terverifikasi bersih 100%',
       color: 'border-emerald-600/40 bg-emerald-950/10',
       badgeBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
     }
@@ -199,7 +452,21 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header Bar */}
+      {/* Hidden input for direct card photo upload */}
+      <input
+        ref={directCardFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            handleDirectFileChanged(e.target.files[0]);
+          }
+        }}
+      />
+
+      {/* Top Header Card */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
@@ -207,16 +474,50 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
               <KanbanSquare className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">
-                Rajawali Boards (Area Cleaning Management)
-              </h1>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-xl font-bold text-white tracking-tight">
+                  Rajawali Boards (Area Cleaning Management)
+                </h1>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-400">
+                  1 Checklist = 1 Foto
+                </span>
+              </div>
               <p className="text-xs text-slate-400">
-                Papan pemantauan tugas kebersihan area publik, checklist sanitasi toilet, dan audit supervisor.
+                Pemberian tugas harian ke Team Leader, upload foto tepat di bawah setiap item checklist, audit QC bertingkat, dan KPI performa.
               </p>
             </div>
           </div>
 
+          {/* Right Action & Selector Bar */}
           <div className="flex items-center flex-wrap gap-2">
+            {/* View Switcher Tabs: Kanban vs KPI */}
+            <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center space-x-1">
+              <button
+                id="tab-kanban-board-btn"
+                onClick={() => setActiveTab('board')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'board'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Kanban Board</span>
+              </button>
+              <button
+                id="tab-kpi-diagram-btn"
+                onClick={() => setActiveTab('kpi')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'kpi'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Diagram KPI</span>
+              </button>
+            </div>
+
             {/* Site selector */}
             <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
               <Building2 className="w-4 h-4 text-amber-400 shrink-0 ml-2" />
@@ -224,8 +525,14 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
                 id="tasks-project-select"
                 value={activeProjectFilter}
                 onChange={(e) => setActiveProjectFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-3"
+                disabled={currentUser?.isLocationLocked && currentUser.assignedProjectId !== 'ALL'}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-2 disabled:opacity-70"
               >
+                {currentUser?.assignedProjectId === 'ALL' || !currentUser?.isLocationLocked ? (
+                  <option value="ALL" className="bg-slate-900 text-white">
+                    📍 Semua Lokasi Proyek
+                  </option>
+                ) : null}
                 {projects.map((p) => (
                   <option key={p.id} value={p.id} className="bg-slate-900 text-white">
                     📍 {p.name} ({p.code})
@@ -234,349 +541,538 @@ export const RajawaliBoard: React.FC<RajawaliBoardProps> = ({
               </select>
             </div>
 
-            {/* Add Task Button */}
+            {/* Add Task Button (Supervisor / Admin / PM Action) */}
             <button
-              id="add-task-btn"
-              onClick={() => {
-                setTaskForm({
-                  areaName: '',
-                  frequency: 'Harian',
-                  assignedEmployees: projectEmployees.slice(0, 2).map((e) => e.name),
-                  shift: 'Pagi (06:00 - 14:00)',
-                  priority: 'Sedang',
-                  checklistItemsText:
-                    'Dusting meja & furniture\nMopping lantai dengan Neutral Cleaner\nRefill tissue & sabun cuci tangan\nKuras tempat sampah',
-                  notes: ''
-                });
-                setShowAddTaskModal(true);
-              }}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20"
+              id="add-adhoc-task-btn"
+              onClick={() => setShowAddTaskModal(true)}
+              className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Tambah Tugas Area</span>
+              <span>+ Berikan Tugas Tambahan Harian</span>
             </button>
+
+            {/* Clear All Tasks Button (if tasks exist) */}
+            {tasks.length > 0 && (
+              <button
+                id="clear-all-tasks-btn"
+                onClick={handleClearAllTasks}
+                className="flex items-center space-x-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs rounded-xl transition cursor-pointer"
+                title="Hapus semua data tugas kebersihan"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Kosongkan Board</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-800">
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center space-x-2">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
-            <input
-              id="task-search-input"
-              type="text"
-              placeholder="Cari nama area, petugas, catatan..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none w-full"
-            />
-          </div>
+        {/* Filters Bar (Only show on Board tab) */}
+        {activeTab === 'board' && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4 pt-3 border-t border-slate-800">
+            {/* Search */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center space-x-2">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                id="task-search-input"
+                type="text"
+                placeholder="Cari area, Team Leader, pemberi tugas, catatan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none w-full"
+              />
+            </div>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center space-x-2">
-            <span className="text-xs text-slate-400 shrink-0">Shift:</span>
-            <select
-              id="task-shift-filter"
-              value={shiftFilter}
-              onChange={(e) => setShiftFilter(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none w-full cursor-pointer"
-            >
-              <option value="ALL">Semua Shift</option>
-              <option value="Pagi">Pagi (06:00 - 14:00)</option>
-              <option value="Siang">Siang (14:00 - 22:00)</option>
-              <option value="Malam">Malam (22:00 - 06:00)</option>
-              <option value="General">General (08:00 - 17:00)</option>
-            </select>
+            {/* Shift Filter */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center space-x-2">
+              <span className="text-xs text-slate-400 shrink-0">Shift:</span>
+              <select
+                id="task-shift-filter"
+                value={shiftFilter}
+                onChange={(e) => setShiftFilter(e.target.value)}
+                className="bg-transparent text-xs text-slate-200 focus:outline-none w-full cursor-pointer"
+              >
+                <option value="ALL">Semua Shift</option>
+                <option value="Pagi">Pagi (06:00 - 14:00)</option>
+                <option value="Siang">Siang (14:00 - 22:00)</option>
+                <option value="Malam">Malam (22:00 - 06:00)</option>
+                <option value="General">General (08:00 - 17:00)</option>
+              </select>
+            </div>
+
+            {/* Priority Filter */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center space-x-2">
+              <span className="text-xs text-slate-400 shrink-0">Prioritas:</span>
+              <select
+                id="task-priority-filter"
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="bg-transparent text-xs text-slate-200 focus:outline-none w-full cursor-pointer"
+              >
+                <option value="ALL">Semua Prioritas</option>
+                <option value="Urgent">🔥 Urgent</option>
+                <option value="Tinggi">⚡ Tinggi</option>
+                <option value="Sedang">Sedang</option>
+                <option value="Rutin">Rutin</option>
+              </select>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* 4-Column Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {columns.map((col) => {
-          const colTasks = filteredTasks.filter((t) => t.status === col.id);
+      {/* VIEW 1: KANBAN BOARD 4 COLUMNS */}
+      {activeTab === 'board' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {columns.map((col) => {
+            const colTasks = filteredTasks.filter((t) => t.status === col.id);
 
-          return (
-            <div
-              key={col.id}
-              className={`rounded-2xl border ${col.color} p-3 flex flex-col justify-between min-h-[500px] shadow-lg`}
-            >
-              <div>
-                {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-                  <span className="font-bold text-white text-xs tracking-tight">{col.title}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${col.badgeBg}`}>
-                    {colTasks.length}
-                  </span>
-                </div>
+            // Grouping for 'todo' column: Group by Lokasi Tugas (Project)
+            const groupedTodoByLocation: Record<string, CleaningTask[]> = {};
+            if (col.id === 'todo') {
+              colTasks.forEach((t) => {
+                const key = t.projectId || 'proj-1';
+                if (!groupedTodoByLocation[key]) {
+                  groupedTodoByLocation[key] = [];
+                }
+                groupedTodoByLocation[key].push(t);
+              });
+            }
 
-                {/* Task Cards */}
-                <div className="space-y-3">
-                  {colTasks.length === 0 ? (
-                    <div className="py-10 text-center text-slate-600 text-xs italic">
-                      Tidak ada area pada kolom ini
+            // Helper to render individual task card
+            const renderCard = (task: CleaningTask) => {
+              const totalCount = task.checklist.length;
+              const doneCount = task.checklist.filter((c) => c.done).length;
+              const photoCount = task.checklist.filter((c) => Boolean(c.photo)).length;
+              const allDone = totalCount > 0 && doneCount === totalCount;
+              const allPhotosUploaded = totalCount > 0 && photoCount === totalCount;
+              const targetProject = projects.find((p) => p.id === task.projectId);
+
+              return (
+                <div
+                  key={task.id}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl shadow-md space-y-2.5 transition-all text-xs relative group"
+                >
+                  {/* Card Top: Priority, Repeat Count, & Time */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center space-x-1">
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                          task.priority === 'Urgent'
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            : task.priority === 'Tinggi'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {task.priority}
+                      </span>
+
+                      {task.repeatCount && task.repeatCount > 0 ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center space-x-0.5">
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          <span>{task.repeatCount}x Diulang</span>
+                        </span>
+                      ) : null}
                     </div>
-                  ) : (
-                    colTasks.map((task) => {
-                      const doneCount = task.checklist.filter((c) => c.done).length;
-                      const totalCount = task.checklist.length;
-                      const allDone = totalCount > 0 && doneCount === totalCount;
 
-                      return (
-                        <div
-                          key={task.id}
-                          className="bg-slate-900 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl shadow-md space-y-2.5 transition-all text-xs"
-                        >
-                          {/* Priority & Frequency */}
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                                task.priority === 'Urgent'
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                  : task.priority === 'Tinggi'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : 'bg-slate-800 text-slate-300 border-slate-700'
-                              }`}
-                            >
-                              {task.priority}
-                            </span>
-                            <span className="text-[10px] text-slate-400">{task.frequency}</span>
-                          </div>
+                    {task.targetCompletionTime && (
+                      <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-slate-500" />
+                        <span>Target: {task.targetCompletionTime}</span>
+                      </span>
+                    )}
+                  </div>
 
-                          {/* Area Name */}
-                          <h4 className="font-bold text-white text-sm leading-snug">{task.areaName}</h4>
+                  {/* Area Name & Location */}
+                  <div>
+                    <h4 className="font-bold text-white text-sm leading-snug">
+                      {task.areaName}
+                    </h4>
+                    {targetProject && (
+                      <span className="text-[10px] text-amber-400/80 font-semibold flex items-center space-x-1 mt-0.5">
+                        <Building2 className="w-3 h-3 text-amber-400/70 shrink-0" />
+                        <span className="truncate">{targetProject.name}</span>
+                      </span>
+                    )}
+                  </div>
 
-                          {/* Assignees */}
-                          <div className="flex items-center space-x-1 text-[11px] text-slate-400">
-                            <Users className="w-3 h-3 text-amber-400 shrink-0" />
-                            <span className="truncate">{task.assignedEmployees.join(', ')}</span>
-                          </div>
+                  {/* Delegation Info: Assigner & Assignee */}
+                  <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80 space-y-1 text-[10.5px]">
+                    {/* Assignee: Team Leader */}
+                    <div className="flex items-center space-x-1 text-slate-300">
+                      <Users className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span className="text-slate-400">Team Leader:</span>
+                      <span className="font-semibold text-white truncate">
+                        {task.assignedLeaderName || task.assignedEmployees.join(', ')}
+                      </span>
+                    </div>
 
-                          {/* Interactive Checklist */}
-                          <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 space-y-1.5">
-                            <div className="flex justify-between text-[10px] text-slate-400 font-semibold mb-1">
-                              <span>Checklist Kebersihan:</span>
-                              <span className={allDone ? 'text-emerald-400' : 'text-slate-300'}>
-                                {doneCount}/{totalCount}
+                    {/* Assigner: Supervisor / Admin */}
+                    {task.assignedBy && (
+                      <div className="flex items-center space-x-1 text-slate-400">
+                        <UserCheck className="w-3 h-3 text-blue-400 shrink-0" />
+                        <span>Pemberi:</span>
+                        <span className="text-slate-300 truncate">{task.assignedBy}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CHECKLIST & 1 CHECKLIST = 1 PHOTO UPLOAD SECTION */}
+                  <div className="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                    {/* Checklist Header & Photo Progress */}
+                    <div className="flex items-center justify-between text-[10px] font-semibold">
+                      <span className="text-slate-400">Checklist & Foto Bukti:</span>
+                      <span
+                        className={
+                          allPhotosUploaded
+                            ? 'text-emerald-400 font-bold flex items-center space-x-0.5'
+                            : 'text-amber-400'
+                        }
+                      >
+                        {allPhotosUploaded && <CheckCircle2 className="w-3 h-3" />}
+                        <span>
+                          {photoCount}/{totalCount} Foto ({doneCount}/{totalCount} Cek)
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Checklist Items Loop with photo directly below each item */}
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                      {task.checklist.map((item, idx) => {
+                        const hasPhoto = Boolean(item.photo);
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-1.5 rounded-lg bg-slate-900/70 border border-slate-800/80 space-y-1.5"
+                          >
+                            {/* Item text & checkbox */}
+                            <div className="flex items-start space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleChecklist(task.id, item.id)}
+                                className="text-slate-400 hover:text-amber-400 cursor-pointer shrink-0 mt-0.5"
+                                title={task.status === 'todo' ? 'Centang item untuk mulai pengerjaan' : 'Ubah status ceklist'}
+                              >
+                                {item.done ? (
+                                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : (
+                                  <Square className="w-3.5 h-3.5 text-slate-500" />
+                                )}
+                              </button>
+                              <span
+                                className={`text-[11px] leading-tight flex-1 ${
+                                  item.done ? 'text-slate-300 font-medium' : 'text-slate-400'
+                                }`}
+                              >
+                                <span className="font-mono text-slate-500 text-[10px]">#{idx + 1}</span> {item.text}
                               </span>
                             </div>
 
-                            {task.checklist.map((item) => (
-                              <button
-                                key={item.id}
-                                onClick={() => handleToggleChecklist(task.id, item.id)}
-                                className="w-full flex items-start space-x-2 text-left hover:bg-slate-900 p-1 rounded transition-colors group cursor-pointer"
-                              >
-                                {item.done ? (
-                                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                                ) : (
-                                  <Square className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 shrink-0 mt-0.5" />
-                                )}
-                                <span
-                                  className={`text-[11px] leading-tight ${
-                                    item.done ? 'line-through text-slate-500' : 'text-slate-300'
-                                  }`}
-                                >
-                                  {item.text}
-                                </span>
-                              </button>
-                            ))}
+                            {/* Photo display / Upload trigger directly underneath item */}
+                            <div className="pl-5">
+                              {hasPhoto ? (
+                                /* Attached Photo Thumbnail */
+                                <div className="flex items-center space-x-2 bg-slate-950 p-1 rounded-md border border-slate-800">
+                                  <div
+                                    onClick={() =>
+                                      setActivePhotoViewer({
+                                        url: item.photo!,
+                                        title: `Item #${idx + 1}: ${item.text} (${task.areaName})`
+                                      })
+                                    }
+                                    className="relative w-9 h-9 rounded overflow-hidden border border-slate-700 bg-slate-900 shrink-0 cursor-pointer group"
+                                  >
+                                    <img
+                                      src={item.photo}
+                                      alt={item.text}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                      <Eye className="w-3 h-3 text-amber-300" />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[9.5px] text-emerald-400 font-bold flex items-center space-x-0.5 truncate">
+                                      <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
+                                      <span>Foto Terpasang</span>
+                                    </span>
+                                    <span className="text-[8.5px] text-slate-500 block truncate">
+                                      Klik untuk zoom
+                                    </span>
+                                  </div>
+
+                                  {/* Action to change photo */}
+                                  {task.status !== 'done' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleTriggerDirectUpload(task.id, item.id)}
+                                      className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[9.5px] font-semibold transition cursor-pointer shrink-0"
+                                      title="Ganti foto item ini"
+                                    >
+                                      Ganti
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                /* Upload Photo Trigger directly underneath item */
+                                task.status !== 'done' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTriggerDirectUpload(task.id, item.id)}
+                                    className="w-full py-1 px-2 rounded border border-dashed border-slate-700 hover:border-amber-500/80 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-amber-300 text-[10px] font-medium flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                                  >
+                                    <Camera className="w-3 h-3 text-amber-400" />
+                                    <span>Upload Foto Item #{idx + 1}</span>
+                                  </button>
+                                )
+                              )}
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                          {task.notes && (
-                            <p className="text-[10px] text-slate-400 italic">"{task.notes}"</p>
-                          )}
-
-                          {/* Move Status Buttons */}
-                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-1">
-                            {col.id !== 'todo' && (
-                              <button
-                                onClick={() => {
-                                  const prev =
-                                    col.id === 'done'
-                                      ? 'review'
-                                      : col.id === 'review'
-                                      ? 'in_progress'
-                                      : 'todo';
-                                  handleMoveStatus(task.id, prev);
-                                }}
-                                className="text-[10px] text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded"
-                              >
-                                ◀ Mundur
-                              </button>
-                            )}
-
-                            {col.id !== 'done' ? (
-                              <button
-                                onClick={() => {
-                                  const next =
-                                    col.id === 'todo'
-                                      ? 'in_progress'
-                                      : col.id === 'in_progress'
-                                      ? 'review'
-                                      : 'done';
-                                  handleMoveStatus(task.id, next);
-                                }}
-                                className="text-[10px] text-amber-300 hover:text-white px-2 py-1 bg-slate-800 hover:bg-amber-600 rounded font-semibold ml-auto flex items-center space-x-1"
-                              >
-                                <span>Lanjut</span>
-                                <ArrowRight className="w-3 h-3" />
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-emerald-400 font-bold ml-auto flex items-center space-x-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Verified</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                  {/* QC Status Badge & Feedback (If any) */}
+                  {task.qcStatus && task.qcStatus !== 'Pending' && (
+                    <div
+                      className={`p-2 rounded-lg border text-[10.5px] ${
+                        task.qcStatus === 'Sesuai'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : task.qcStatus === 'Maksimalkan'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-1 font-bold">
+                        {task.qcStatus === 'Sesuai' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {task.qcStatus === 'Maksimalkan' && <AlertTriangle className="w-3.5 h-3.5" />}
+                        {task.qcStatus === 'Ulangi' && <RotateCcw className="w-3.5 h-3.5" />}
+                        <span>Penilaian QC: {task.qcStatus}</span>
+                      </div>
+                      {task.qcFeedback && (
+                        <p className="text-[10px] mt-0.5 opacity-90 italic">
+                          "{task.qcFeedback}"
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
-      {/* Add Task Modal */}
-      {showAddTaskModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Tambah Tugas Kebersihan Area</h3>
-              <button
-                onClick={() => setShowAddTaskModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                  {/* Notes */}
+                  {task.notes && (
+                    <p className="text-[10px] text-slate-400 italic bg-slate-950 p-1.5 rounded border border-slate-800/80">
+                      "{task.notes}"
+                    </p>
+                  )}
+
+                  {/* Actions by Column */}
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-1.5">
+                    {/* 1. TO-DO Actions: Start Working */}
+                    {col.id === 'todo' && (
+                      <button
+                        type="button"
+                        id={`start-task-btn-${task.id}`}
+                        onClick={() => handleStartTask(task.id)}
+                        className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1 shadow transition cursor-pointer"
+                      >
+                        <span>Mulai Kerjakan</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* 2. IN_PROGRESS Actions: Upload Photo Evidence */}
+                    {col.id === 'in_progress' && (
+                      <button
+                        type="button"
+                        id={`upload-photo-btn-${task.id}`}
+                        onClick={() => {
+                          setActiveUploadTask(task);
+                          setActiveUploadChecklistId(undefined);
+                        }}
+                        className={`w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow transition cursor-pointer ${
+                          allPhotosUploaded
+                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/20'
+                            : 'bg-slate-800 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40'
+                        }`}
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>
+                          {allPhotosUploaded
+                            ? 'Kirim ke Audit QC (Lengkap)'
+                            : `Lengkapi Foto (${photoCount}/${totalCount})`}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* 3. REVIEW Actions: Supervisor Audit QC (Sesuai / Maksimalkan / Ulangi) */}
+                    {col.id === 'review' && (
+                      <button
+                        type="button"
+                        id={`audit-qc-btn-${task.id}`}
+                        onClick={() => setActiveQCTask(task)}
+                        className="w-full py-1.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-amber-500/20 transition cursor-pointer"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Audit QC ({photoCount} Foto)</span>
+                      </button>
+                    )}
+
+                    {/* 4. DONE Verified Indicator */}
+                    {col.id === 'done' && (
+                      <div className="w-full flex items-center justify-between text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/30">
+                        <span className="flex items-center space-x-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>QC Verified (Sesuai)</span>
+                        </span>
+                        {task.durationMinutes && (
+                          <span className="text-[10px] text-slate-300 font-mono">
+                            ⏱ {task.durationMinutes} Mnt
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            return (
+              <div
+                key={col.id}
+                className={`rounded-2xl border ${col.color} p-3 flex flex-col justify-between min-h-[560px] shadow-lg`}
               >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTask} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Nama Area / Ruangan:</label>
-                <input
-                  id="task-area-input"
-                  type="text"
-                  required
-                  placeholder="Contoh: Toilet Barat Lt. 2 / Koridor VIP"
-                  value={taskForm.areaName}
-                  onChange={(e) => setTaskForm({ ...taskForm, areaName: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Frekuensi:</label>
-                  <select
-                    id="task-freq-select"
-                    value={taskForm.frequency}
-                    onChange={(e) =>
-                      setTaskForm({
-                        ...taskForm,
-                        frequency: e.target.value as any
-                      })
-                    }
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="Harian">Harian</option>
-                    <option value="Per-Shift">Per-Shift</option>
-                    <option value="Mingguan">Mingguan</option>
-                    <option value="Deep Cleaning">Deep Cleaning</option>
-                  </select>
+                  {/* Column Header */}
+                  <div className="pb-3 mb-3 border-b border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-xs tracking-tight">
+                        {col.title}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${col.badgeBg}`}
+                      >
+                        {colTasks.length}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                      {col.description}
+                    </p>
+                  </div>
+
+                  {/* Task Cards List */}
+                  <div className="space-y-3">
+                    {colTasks.length === 0 ? (
+                      <div className="py-12 text-center text-slate-600 text-xs italic flex flex-col items-center justify-center space-y-1">
+                        <span>Tidak ada tugas pada kolom ini</span>
+                      </div>
+                    ) : col.id === 'todo' && groupedTodoByLocation ? (
+                      /* LIST TUGAS: Dipisahkan per Lokasi Tugas */
+                      <div className="space-y-3.5">
+                        {Object.entries(groupedTodoByLocation).map(([locProjectId, locTasks]) => {
+                          const locProject = projects.find((p) => p.id === locProjectId);
+                          return (
+                            <div
+                              key={locProjectId}
+                              className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-2.5 space-y-2.5 shadow-inner"
+                            >
+                              {/* Location Section Separator Header */}
+                              <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 px-1">
+                                <div className="flex items-center space-x-1.5 min-w-0">
+                                  <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-white text-[11px] block truncate">
+                                      {locProject ? locProject.name : `Lokasi Proyek (${locProjectId})`}
+                                    </span>
+                                    <span className="text-[9.5px] text-slate-400 block truncate">
+                                      {locProject?.client || 'Area Tugas Operasional'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 font-bold text-[9.5px] shrink-0">
+                                  {locTasks.length} Tugas
+                                </span>
+                              </div>
+
+                              {/* Task Cards in this Location */}
+                              <div className="space-y-2.5">
+                                {locTasks.map((task) => renderCard(task))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* In Progress / Review / Done Columns */
+                      colTasks.map((task) => renderCard(task))
+                    )}
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Prioritas:</label>
-                  <select
-                    id="task-priority-select"
-                    value={taskForm.priority}
-                    onChange={(e) =>
-                      setTaskForm({
-                        ...taskForm,
-                        priority: e.target.value as any
-                      })
-                    }
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="Rutin">Rutin</option>
-                    <option value="Sedang">Sedang</option>
-                    <option value="Tinggi">Tinggi</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
               </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Petugas (Cleaner):</label>
-                <select
-                  multiple
-                  id="task-assignees-select"
-                  value={taskForm.assignedEmployees}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value);
-                    setTaskForm({ ...taskForm, assignedEmployees: selected });
-                  }}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-white focus:outline-none focus:border-amber-500 h-24"
-                >
-                  {projectEmployees.map((emp) => (
-                    <option key={emp.id} value={emp.name}>
-                      {emp.name} ({emp.position})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-500 mt-0.5">Tahan tombol Ctrl / Cmd untuk memilih lebih dari satu.</p>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Item Checklist (1 baris per item):
-                </label>
-                <textarea
-                  id="task-checklist-input"
-                  rows={4}
-                  required
-                  value={taskForm.checklistItemsText}
-                  onChange={(e) =>
-                    setTaskForm({ ...taskForm, checklistItemsText: e.target.value })
-                  }
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-[11px]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Catatan Tambahan:</label>
-                <input
-                  id="task-notes-input"
-                  type="text"
-                  placeholder="Instruksi khusus sebelum mall buka / audit..."
-                  value={taskForm.notes}
-                  onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAddTaskModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
-                >
-                  Batal
-                </button>
-                <button
-                  id="save-task-submit"
-                  type="submit"
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20"
-                >
-                  Simpan Tugas Area
-                </button>
-              </div>
-            </form>
-          </div>
+            );
+          })}
         </div>
+      )}
+
+      {/* VIEW 2: KPI DIAGRAMS & ANALYTICS */}
+      {activeTab === 'kpi' && (
+        <TaskKPIView
+          tasks={tasks}
+          projects={projects}
+          employees={employees}
+          selectedProjectId={activeProjectFilter}
+        />
+      )}
+
+      {/* MODAL 1: Create New Ad-hoc Task */}
+      {showAddTaskModal && (
+        <NewAdHocTaskModal
+          projects={projects}
+          activeProjectId={activeProjectFilter === 'ALL' ? projects[0]?.id || 'proj-1' : activeProjectFilter}
+          employees={employees}
+          users={users}
+          currentUser={currentUser}
+          userRole={userRole}
+          onClose={() => setShowAddTaskModal(false)}
+          onSave={handleSaveNewTask}
+        />
+      )}
+
+      {/* MODAL 2: Upload Photo Evidence for each checklist item */}
+      {activeUploadTask && (
+        <TaskPhotoUploadModal
+          task={activeUploadTask}
+          initialChecklistId={activeUploadChecklistId}
+          onClose={() => {
+            setActiveUploadTask(null);
+            setActiveUploadChecklistId(undefined);
+          }}
+          onSubmit={handlePhotoSubmitted}
+          onSaveDraft={handleSaveDraftProgress}
+          onOpenPhotoViewer={(url, title) => setActivePhotoViewer({ url, title })}
+        />
+      )}
+
+      {/* MODAL 3: Audit QC Review (Sesuai / Maksimalkan / Ulangi) */}
+      {activeQCTask && (
+        <TaskQCModal
+          task={activeQCTask}
+          reviewerName={
+            currentUser ? `${currentUser.name} (${currentUser.role})` : 'Supervisor Lapangan'
+          }
+          onClose={() => setActiveQCTask(null)}
+          onDecision={handleQCDecision}
+          onOpenPhotoViewer={(url, title) => setActivePhotoViewer({ url, title })}
+        />
+      )}
+
+      {/* MODAL 4: Full-Screen Photo Viewer */}
+      {activePhotoViewer && (
+        <TaskPhotoViewerModal
+          photoUrl={activePhotoViewer.url}
+          title={activePhotoViewer.title}
+          onClose={() => setActivePhotoViewer(null)}
+        />
       )}
     </div>
   );

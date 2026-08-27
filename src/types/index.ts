@@ -134,18 +134,53 @@ export interface InventoryLog {
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type QCStatus = 'Pending' | 'Sesuai' | 'Maksimalkan' | 'Ulangi';
+export type TaskCategoryType = 'Tugas Tambahan Harian' | 'Daily Routine' | 'Special Request' | 'Deep Cleaning' | 'Audit Finding';
+
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+  photo?: string; // Data URL or URL foto bukti spesifik per item checklist (1 checklist = 1 foto)
+  photoUploadedAt?: string;
+  notes?: string;
+}
 
 export interface CleaningTask {
   id: string;
   projectId: string;
   areaName: string;
+  taskType?: TaskCategoryType; // default 'Tugas Tambahan Harian'
   frequency: 'Harian' | 'Per-Shift' | 'Mingguan' | 'Deep Cleaning';
-  assignedEmployees: string[]; // List of employee names or IDs
+  assignedBy?: string; // e.g. 'Hendra Gunawan (Supervisor)'
+  assignedByRole?: string; // e.g. 'Supervisor Lapangan' | 'Admin Operasional' | 'Project Manager'
+  assignedEmployees: string[]; // Team Leader / Supervisor penerima tugas
+  assignedLeaderName?: string; // Primary Team Leader assignee
   shift: ShiftType;
   status: TaskStatus;
   priority: 'Rutin' | 'Sedang' | 'Tinggi' | 'Urgent';
-  checklist: { id: string; text: string; done: boolean }[];
+  checklist: TaskChecklistItem[];
   notes: string;
+  targetCompletionTime?: string; // e.g. '11:30' or '2026-08-25 11:30'
+  createdAt?: string;
+  startedAt?: string;
+  submittedAt?: string;
+  completedAt?: string;
+  durationMinutes?: number; // Calculated turnaround time in minutes
+  isOverdue?: boolean;
+
+  // Foto Bukti Pekerjaan (hanya di frontend/memori display)
+  evidencePhoto?: string; // Data URL string for fallback / primary visual preview
+  evidencePhotoBefore?: string; // Optional before photo
+  evidenceNotes?: string;
+
+  // QC Audit Review
+  qcStatus?: QCStatus;
+  qcReviewedBy?: string;
+  qcReviewedAt?: string;
+  qcFeedback?: string;
+  repeatCount?: number; // Hitungan pengulangan jika tugas diminta diulangi
+
   updatedAt: string;
 }
 

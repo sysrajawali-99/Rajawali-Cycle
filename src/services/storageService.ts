@@ -171,7 +171,19 @@ export const storageService = {
       return INITIAL_TASKS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        // Filter out legacy demo tasks (tsk-1 through tsk-7)
+        const demoTaskIds = ['tsk-1', 'tsk-2', 'tsk-3', 'tsk-3b', 'tsk-3c', 'tsk-3d', 'tsk-3e', 'tsk-4', 'tsk-5', 'tsk-6', 'tsk-7'];
+        const hasDemoTasks = parsed.some((t: CleaningTask) => demoTaskIds.includes(t.id));
+        if (hasDemoTasks) {
+          const cleaned = parsed.filter((t: CleaningTask) => !demoTaskIds.includes(t.id));
+          this.saveTasks(cleaned);
+          return cleaned;
+        }
+        return parsed;
+      }
+      return INITIAL_TASKS;
     } catch {
       return INITIAL_TASKS;
     }
