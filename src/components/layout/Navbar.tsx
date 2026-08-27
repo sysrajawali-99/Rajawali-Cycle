@@ -10,7 +10,8 @@ import {
   Unlock,
   User,
   Shield,
-  Sparkles
+  Sparkles,
+  Cloud
 } from 'lucide-react';
 import { Project, UserAccount, AppView } from '../../types';
 
@@ -26,6 +27,7 @@ interface NavbarProps {
   onToggleSidebar?: () => void;
   currentView?: AppView;
   onSelectView?: (view: AppView) => void;
+  onOpenDriveSync?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -38,7 +40,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSidebarOpen = false,
   onToggleSidebar,
   currentView,
-  onSelectView
+  onSelectView,
+  onOpenDriveSync
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const currentProject = (projects || []).find((p) => p.id === selectedProjectId);
@@ -125,6 +128,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
+            {/* Google Drive Cloud Sync Button */}
+            {onOpenDriveSync && (
+              <button
+                id="navbar-gdrive-sync-btn"
+                type="button"
+                onClick={onOpenDriveSync}
+                className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-950/70 hover:bg-blue-900/90 text-blue-300 hover:text-white border border-blue-500/40 shadow-sm transition-all cursor-pointer group"
+                title="Cadangkan & Sinkronkan Data ke Google Drive"
+              >
+                <Cloud className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform" />
+                <span className="hidden md:inline">Google Drive</span>
+              </button>
+            )}
+
             {/* User Session Profile Chip */}
             {currentUser && (
               <div className="relative">
@@ -189,6 +206,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           <ShieldCheck className="w-4 h-4 text-amber-400" />
                           <span>Kelola Hak Akses Pengguna</span>
+                        </button>
+                      )}
+
+                      {onOpenDriveSync && (
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            onOpenDriveSync();
+                          }}
+                          className="w-full text-left flex items-center space-x-2 p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-blue-500/20"
+                        >
+                          <Cloud className="w-4 h-4 text-blue-400" />
+                          <span>Google Drive Sync & Cadangan</span>
                         </button>
                       )}
 

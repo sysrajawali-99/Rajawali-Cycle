@@ -13,7 +13,8 @@ import {
   Sparkles,
   X,
   RotateCcw,
-  Lock
+  Lock,
+  Cloud
 } from 'lucide-react';
 import { AppView, UserAccount } from '../../types';
 
@@ -27,6 +28,7 @@ interface SidebarProps {
   lowStockCount?: number;
   activeTasksCount?: number;
   unreadBlastCount?: number;
+  onOpenDriveSync?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,7 +40,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   lowStockCount = 0,
   activeTasksCount = 0,
-  unreadBlastCount = 0
+  unreadBlastCount = 0,
+  onOpenDriveSync
 }) => {
   const allMenuItems: {
     id: AppView;
@@ -256,6 +259,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Role-Based Access Control aktif. Hak akses dikelola oleh Super Admin HQ.
           </p>
+
+          {onOpenDriveSync && (
+            <button
+              id="sidebar-gdrive-sync-btn"
+              type="button"
+              onClick={() => {
+                onOpenDriveSync();
+                onCloseMobile();
+              }}
+              className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 hover:text-white text-xs font-bold rounded-xl border border-blue-500/40 cursor-pointer shadow-sm transition-all group"
+            >
+              <Cloud className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+              <span>Google Drive Cloud Sync</span>
+            </button>
+          )}
 
           {onResetData && (
             <button

@@ -33,6 +33,7 @@ import { SopLibrary } from './components/sop/SopLibrary';
 import { ReportingCenter } from './components/reports/ReportingCenter';
 import { AccessControl } from './components/access/AccessControl';
 import { ProjectLocationSettings } from './components/projects/ProjectLocationSettings';
+import { GoogleDriveSyncModal } from './components/drive/GoogleDriveSyncModal';
 import { LoginPage } from './components/auth/LoginPage';
 import { INITIAL_USERS } from './data/initialData';
 
@@ -45,6 +46,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
 
   // Core Data States
   const [projects, setProjects] = useState<Project[]>([]);
@@ -323,6 +325,7 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         currentView={currentView}
         onSelectView={handleNavigateView}
+        onOpenDriveSync={() => setIsDriveModalOpen(true)}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -337,6 +340,7 @@ export default function App() {
           lowStockCount={lowStockCount}
           activeTasksCount={activeTasksCount}
           unreadBlastCount={unreadBlastCount}
+          onOpenDriveSync={() => setIsDriveModalOpen(true)}
         />
 
         {/* Main Content Area */}
