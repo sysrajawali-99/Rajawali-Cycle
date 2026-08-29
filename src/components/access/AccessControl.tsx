@@ -40,7 +40,7 @@ interface AccessControlProps {
 const AVAILABLE_MENUS: {
   id: AppView;
   label: string;
-  category: 'Dashboard & Umum' | 'Human Resource Management (HRM)' | 'Operations Management (OM)' | 'Lainnya';
+  category: 'Dashboard & Umum' | 'Human Resource Management (HRM)' | 'Operations Management (OM)' | 'Divisi Finance & Accounting' | 'Lainnya';
   description: string;
   icon: React.ReactNode;
 }[] = [
@@ -99,6 +99,34 @@ const AVAILABLE_MENUS: {
     category: 'Operations Management (OM)',
     description: 'Kanban tugas harian, checklist area, dan inspeksi',
     icon: <KanbanSquare className="w-4 h-4 text-teal-400" />
+  },
+  {
+    id: 'finance_cash_journal',
+    label: 'Buku Kas & Jurnal Umum',
+    category: 'Divisi Finance & Accounting',
+    description: 'Pencatatan Uang Masuk/Keluar COA, Jurnal Umum, dan Buku Besar',
+    icon: <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+  },
+  {
+    id: 'finance_bank_reconcile',
+    label: 'Rekening Koran & Rekonsiliasi',
+    category: 'Divisi Finance & Accounting',
+    description: 'Upload e-Statement bank, auto-matching dan verifikasi mutasi',
+    icon: <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+  },
+  {
+    id: 'finance_statements',
+    label: 'Laporan Keuangan (SAK)',
+    category: 'Divisi Finance & Accounting',
+    description: 'Laba Rugi, Posisi Keuangan (Neraca), Arus Kas & Ekuitas',
+    icon: <BookOpen className="w-4 h-4 text-blue-400" />
+  },
+  {
+    id: 'finance_analytics_audit',
+    label: 'Analisa Biaya & Tutup Buku',
+    category: 'Divisi Finance & Accounting',
+    description: 'Breakdown Cost Center, Jejak Audit, dan Form Kunci Periode',
+    icon: <ShieldCheck className="w-4 h-4 text-purple-400" />
   },
   {
     id: 'blast',

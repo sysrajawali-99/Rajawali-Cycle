@@ -234,15 +234,16 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
               <span>Download PDF Rekap</span>
             </button>
 
-            {/* Export CSV */}
+            {/* Export / Download as CSV */}
             <button
-              id="export-payroll-report-btn"
+              id="download-as-csv-btn"
+              data-testid="download-as-csv-btn"
               onClick={handleExportPayrollCSV}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs rounded-xl border border-slate-700 transition cursor-pointer"
-              title="Unduh Rekap Format Spreadsheet CSV"
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-750 hover:bg-emerald-650 text-white font-bold text-xs rounded-xl border border-emerald-600/50 shadow-md shadow-emerald-950/40 transition cursor-pointer"
+              title="Unduh Rekap Format Spreadsheet CSV yang kompatibel langsung dengan Excel & Google Sheets"
             >
-              <Download className="w-4 h-4 text-amber-400" />
-              <span>Export CSV</span>
+              <Download className="w-4 h-4 text-emerald-300" />
+              <span>Download as CSV</span>
             </button>
           </div>
         </div>

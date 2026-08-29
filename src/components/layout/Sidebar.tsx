@@ -18,7 +18,13 @@ import {
   ChevronDown,
   ChevronRight,
   Briefcase,
-  Layers
+  Layers,
+  DollarSign,
+  Wallet,
+  Receipt,
+  FileCheck,
+  PieChart,
+  Scale
 } from 'lucide-react';
 import { AppView, UserAccount } from '../../types';
 
@@ -66,7 +72,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'tasks',
     'blast',
     'sops',
-    'reports'
+    'reports',
+    'finance_cash_journal',
+    'finance_bank_reconcile',
+    'finance_statements',
+    'finance_analytics_audit'
   ];
 
   const isViewAllowed = (viewId: AppView) => {
@@ -132,17 +142,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   ];
 
+  // Finance & Accounting Submenus
+  const financeMenuItems: MenuItemConfig[] = [
+    {
+      id: 'finance_cash_journal',
+      label: 'Buku Kas & Jurnal Umum',
+      description: 'Uang Masuk/Keluar COA & Ledger',
+      icon: <Wallet className="w-4 h-4 text-emerald-400" />
+    },
+    {
+      id: 'finance_bank_reconcile',
+      label: 'Rekening Koran & Rekonsiliasi',
+      description: 'Upload e-Statement & Auto-Match',
+      icon: <Receipt className="w-4 h-4 text-cyan-400" />
+    },
+    {
+      id: 'finance_statements',
+      label: 'Laporan Keuangan (SAK)',
+      description: 'Laba Rugi, Neraca, Arus Kas & Ekuitas',
+      icon: <Scale className="w-4 h-4 text-blue-400" />
+    },
+    {
+      id: 'finance_analytics_audit',
+      label: 'Analisa Biaya & Tutup Buku',
+      description: 'Cost Center, Audit Trail & Closing',
+      icon: <PieChart className="w-4 h-4 text-purple-400" />
+    }
+  ];
+
   const visibleHrmItems = hrmMenuItems.filter((item) => isViewAllowed(item.id));
   const visibleOmItems = omMenuItems.filter((item) => isViewAllowed(item.id));
+  const visibleFinanceItems = financeMenuItems.filter((item) => isViewAllowed(item.id));
 
   const isCurrentInHrm = visibleHrmItems.some(
     (item) => currentView === item.id || (item.id === 'sops' && currentView === 'sop')
   );
   const isCurrentInOm = visibleOmItems.some((item) => currentView === item.id);
+  const isCurrentInFinance = visibleFinanceItems.some((item) => currentView === item.id);
 
   // Accordion state
   const [isHrmOpen, setIsHrmOpen] = useState<boolean>(true);
   const [isOmOpen, setIsOmOpen] = useState<boolean>(true);
+  const [isFinanceOpen, setIsFinanceOpen] = useState<boolean>(true);
 
   // Auto-expand group when user navigates to a submenu inside that group
   useEffect(() => {
@@ -152,7 +193,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (isCurrentInOm) {
       setIsOmOpen(true);
     }
-  }, [currentView, isCurrentInHrm, isCurrentInOm]);
+    if (isCurrentInFinance) {
+      setIsFinanceOpen(true);
+    }
+  }, [currentView, isCurrentInHrm, isCurrentInOm, isCurrentInFinance]);
 
   // Dashboard item
   const dashboardItem: MenuItemConfig = {
@@ -188,6 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (isViewAllowed('dashboard') ? 1 : 0) +
     visibleHrmItems.length +
     visibleOmItems.length +
+    visibleFinanceItems.length +
     visibleOtherItems.length;
 
   return (
@@ -458,6 +503,104 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               isActive
                                 ? 'bg-amber-500 text-slate-950 shadow-sm'
                                 : 'text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                            }`}
+                          >
+                            {item.icon}
+                          </div>
+                          <div className="truncate">
+                            <div className="text-xs font-medium leading-tight truncate">{item.label}</div>
+                            <div className="text-[10px] text-slate-500 truncate group-hover:text-slate-400">
+                              {item.description}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.badge !== undefined && (
+                          <span
+                            className={`ml-1.5 text-[9px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${item.badgeColor}`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4. Group: Divisi Finance & Accounting */}
+          {visibleFinanceItems.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {/* Group Toggle Header */}
+              <button
+                type="button"
+                id="sidebar-group-finance"
+                onClick={() => setIsFinanceOpen(!isFinanceOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer group ${
+                  isCurrentInFinance
+                    ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-white border border-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div
+                    className={`p-1.5 rounded-lg shrink-0 transition-colors ${
+                      isCurrentInFinance
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-slate-800 text-emerald-400 group-hover:bg-emerald-600/20'
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <div className="truncate">
+                    <div className="text-xs font-bold tracking-tight text-white flex items-center space-x-1.5">
+                      <span>Divisi Finance & Accounting</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      Kas COA, Rekening Koran & Laporan SAK
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-1.5 shrink-0 ml-1">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {visibleFinanceItems.length}
+                  </span>
+                  {isFinanceOpen ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  )}
+                </div>
+              </button>
+
+              {/* Sub-menu items for Finance */}
+              {isFinanceOpen && (
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-emerald-500/30 ml-3.5 space-y-0.5 animate-in fade-in duration-200">
+                  {visibleFinanceItems.map((item) => {
+                    const isActive = currentView === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        id={`sidebar-nav-${item.id}`}
+                        onClick={() => {
+                          onSelectView(item.id);
+                          onCloseMobile();
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all group min-h-[38px] cursor-pointer ${
+                          isActive
+                            ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40 shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div
+                            className={`p-1 rounded-md shrink-0 ${
+                              isActive
+                                ? 'bg-emerald-500 text-white shadow-sm'
+                                : 'text-slate-400 group-hover:text-emerald-400 group-hover:bg-slate-800'
                             }`}
                           >
                             {item.icon}

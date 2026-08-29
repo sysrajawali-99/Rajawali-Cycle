@@ -53,6 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isHrmSheetOpen, setIsHrmSheetOpen] = useState(true);
   const [isOmSheetOpen, setIsOmSheetOpen] = useState(true);
+  const [isFinanceSheetOpen, setIsFinanceSheetOpen] = useState(true);
 
   const currentProject = (projects || []).find((p) => p.id === selectedProjectId);
 
@@ -65,7 +66,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     'tasks',
     'blast',
     'sops',
-    'reports'
+    'reports',
+    'finance_cash_journal',
+    'finance_bank_reconcile',
+    'finance_statements',
+    'finance_analytics_audit'
   ];
 
   const isViewAllowed = (viewId: AppView) => {
@@ -167,6 +172,33 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       description: 'Papan monitoring & QC kebersihan',
       icon: <KanbanSquare className="w-4 h-4 text-teal-400" />,
       badge: activeTasksCount > 0 ? activeTasksCount : undefined
+    }
+  ].filter((item) => isViewAllowed(item.id));
+
+  const financeSheetItems = [
+    {
+      id: 'finance_cash_journal' as AppView,
+      label: 'Buku Kas & Jurnal Umum',
+      description: 'Uang masuk/keluar, jurnal & buku besar',
+      icon: <Layers className="w-4 h-4 text-emerald-400" />
+    },
+    {
+      id: 'finance_bank_reconcile' as AppView,
+      label: 'Rekening Koran & Rekonsiliasi',
+      description: 'Upload e-Statement & auto-matching',
+      icon: <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+    },
+    {
+      id: 'finance_statements' as AppView,
+      label: 'Laporan Keuangan (SAK)',
+      description: 'Laba rugi, neraca, arus kas & ekuitas',
+      icon: <BookOpen className="w-4 h-4 text-blue-400" />
+    },
+    {
+      id: 'finance_analytics_audit' as AppView,
+      label: 'Analisa Biaya & Tutup Buku',
+      description: 'Cost center, jejak audit & kunci periode',
+      icon: <ShieldCheck className="w-4 h-4 text-purple-400" />
     }
   ].filter((item) => isViewAllowed(item.id));
 
@@ -429,6 +461,63 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                           className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left cursor-pointer ${
                             isActive
                               ? 'bg-amber-500/20 border-amber-500/40 text-white shadow-md'
+                              : 'bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <div className="p-1.5 bg-slate-950 rounded-lg shrink-0">
+                              {item.icon}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-white truncate">{item.label}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{item.description}</div>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Group 3: Divisi Finance & Accounting */}
+            {financeSheetItems.length > 0 && (
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsFinanceSheetOpen(!isFinanceSheetOpen)}
+                  className="w-full flex items-center justify-between p-3 bg-emerald-950/30 border-b border-slate-800/80 text-left cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-extrabold text-white">Divisi Finance & Accounting</div>
+                      <div className="text-[10px] text-slate-400">Kas COA, Rekening Koran & Laporan SAK</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-slate-400">
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold">
+                      {financeSheetItems.length} Submenu
+                    </span>
+                    {isFinanceSheetOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </div>
+                </button>
+
+                {isFinanceSheetOpen && (
+                  <div className="p-2 space-y-1.5">
+                    {financeSheetItems.map((item) => {
+                      const isActive = currentView === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSelectNav(item.id)}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left cursor-pointer ${
+                            isActive
+                              ? 'bg-emerald-500/20 border-emerald-500/40 text-white shadow-md'
                               : 'bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800'
                           }`}
                         >

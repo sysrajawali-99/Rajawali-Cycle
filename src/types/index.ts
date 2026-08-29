@@ -233,6 +233,8 @@ export interface SopDocument {
   author?: string;
 }
 
+export * from './finance';
+
 export type SopItem = SopDocument;
 
 export type AppView = 
@@ -246,6 +248,11 @@ export type AppView =
   | 'sops'
   | 'sop'
   | 'reports'
+  | 'finance'
+  | 'finance_cash_journal'
+  | 'finance_bank_reconcile'
+  | 'finance_statements'
+  | 'finance_analytics_audit'
   | 'access_control';
 
 export type UserRole = 
@@ -253,6 +260,7 @@ export type UserRole =
   | 'Admin Operasional' 
   | 'Admin Lokasi 1' 
   | 'Admin Lokasi 2' 
+  | 'Finance & Accounting Lead'
   | 'Supervisor Lapangan' 
   | 'Manajemen Pusat';
 

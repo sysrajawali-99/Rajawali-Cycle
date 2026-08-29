@@ -1073,6 +1073,10 @@ export const INITIAL_USERS: UserAccount[] = [
       'blast',
       'sops',
       'reports',
+      'finance_cash_journal',
+      'finance_bank_reconcile',
+      'finance_statements',
+      'finance_analytics_audit',
       'access_control'
     ],
     status: 'Aktif',
@@ -1080,6 +1084,28 @@ export const INITIAL_USERS: UserAccount[] = [
     lastLogin: '2026-08-26 15:30',
     canDeleteTasks: true,
     canDeleteSops: true
+  },
+  {
+    id: 'user-finance',
+    username: 'finance',
+    name: 'Dewi Lestari, S.Ak',
+    email: 'finance@rajawali.co.id',
+    role: 'Finance & Accounting Lead',
+    password: 'password123',
+    avatar: '💼',
+    assignedProjectId: 'ALL',
+    isLocationLocked: false,
+    allowedViews: [
+      'dashboard',
+      'finance_cash_journal',
+      'finance_bank_reconcile',
+      'finance_statements',
+      'finance_analytics_audit',
+      'reports'
+    ],
+    status: 'Aktif',
+    phone: '0813-8899-0011',
+    lastLogin: '2026-08-26 14:45'
   },
   {
     id: 'user-admin',
@@ -1100,7 +1126,11 @@ export const INITIAL_USERS: UserAccount[] = [
       'tasks',
       'blast',
       'sops',
-      'reports'
+      'reports',
+      'finance_cash_journal',
+      'finance_bank_reconcile',
+      'finance_statements',
+      'finance_analytics_audit'
     ],
     status: 'Aktif',
     phone: '0812-4455-6677',
@@ -1155,5 +1185,51 @@ export const INITIAL_USERS: UserAccount[] = [
     status: 'Aktif',
     phone: '0813-9876-5432',
     lastLogin: '2026-08-26 10:45'
+  },
+  {
+    id: 'user-supervisor',
+    username: 'supervisor',
+    name: 'Agus Kurniawan',
+    email: 'supervisor@rajawali.co.id',
+    role: 'Supervisor Lapangan',
+    password: 'password123',
+    avatar: '👷',
+    assignedProjectId: 'ALL',
+    isLocationLocked: false,
+    allowedViews: [
+      'dashboard',
+      'tasks',
+      'timesheet',
+      'inventory',
+      'sops',
+      'blast',
+      'reports'
+    ],
+    status: 'Aktif',
+    phone: '0812-9888-1122',
+    lastLogin: '2026-08-26 09:15',
+    canDeleteTasks: true
+  },
+  {
+    id: 'user-director',
+    username: 'direksi',
+    name: 'Ir. Hendro Prabowo, MBA',
+    email: 'direksi@rajawali.co.id',
+    role: 'Manajemen Pusat',
+    password: 'password123',
+    avatar: '👔',
+    assignedProjectId: 'ALL',
+    isLocationLocked: false,
+    allowedViews: [
+      'dashboard',
+      'finance_statements',
+      'finance_analytics_audit',
+      'reports',
+      'project_settings',
+      'blast'
+    ],
+    status: 'Aktif',
+    phone: '0811-2233-4455',
+    lastLogin: '2026-08-26 08:30'
   }
 ];

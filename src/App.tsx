@@ -17,7 +17,12 @@ import {
   SopItem,
   SopDocument,
   AppView,
-  UserAccount
+  UserAccount,
+  ChartOfAccount,
+  FinanceTransaction,
+  BankStatementImport,
+  PeriodClosing,
+  AuditTrailItem
 } from './types';
 import { storageService } from './services/storageService';
 import { Navbar } from './components/layout/Navbar';
@@ -35,6 +40,10 @@ import { AccessControl } from './components/access/AccessControl';
 import { ProjectLocationSettings } from './components/projects/ProjectLocationSettings';
 import { GoogleDriveSyncModal } from './components/drive/GoogleDriveSyncModal';
 import { LoginPage } from './components/auth/LoginPage';
+import { FinanceCashJournal } from './components/finance/FinanceCashJournal';
+import { FinanceBankReconcile } from './components/finance/FinanceBankReconcile';
+import { FinanceStatements } from './components/finance/FinanceStatements';
+import { FinanceAnalyticsAudit } from './components/finance/FinanceAnalyticsAudit';
 import { INITIAL_USERS } from './data/initialData';
 
 export default function App() {
@@ -59,6 +68,14 @@ export default function App() {
   const [mutations, setMutations] = useState<MutationHistory[]>([]);
   const [blasts, setBlasts] = useState<BlastAnnouncement[]>([]);
   const [sops, setSops] = useState<SopItem[]>([]);
+
+  // Divisi Finance States
+  const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
+  const [financeTransactions, setFinanceTransactions] = useState<FinanceTransaction[]>([]);
+  const [bankStatements, setBankStatements] = useState<BankStatementImport[]>([]);
+  const [periodClosings, setPeriodClosings] = useState<PeriodClosing[]>([]);
+  const [auditTrails, setAuditTrails] = useState<AuditTrailItem[]>([]);
+
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Load all state from storage
@@ -78,6 +95,13 @@ export default function App() {
     setMutations(storageService.getMutations());
     setBlasts(storageService.getBlasts());
     setSops(storageService.getSops());
+
+    // Finance Data Load
+    setAccounts(storageService.getChartOfAccounts());
+    setFinanceTransactions(storageService.getFinanceTransactions());
+    setBankStatements(storageService.getBankStatements());
+    setPeriodClosings(storageService.getPeriodClosings());
+    setAuditTrails(storageService.getAuditTrails());
 
     if (activeUser) {
       // Find latest updated version of user from users list
@@ -163,6 +187,42 @@ export default function App() {
     storageService.saveSops(updatedSops);
   };
 
+  // Finance Mutation Handlers
+  const handleAddFinanceTransaction = (trx: FinanceTransaction) => {
+    const updated = [trx, ...financeTransactions];
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
+  const handleUpdateFinanceTransaction = (trx: FinanceTransaction) => {
+    const updated = financeTransactions.map((t) => (t.id === trx.id ? trx : t));
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
+  const handleDeleteFinanceTransaction = (trxId: string) => {
+    const updated = financeTransactions.filter((t) => t.id !== trxId);
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
+  const handleAddAccount = (account: ChartOfAccount) => {
+    const updated = [...accounts, account];
+    setAccounts(updated);
+    storageService.saveChartOfAccounts(updated);
+  };
+
+  const handleUpdateBankStatements = (statements: BankStatementImport[]) => {
+    setBankStatements(statements);
+    storageService.saveBankStatements(statements);
+  };
+
+  const handleAddAuditLog = (audit: AuditTrailItem) => {
+    const updated = [audit, ...auditTrails];
+    setAuditTrails(updated);
+    storageService.saveAuditTrails(updated);
+  };
+
   // User Management Handlers
   const handleUpdateUsers = (updatedUsers: UserAccount[]) => {
     setUsers(updatedUsers);
@@ -225,6 +285,21 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  const handleSwitchUser = (targetUser: UserAccount) => {
+    setCurrentUser(targetUser);
+    storageService.saveActiveUser(targetUser);
+    if (targetUser.isLocationLocked && targetUser.assignedProjectId !== 'ALL') {
+      setSelectedProjectId(targetUser.assignedProjectId);
+    } else {
+      setSelectedProjectId('ALL');
+    }
+    // Check if current view is allowed for this user
+    const allowed = targetUser.allowedViews || [];
+    if (currentView !== 'dashboard' && !allowed.includes(currentView)) {
+      setCurrentView('dashboard');
+    }
+  };
+
   // Project selector change handler (respects location lock)
   const handleSelectProject = (projectId: string) => {
     if (currentUser?.isLocationLocked) {
@@ -280,10 +355,10 @@ export default function App() {
   // Badge counts
   const lowStockCount = useMemo(() => {
     return projectStocks.filter((stock) => {
-      const item = inventoryItems.find((i) => i.id === stock.inventoryItemId);
+      const item = inventoryItems.find((i) => i.id === stock.itemId || i.id === (stock as any).inventoryItemId);
       if (!item) return false;
       if (selectedProjectId !== 'ALL' && stock.projectId !== selectedProjectId) return false;
-      return stock.currentStock <= item.minThreshold;
+      return stock.currentStock <= item.minStock;
     }).length;
   }, [projectStocks, inventoryItems, selectedProjectId]);
 
@@ -323,6 +398,8 @@ export default function App() {
         selectedProjectId={selectedProjectId}
         onSelectProject={handleSelectProject}
         currentUser={currentUser}
+        users={users}
+        onSwitchUser={handleSwitchUser}
         onLogout={handleLogout}
         onResetData={handleResetData}
         lowStockCount={lowStockCount}
@@ -462,6 +539,59 @@ export default function App() {
                 inventoryItems={inventoryItems}
                 selectedProjectId={selectedProjectId}
                 userRole={currentUser.role}
+              />
+            )}
+
+            {/* Divisi Finance: Buku Kas, Jurnal Umum, Ledger, COA */}
+            {currentView === 'finance_cash_journal' && (
+              <FinanceCashJournal
+                accounts={accounts}
+                transactions={financeTransactions}
+                projects={projects}
+                currentUser={currentUser}
+                periodClosings={periodClosings}
+                onAddTransaction={handleAddFinanceTransaction}
+                onUpdateTransaction={handleUpdateFinanceTransaction}
+                onDeleteTransaction={handleDeleteFinanceTransaction}
+                onAddAccount={handleAddAccount}
+                onLogAudit={handleAddAuditLog}
+              />
+            )}
+
+            {/* Divisi Finance: Upload Rekening Koran & Rekonsiliasi Bank */}
+            {currentView === 'finance_bank_reconcile' && (
+              <FinanceBankReconcile
+                bankStatements={bankStatements}
+                transactions={financeTransactions}
+                accounts={accounts}
+                projects={projects}
+                currentUser={currentUser}
+                onUpdateStatements={handleUpdateBankStatements}
+                onAddTransaction={handleAddFinanceTransaction}
+                onUpdateTransaction={handleUpdateFinanceTransaction}
+                onLogAudit={handleAddAuditLog}
+              />
+            )}
+
+            {/* Divisi Finance: Laporan Keuangan Standar Akuntansi (SAK) */}
+            {currentView === 'finance_statements' && (
+              <FinanceStatements
+                accounts={accounts}
+                transactions={financeTransactions}
+                projects={projects}
+                currentUser={currentUser}
+              />
+            )}
+
+            {/* Divisi Finance: Analisa Biaya, Audit Trail & Tutup Buku */}
+            {currentView === 'finance_analytics_audit' && (
+              <FinanceAnalyticsAudit
+                auditLogs={auditTrails}
+                transactions={financeTransactions}
+                accounts={accounts}
+                projects={projects}
+                currentUser={currentUser}
+                onAddAuditLog={handleAddAuditLog}
               />
             )}
 

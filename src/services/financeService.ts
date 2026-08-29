@@ -1,0 +1,991 @@
+import {
+  ChartOfAccount,
+  FinanceTransaction,
+  BankStatementItem,
+  CostCenterReport,
+  FinancialRatios,
+  PeriodClosing,
+  AuditTrailItem
+} from '../types/finance';
+import { Project } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+
+export interface GeneralLedgerEntry {
+  transactionId: string;
+  transactionCode: string;
+  date: string;
+  description: string;
+  referenceNumber?: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+  projectName?: string;
+}
+
+export interface GeneralLedgerAccount {
+  account: ChartOfAccount;
+  initialBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  endingBalance: number;
+  entries: GeneralLedgerEntry[];
+}
+
+export interface TrialBalanceRow {
+  accountCode: string;
+  accountName: string;
+  type: string;
+  category: string;
+  debitBalance: number;
+  creditBalance: number;
+}
+
+export interface ProfitLossStatement {
+  periodLabel: string;
+  revenueAccounts: { code: string; name: string; amount: number }[];
+  totalRevenue: number;
+  cogsAccounts: { code: string; name: string; amount: number }[];
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  opexAccounts: { code: string; name: string; amount: number }[];
+  totalOpex: number;
+  operatingIncome: number;
+  operatingMarginPct: number;
+  otherIncomeAccounts: { code: string; name: string; amount: number }[];
+  totalOtherIncome: number;
+  otherExpenseAccounts: { code: string; name: string; amount: number }[];
+  totalOtherExpense: number;
+  netProfit: number;
+  netMarginPct: number;
+}
+
+export interface BalanceSheetStatement {
+  asOfDate: string;
+  currentAssets: { code: string; name: string; amount: number }[];
+  totalCurrentAssets: number;
+  fixedAssets: { code: string; name: string; amount: number }[];
+  totalFixedAssets: number;
+  totalAssets: number;
+  currentLiabilities: { code: string; name: string; amount: number }[];
+  totalCurrentLiabilities: number;
+  longTermLiabilities: { code: string; name: string; amount: number }[];
+  totalLongTermLiabilities: number;
+  totalLiabilities: number;
+  equityAccounts: { code: string; name: string; amount: number }[];
+  currentPeriodNetProfit: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+  isBalanced: boolean;
+  variance: number;
+}
+
+export interface CashFlowStatement {
+  periodLabel: string;
+  operatingInflows: { description: string; amount: number }[];
+  totalOperatingInflows: number;
+  operatingOutflows: { description: string; amount: number }[];
+  totalOperatingOutflows: number;
+  netOperatingCashFlow: number;
+
+  investingInflows: { description: string; amount: number }[];
+  investingOutflows: { description: string; amount: number }[];
+  netInvestingCashFlow: number;
+
+  financingInflows: { description: string; amount: number }[];
+  financingOutflows: { description: string; amount: number }[];
+  netFinancingCashFlow: number;
+
+  netCashChange: number;
+  beginningCash: number;
+  endingCash: number;
+}
+
+export interface EquityStatement {
+  periodLabel: string;
+  beginningShareCapital: number;
+  capitalAdditions: number;
+  endingShareCapital: number;
+  beginningRetainedEarnings: number;
+  currentNetProfit: number;
+  dividendsPaid: number;
+  endingRetainedEarnings: number;
+  totalBeginningEquity: number;
+  totalEndingEquity: number;
+}
+
+export const financeService = {
+  // Format currency helper
+  formatRupiah(amount: number): string {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  },
+
+  // 1. GENERATE BUKU BESAR (GENERAL LEDGER)
+  generateGeneralLedger(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    startDate?: string,
+    endDate?: string,
+    projectId?: string
+  ): GeneralLedgerAccount[] {
+    const filteredTrx = transactions.filter((t) => {
+      if (startDate && t.date < startDate) return false;
+      if (endDate && t.date > endDate) return false;
+      if (projectId && projectId !== 'ALL' && t.projectId !== projectId && t.projectId !== 'ALL') {
+        return false;
+      }
+      return true;
+    });
+
+    return accounts.map((acc) => {
+      const entries: GeneralLedgerEntry[] = [];
+      let runningBalance = acc.initialBalance || 0;
+      let totalDebit = 0;
+      let totalCredit = 0;
+
+      filteredTrx.forEach((t) => {
+        // Look for matching journal lines
+        const lines = t.journalEntries.filter((j) => j.accountCode === acc.code);
+        lines.forEach((l) => {
+          totalDebit += l.debit;
+          totalCredit += l.credit;
+
+          if (acc.normalBalance === 'Debit') {
+            runningBalance += l.debit - l.credit;
+          } else {
+            runningBalance += l.credit - l.debit;
+          }
+
+          entries.push({
+            transactionId: t.id,
+            transactionCode: t.code,
+            date: t.date,
+            description: l.notes || t.title,
+            referenceNumber: t.referenceNumber,
+            debit: l.debit,
+            credit: l.credit,
+            runningBalance,
+            projectName: t.projectName
+          });
+        });
+      });
+
+      return {
+        account: acc,
+        initialBalance: acc.initialBalance || 0,
+        totalDebit,
+        totalCredit,
+        endingBalance: runningBalance,
+        entries
+      };
+    });
+  },
+
+  // 2. GENERATE NERACA SALDO (TRIAL BALANCE)
+  generateTrialBalance(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    asOfDate?: string
+  ): { rows: TrialBalanceRow[]; totalDebit: number; totalCredit: number; isBalanced: boolean } {
+    const ledgers = this.generateGeneralLedger(
+      accounts,
+      transactions,
+      undefined,
+      asOfDate
+    );
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    const rows: TrialBalanceRow[] = ledgers.map((l) => {
+      let debitBalance = 0;
+      let creditBalance = 0;
+
+      if (l.account.normalBalance === 'Debit') {
+        if (l.endingBalance >= 0) {
+          debitBalance = l.endingBalance;
+        } else {
+          creditBalance = Math.abs(l.endingBalance);
+        }
+      } else {
+        if (l.endingBalance >= 0) {
+          creditBalance = l.endingBalance;
+        } else {
+          debitBalance = Math.abs(l.endingBalance);
+        }
+      }
+
+      totalDebit += debitBalance;
+      totalCredit += creditBalance;
+
+      return {
+        accountCode: l.account.code,
+        accountName: l.account.name,
+        type: l.account.type,
+        category: l.account.category,
+        debitBalance,
+        creditBalance
+      };
+    });
+
+    const isBalanced = Math.abs(totalDebit - totalCredit) < 100;
+
+    return { rows, totalDebit, totalCredit, isBalanced };
+  },
+
+  // 3. GENERATE LAPORAN LABA RUGI (PROFIT & LOSS)
+  generateProfitLoss(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    startDate?: string,
+    endDate?: string,
+    projectId?: string
+  ): ProfitLossStatement {
+    const ledgers = this.generateGeneralLedger(
+      accounts,
+      transactions,
+      startDate,
+      endDate,
+      projectId
+    );
+
+    const getAccountSum = (prefix: string) => {
+      return ledgers
+        .filter((l) => l.account.code.startsWith(prefix))
+        .map((l) => ({
+          code: l.account.code,
+          name: l.account.name,
+          amount: Math.max(0, l.endingBalance)
+        }))
+        .filter((item) => item.amount > 0);
+    };
+
+    // Revenue (41xx, 42xx)
+    const revenueAccounts = getAccountSum('41');
+    const totalRevenue = revenueAccounts.reduce((sum, item) => sum + item.amount, 0);
+
+    // COGS (51xx)
+    const cogsAccounts = getAccountSum('51');
+    const totalCogs = cogsAccounts.reduce((sum, item) => sum + item.amount, 0);
+
+    const grossProfit = totalRevenue - totalCogs;
+    const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+    // OPEX (61xx kecuali 6170)
+    const opexAccounts = ledgers
+      .filter((l) => l.account.code.startsWith('61') && l.account.code !== '6170')
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: Math.max(0, l.endingBalance)
+      }))
+      .filter((item) => item.amount > 0);
+    const totalOpex = opexAccounts.reduce((sum, item) => sum + item.amount, 0);
+
+    const operatingIncome = grossProfit - totalOpex;
+    const operatingMarginPct = totalRevenue > 0 ? (operatingIncome / totalRevenue) * 100 : 0;
+
+    // Other Income (42xx) & Other Expenses (6170)
+    const otherIncomeAccounts = getAccountSum('42');
+    const totalOtherIncome = otherIncomeAccounts.reduce((sum, item) => sum + item.amount, 0);
+
+    const otherExpenseAccounts = ledgers
+      .filter((l) => l.account.code === '6170')
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: Math.max(0, l.endingBalance)
+      }))
+      .filter((item) => item.amount > 0);
+    const totalOtherExpense = otherExpenseAccounts.reduce((sum, item) => sum + item.amount, 0);
+
+    const netProfit = operatingIncome + totalOtherIncome - totalOtherExpense;
+    const netMarginPct = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    const periodLabel = startDate && endDate 
+      ? `${startDate} s/d ${endDate}` 
+      : 'Periode Berjalan (YTD 2026)';
+
+    return {
+      periodLabel,
+      revenueAccounts,
+      totalRevenue,
+      cogsAccounts,
+      totalCogs,
+      grossProfit,
+      grossMarginPct,
+      opexAccounts,
+      totalOpex,
+      operatingIncome,
+      operatingMarginPct,
+      otherIncomeAccounts,
+      totalOtherIncome,
+      otherExpenseAccounts,
+      totalOtherExpense,
+      netProfit,
+      netMarginPct
+    };
+  },
+
+  // 4. GENERATE NERACA (BALANCE SHEET)
+  generateBalanceSheet(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    asOfDate?: string
+  ): BalanceSheetStatement {
+    const ledgers = this.generateGeneralLedger(
+      accounts,
+      transactions,
+      undefined,
+      asOfDate
+    );
+
+    // Current Assets (11xx)
+    const currentAssets = ledgers
+      .filter((l) => l.account.code.startsWith('11'))
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: l.endingBalance
+      }));
+    const totalCurrentAssets = currentAssets.reduce((sum, a) => sum + a.amount, 0);
+
+    // Fixed Assets (12xx)
+    const fixedAssets = ledgers
+      .filter((l) => l.account.code.startsWith('12'))
+      .map((l) => {
+        // Kontra akun akumulasi penyusutan mengurangi total aset
+        const isContra = l.account.normalBalance === 'Credit';
+        return {
+          code: l.account.code,
+          name: l.account.name,
+          amount: isContra ? -Math.abs(l.endingBalance) : l.endingBalance
+        };
+      });
+    const totalFixedAssets = fixedAssets.reduce((sum, a) => sum + a.amount, 0);
+    const totalAssets = totalCurrentAssets + totalFixedAssets;
+
+    // Current Liabilities (21xx)
+    const currentLiabilities = ledgers
+      .filter((l) => l.account.code.startsWith('21'))
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: l.endingBalance
+      }));
+    const totalCurrentLiabilities = currentLiabilities.reduce((sum, l) => sum + l.amount, 0);
+
+    // Long Term Liabilities (22xx)
+    const longTermLiabilities = ledgers
+      .filter((l) => l.account.code.startsWith('22'))
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: l.endingBalance
+      }));
+    const totalLongTermLiabilities = longTermLiabilities.reduce((sum, l) => sum + l.amount, 0);
+    const totalLiabilities = totalCurrentLiabilities + totalLongTermLiabilities;
+
+    // Equity (31xx, 32xx)
+    const equityAccounts = ledgers
+      .filter((l) => l.account.code.startsWith('3'))
+      .map((l) => ({
+        code: l.account.code,
+        name: l.account.name,
+        amount: l.endingBalance
+      }));
+    const baseEquity = equityAccounts.reduce((sum, e) => sum + e.amount, 0);
+
+    // Current period net profit
+    const pl = this.generateProfitLoss(accounts, transactions, undefined, asOfDate);
+    const currentPeriodNetProfit = pl.netProfit;
+
+    const totalEquity = baseEquity + currentPeriodNetProfit;
+    const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+
+    const variance = Math.abs(totalAssets - totalLiabilitiesAndEquity);
+    const isBalanced = variance < 100;
+
+    return {
+      asOfDate: asOfDate || new Date().toISOString().split('T')[0],
+      currentAssets,
+      totalCurrentAssets,
+      fixedAssets,
+      totalFixedAssets,
+      totalAssets,
+      currentLiabilities,
+      totalCurrentLiabilities,
+      longTermLiabilities,
+      totalLongTermLiabilities,
+      totalLiabilities,
+      equityAccounts,
+      currentPeriodNetProfit,
+      totalEquity,
+      totalLiabilitiesAndEquity,
+      isBalanced,
+      variance
+    };
+  },
+
+  // 5. GENERATE LAPORAN ARUS KAS (CASH FLOW STATEMENT)
+  generateCashFlow(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    startDate?: string,
+    endDate?: string
+  ): CashFlowStatement {
+    const cashAccounts = ['1110', '1120', '1121', '1130'];
+    const filtered = transactions.filter((t) => {
+      if (startDate && t.date < startDate) return false;
+      if (endDate && t.date > endDate) return false;
+      return true;
+    });
+
+    const operatingInflows: { description: string; amount: number }[] = [];
+    const operatingOutflows: { description: string; amount: number }[] = [];
+    const investingInflows: { description: string; amount: number }[] = [];
+    const investingOutflows: { description: string; amount: number }[] = [];
+    const financingInflows: { description: string; amount: number }[] = [];
+    const financingOutflows: { description: string; amount: number }[] = [];
+
+    filtered.forEach((t) => {
+      // Check if transaction affects cash
+      const hasCashLine = t.journalEntries.some((j) => cashAccounts.includes(j.accountCode));
+      if (!hasCashLine) return;
+
+      if (t.type === 'IN') {
+        if (t.contraAccountCode.startsWith('4')) {
+          operatingInflows.push({ description: `${t.code} - ${t.title}`, amount: t.amount });
+        } else if (t.contraAccountCode.startsWith('12')) {
+          investingInflows.push({ description: `${t.code} - Penjualan Aset (${t.title})`, amount: t.amount });
+        } else if (t.contraAccountCode.startsWith('22') || t.contraAccountCode.startsWith('3')) {
+          financingInflows.push({ description: `${t.code} - Penerimaan Modal/Pinjaman`, amount: t.amount });
+        } else {
+          operatingInflows.push({ description: `${t.code} - ${t.title}`, amount: t.amount });
+        }
+      } else if (t.type === 'OUT') {
+        if (t.contraAccountCode.startsWith('5') || t.contraAccountCode.startsWith('6')) {
+          operatingOutflows.push({ description: `${t.code} - ${t.title}`, amount: t.amount });
+        } else if (t.contraAccountCode.startsWith('12')) {
+          investingOutflows.push({ description: `${t.code} - Pengadaan Mesin & Aset`, amount: t.amount });
+        } else if (t.contraAccountCode.startsWith('22') || t.contraAccountCode.startsWith('3')) {
+          financingOutflows.push({ description: `${t.code} - Pembayaran Pokok Utang/Prive`, amount: t.amount });
+        } else {
+          operatingOutflows.push({ description: `${t.code} - ${t.title}`, amount: t.amount });
+        }
+      }
+    });
+
+    const totalOperatingInflows = operatingInflows.reduce((s, i) => s + i.amount, 0);
+    const totalOperatingOutflows = operatingOutflows.reduce((s, i) => s + i.amount, 0);
+    const netOperatingCashFlow = totalOperatingInflows - totalOperatingOutflows;
+
+    const totalInvestingInflows = investingInflows.reduce((s, i) => s + i.amount, 0);
+    const totalInvestingOutflows = investingOutflows.reduce((s, i) => s + i.amount, 0);
+    const netInvestingCashFlow = totalInvestingInflows - totalInvestingOutflows;
+
+    const totalFinancingInflows = financingInflows.reduce((s, i) => s + i.amount, 0);
+    const totalFinancingOutflows = financingOutflows.reduce((s, i) => s + i.amount, 0);
+    const netFinancingCashFlow = totalFinancingInflows - totalFinancingOutflows;
+
+    const netCashChange = netOperatingCashFlow + netInvestingCashFlow + netFinancingCashFlow;
+    
+    // Initial cash across accounts
+    const beginningCash = accounts
+      .filter((a) => cashAccounts.includes(a.code))
+      .reduce((sum, a) => sum + (a.initialBalance || 0), 0);
+    const endingCash = beginningCash + netCashChange;
+
+    return {
+      periodLabel: startDate && endDate ? `${startDate} s/d ${endDate}` : 'Periode Berjalan 2026',
+      operatingInflows,
+      totalOperatingInflows,
+      operatingOutflows,
+      totalOperatingOutflows,
+      netOperatingCashFlow,
+      investingInflows,
+      investingOutflows,
+      netInvestingCashFlow,
+      financingInflows,
+      financingOutflows,
+      netFinancingCashFlow,
+      netCashChange,
+      beginningCash,
+      endingCash
+    };
+  },
+
+  // 6. GENERATE LAPORAN PERUBAHAN EKUITAS
+  generateEquityStatement(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    startDate?: string,
+    endDate?: string
+  ): EquityStatement {
+    const capitalAccount = accounts.find((a) => a.code === '3110');
+    const retainedAccount = accounts.find((a) => a.code === '3210');
+
+    const beginningShareCapital = capitalAccount?.initialBalance || 500000000;
+    const beginningRetainedEarnings = retainedAccount?.initialBalance || 331500000;
+
+    const pl = this.generateProfitLoss(accounts, transactions, startDate, endDate);
+    const currentNetProfit = pl.netProfit;
+
+    const capitalAdditions = 0;
+    const dividendsPaid = 0;
+
+    const endingShareCapital = beginningShareCapital + capitalAdditions;
+    const endingRetainedEarnings = beginningRetainedEarnings + currentNetProfit - dividendsPaid;
+
+    const totalBeginningEquity = beginningShareCapital + beginningRetainedEarnings;
+    const totalEndingEquity = endingShareCapital + endingRetainedEarnings;
+
+    return {
+      periodLabel: startDate && endDate ? `${startDate} s/d ${endDate}` : 'Tahun Berjalan 2026',
+      beginningShareCapital,
+      capitalAdditions,
+      endingShareCapital,
+      beginningRetainedEarnings,
+      currentNetProfit,
+      dividendsPaid,
+      endingRetainedEarnings,
+      totalBeginningEquity,
+      totalEndingEquity
+    };
+  },
+
+  // 7. FINANCIAL RATIOS & ANALYTICS
+  calculateFinancialRatios(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[]
+  ): FinancialRatios {
+    const bs = this.generateBalanceSheet(accounts, transactions);
+    const pl = this.generateProfitLoss(accounts, transactions);
+
+    const cashAccounts = ['1110', '1120', '1121', '1130'];
+    const totalCash = bs.currentAssets
+      .filter((a) => cashAccounts.includes(a.code))
+      .reduce((sum, a) => sum + a.amount, 0);
+
+    const accountsReceivable = bs.currentAssets
+      .filter((a) => a.code === '1140')
+      .reduce((sum, a) => sum + a.amount, 0);
+
+    const currentLiabilities = Math.max(1, bs.totalCurrentLiabilities);
+    const currentAssets = bs.totalCurrentAssets;
+    const totalRevenue = Math.max(1, pl.totalRevenue);
+    const totalEquity = Math.max(1, bs.totalEquity);
+    const totalAssets = Math.max(1, bs.totalAssets);
+
+    const currentRatio = currentAssets / currentLiabilities;
+    const quickRatio = (totalCash + accountsReceivable) / currentLiabilities;
+    const cashRatio = totalCash / currentLiabilities;
+    const grossProfitMargin = (pl.grossProfit / totalRevenue) * 100;
+    const operatingProfitMargin = (pl.operatingIncome / totalRevenue) * 100;
+    const netProfitMargin = (pl.netProfit / totalRevenue) * 100;
+    const returnOnAssets = (pl.netProfit / totalAssets) * 100;
+    const returnOnEquity = (pl.netProfit / totalEquity) * 100;
+    const debtToEquityRatio = bs.totalLiabilities / totalEquity;
+    const workingCapital = currentAssets - currentLiabilities;
+
+    // Monthly burn rate (HPP + OPEX / count of months approx 1)
+    const monthlyBurnRate = pl.totalCogs + pl.totalOpex;
+    const cashRunwayMonths = monthlyBurnRate > 0 ? totalCash / (monthlyBurnRate / 2) : 12;
+
+    return {
+      currentRatio,
+      quickRatio,
+      cashRatio,
+      grossProfitMargin,
+      operatingProfitMargin,
+      netProfitMargin,
+      returnOnAssets,
+      returnOnEquity,
+      debtToEquityRatio,
+      workingCapital,
+      monthlyBurnRate,
+      cashRunwayMonths
+    };
+  },
+
+  // 8. COST CENTER REPORT PER PROYEK / LOKASI
+  generateCostCenterReports(
+    projects: Project[],
+    transactions: FinanceTransaction[]
+  ): CostCenterReport[] {
+    return projects.map((p) => {
+      const pTrx = transactions.filter((t) => t.projectId === p.id);
+
+      let revenue = 0;
+      let cogsLabor = 0;
+      let cogsChemical = 0;
+      let cogsOther = 0;
+      let directOpex = 0;
+
+      pTrx.forEach((t) => {
+        if (t.type === 'IN') {
+          revenue += t.amount;
+        } else if (t.type === 'OUT') {
+          if (t.contraAccountCode === '5110') {
+            cogsLabor += t.amount;
+          } else if (t.contraAccountCode === '5120') {
+            cogsChemical += t.amount;
+          } else if (t.contraAccountCode.startsWith('51')) {
+            cogsOther += t.amount;
+          } else if (t.contraAccountCode.startsWith('61')) {
+            directOpex += t.amount;
+          }
+        }
+      });
+
+      // Default baseline if no direct records
+      if (revenue === 0) {
+        revenue = (p.manpowerCount || p.activeCleanersCount || 10) * 8500000;
+        cogsLabor = (p.manpowerCount || p.activeCleanersCount || 10) * 5200000;
+        cogsChemical = revenue * 0.08;
+      }
+
+      const totalCogs = cogsLabor + cogsChemical + cogsOther;
+      const grossProfit = revenue - totalCogs;
+      const grossMarginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+      const netContribution = grossProfit - directOpex;
+      const netContributionPct = revenue > 0 ? (netContribution / revenue) * 100 : 0;
+
+      const cleanerCount = p.manpowerCount || p.activeCleanersCount || 1;
+      const costPerCleaner = cleanerCount > 0 ? totalCogs / cleanerCount : 0;
+
+      return {
+        projectId: p.id,
+        projectName: p.name,
+        revenue,
+        cogsLabor,
+        cogsChemical,
+        cogsOther,
+        totalCogs,
+        grossProfit,
+        grossMarginPct,
+        directOpex,
+        netContribution,
+        netContributionPct,
+        cleanerCount,
+        costPerCleaner
+      };
+    });
+  },
+
+  // 9. SMART BANK STATEMENT PARSER & AUTO-RECONCILER
+  parseStatementRawText(rawText: string, bankName: string = 'BCA'): BankStatementItem[] {
+    const lines = rawText.split('\n').map((l) => l.trim()).filter(Boolean);
+    const items: BankStatementItem[] = [];
+
+    lines.forEach((line, index) => {
+      // Basic CSV or Tab delimiter detection
+      const parts = line.includes('\t') ? line.split('\t') : line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+      if (parts.length >= 3) {
+        const dateStr = parts[0]?.replace(/"/g, '').trim();
+        const desc = parts[1]?.replace(/"/g, '').trim();
+        const rawAmount = parts[2]?.replace(/"/g, '').replace(/[^\d.-]/g, '').trim();
+        const numAmount = Math.abs(parseFloat(rawAmount) || 0);
+
+        if (numAmount > 0) {
+          const isDb = line.toUpperCase().includes('DB') || line.toUpperCase().includes('DEBIT') || rawAmount.startsWith('-');
+          const type: 'CR' | 'DB' = isDb ? 'DB' : 'CR';
+
+          items.push({
+            id: `stmt-parsed-${Date.now()}-${index}`,
+            date: dateStr || new Date().toISOString().split('T')[0],
+            description: desc || `Mutasi ${bankName} #${index + 1}`,
+            type,
+            amount: numAmount,
+            matchStatus: 'UNMATCHED',
+            suggestedAccountCode: type === 'CR' ? '4110' : '5120',
+            confidenceScore: 70
+          });
+        }
+      }
+    });
+
+    return items;
+  },
+
+  // Auto-matching algorithm between Bank Items and Internal Transactions
+  autoMatchBankStatements(
+    bankItems: BankStatementItem[],
+    transactions: FinanceTransaction[]
+  ): BankStatementItem[] {
+    return bankItems.map((item) => {
+      if (item.matchStatus === 'MATCHED' && item.matchedTransactionId) {
+        return item;
+      }
+
+      // Find best match in transactions
+      let bestScore = 0;
+      let matchedTrx: FinanceTransaction | null = null;
+
+      transactions.forEach((t) => {
+        let score = 0;
+
+        // Same amount exact match (+50 pts)
+        if (Math.abs(t.amount - item.amount) < 1) {
+          score += 50;
+        }
+
+        // Direction match (+20 pts)
+        if ((item.type === 'CR' && t.type === 'IN') || (item.type === 'DB' && t.type === 'OUT')) {
+          score += 20;
+        }
+
+        // Date proximity (+20 pts for exact date, +10 pts for within 3 days)
+        if (t.date === item.date) {
+          score += 20;
+        } else {
+          const diffDays = Math.abs(
+            (new Date(t.date).getTime() - new Date(item.date).getTime()) / (1000 * 3600 * 24)
+          );
+          if (diffDays <= 3) {
+            score += 10;
+          }
+        }
+
+        // Description similarity (+10 pts)
+        const tDesc = (t.title + ' ' + t.description + ' ' + (t.referenceNumber || '')).toLowerCase();
+        const bDesc = item.description.toLowerCase();
+        if (
+          (t.referenceNumber && bDesc.includes(t.referenceNumber.toLowerCase())) ||
+          (t.payeeOrPayer && bDesc.includes(t.payeeOrPayer.toLowerCase())) ||
+          (t.projectName && bDesc.includes(t.projectName.toLowerCase()))
+        ) {
+          score += 20;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          matchedTrx = t;
+        }
+      });
+
+      if (bestScore >= 80 && matchedTrx) {
+        return {
+          ...item,
+          matchStatus: 'MATCHED',
+          matchedTransactionId: (matchedTrx as FinanceTransaction).id,
+          matchedTransactionCode: (matchedTrx as FinanceTransaction).code,
+          confidenceScore: bestScore,
+          notes: `Cocok otomatis dengan ${(matchedTrx as FinanceTransaction).code} (${bestScore}% confidence)`
+        };
+      }
+
+      return {
+        ...item,
+        confidenceScore: bestScore
+      };
+    });
+  },
+
+  // 10. PERIOD CLOSING VALIDATION
+  isDateInClosedPeriod(dateStr: string, closings: PeriodClosing[]): boolean {
+    const d = new Date(dateStr);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+
+    return closings.some(
+      (c) => c.status === 'CLOSED' && c.periodYear === year && c.periodMonth === month
+    );
+  },
+
+  // 11. EXPORT TO EXCEL
+  exportProfitLossToExcel(pl: ProfitLossStatement, companyName: string = 'PT Rajawali Sukses Mandiri') {
+    const data = [
+      [companyName],
+      ['LAPORAN LABA RUGI (PROFIT & LOSS STATEMENT)'],
+      [`Periode: ${pl.periodLabel}`],
+      [''],
+      ['KODE AKUN', 'NAMA AKUN / KATEGORI', 'NOMINAL (RP)'],
+      ['4100', 'PENDAPATAN USAHA (REVENUE)', ''],
+      ...pl.revenueAccounts.map((a) => [a.code, `  ${a.name}`, a.amount]),
+      ['', 'TOTAL PENDAPATAN', pl.totalRevenue],
+      [''],
+      ['5100', 'BEBAN POKOK PENDAPATAN (HPP / COGS)', ''],
+      ...pl.cogsAccounts.map((a) => [a.code, `  ${a.name}`, a.amount]),
+      ['', 'TOTAL BEBAN POKOK PENDAPATAN', pl.totalCogs],
+      [''],
+      ['', 'LABA KOTOR (GROSS PROFIT)', pl.grossProfit],
+      ['', `GROSS PROFIT MARGIN (%)`, `${pl.grossMarginPct.toFixed(2)}%`],
+      [''],
+      ['6100', 'BEBAN OPERASIONAL (OPEX)', ''],
+      ...pl.opexAccounts.map((a) => [a.code, `  ${a.name}`, a.amount]),
+      ['', 'TOTAL BEBAN OPERASIONAL', pl.totalOpex],
+      [''],
+      ['', 'LABA USAHA (OPERATING INCOME)', pl.operatingIncome],
+      ['', 'PENDAPATAN LAIN-LAIN', pl.totalOtherIncome],
+      ['', 'BEBAN LAIN-LAIN / PAJAK & BUNGA', pl.totalOtherExpense],
+      [''],
+      ['', 'LABA BERSIH TAHUN BERJALAN (NET PROFIT)', pl.netProfit],
+      ['', 'NET PROFIT MARGIN (%)', `${pl.netMarginPct.toFixed(2)}%`]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Laba_Rugi');
+    XLSX.writeFile(wb, `Laporan_Laba_Rugi_${new Date().toISOString().split('T')[0]}.xlsx`);
+  },
+
+  exportBalanceSheetToExcel(bs: BalanceSheetStatement, companyName: string = 'PT Rajawali Sukses Mandiri') {
+    const data = [
+      [companyName],
+      ['LAPORAN POSISI KEUANGAN (NERACA / BALANCE SHEET)'],
+      [`Per Tanggal: ${bs.asOfDate}`],
+      [''],
+      ['KODE', 'ASET', 'JUMLAH (RP)', '', 'KODE', 'LIABILITAS & EKUITAS', 'JUMLAH (RP)'],
+      ['1100', 'Aset Lancar', '', '', '2100', 'Liabilitas Jangka Pendek', ''],
+      ...bs.currentAssets.map((a) => [a.code, `  ${a.name}`, a.amount, '', '', '', '']),
+      ['', 'Total Aset Lancar', bs.totalCurrentAssets, '', '', 'Total Liabilitas Lancar', bs.totalCurrentLiabilities],
+      [''],
+      ['1200', 'Aset Tetap', '', '', '2200', 'Liabilitas Jangka Panjang', ''],
+      ...bs.fixedAssets.map((a) => [a.code, `  ${a.name}`, a.amount, '', '', '', '']),
+      ['', 'Total Aset Tetap', bs.totalFixedAssets, '', '', 'Total Liabilitas Jangka Panjang', bs.totalLongTermLiabilities],
+      [''],
+      ['', 'TOTAL ASET', bs.totalAssets, '', '', 'TOTAL LIABILITAS', bs.totalLiabilities],
+      ['', '', '', '', '3000', 'EKUITAS', ''],
+      ...bs.equityAccounts.map((e) => ['', '', '', '', e.code, `  ${e.name}`, e.amount]),
+      ['', '', '', '', '', '  Laba Bersih Periode Berjalan', bs.currentPeriodNetProfit],
+      ['', '', '', '', '', 'TOTAL EKUITAS', bs.totalEquity],
+      [''],
+      ['', 'TOTAL ASET', bs.totalAssets, '', '', 'TOTAL LIABILITAS & EKUITAS', bs.totalLiabilitiesAndEquity],
+      ['', 'STATUS NERACA', bs.isBalanced ? 'SEIMBANG (BALANCED)' : 'SELISIH (UNBALANCED)', '', '', 'SELISIH', bs.variance]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Neraca');
+    XLSX.writeFile(wb, `Laporan_Neraca_${new Date().toISOString().split('T')[0]}.xlsx`);
+  },
+
+  // 12. EXPORT TO PDF (Standard Official Letterhead)
+  exportFinancialStatementPDF(
+    title: string,
+    period: string,
+    headers: string[],
+    rows: (string | number)[][],
+    summaryRows?: (string | number)[][]
+  ) {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Header Kop Perusahaan
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(0, 0, 210, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('PT RAJAWALI SUKSES MANDIRI', 14, 11);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Integrated Facility Management & Cleaning Services | Finance Division', 14, 17);
+    doc.text('Gedung Cyber 2 Tower Lt. 18, Jl. HR Rasuna Said Blok X-5, Jakarta Selatan', 14, 22);
+
+    // Title section
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(title.toUpperCase(), 14, 38);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Periode Laporan : ${period}`, 14, 44);
+    doc.text(`Dicetak Pada     : ${new Date().toLocaleString('id-ID')}`, 14, 49);
+
+    // Render AutoTable
+    autoTable(doc, {
+      startY: 54,
+      head: [headers],
+      body: rows as any,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8.5
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [51, 65, 85]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      styles: {
+        cellPadding: 2.5
+      }
+    });
+
+    // Footer signature
+    const finalY = (doc as any).lastAutoTable?.finalY || 200;
+    if (finalY < 240) {
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Disiapkan Oleh,', 20, finalY + 15);
+      doc.text('Finance & Accounting Officer', 20, finalY + 32);
+
+      doc.text('Disetujui Oleh,', 140, finalY + 15);
+      doc.text('Direktur Keuangan / Super Admin', 140, finalY + 32);
+    }
+
+    doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+  },
+
+  // Export Financial Report to Excel Spreadsheet (.xlsx)
+  exportFinancialStatementExcel(title: string, data: any[]): void {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Laporan');
+    XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  },
+
+  // Export processed data to CSV format directly compatible with Excel or Google Sheets
+  exportToCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]): void {
+    const processCell = (cell: string | number | null | undefined): string => {
+      if (cell === null || cell === undefined) return '""';
+      const str = String(cell).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvContent = [
+      headers.map(processCell).join(','),
+      ...rows.map((row) => row.map(processCell).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', cleanFilename.replace(/\s+/g, '_'));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+
+  // Helper to export array of objects to CSV
+  exportJSONToCSV(filename: string, data: Record<string, any>[]): void {
+    if (!data || data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    const rows = data.map((item) => headers.map((header) => item[header]));
+    this.exportToCSV(filename, headers, rows);
+  }
+};

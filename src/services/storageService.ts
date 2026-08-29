@@ -9,7 +9,13 @@ import {
   CleaningTask,
   BlastAnnouncement,
   SopDocument,
-  UserAccount
+  UserAccount,
+  ChartOfAccount,
+  FinanceTransaction,
+  BankStatementImport,
+  PeriodClosing,
+  AuditTrailItem,
+  CurrencyRate
 } from '../types';
 import {
   INITIAL_PROJECTS,
@@ -24,6 +30,14 @@ import {
   INITIAL_SOPS,
   INITIAL_USERS
 } from '../data/initialData';
+import {
+  INITIAL_CHART_OF_ACCOUNTS,
+  INITIAL_FINANCE_TRANSACTIONS,
+  INITIAL_BANK_STATEMENTS,
+  INITIAL_PERIOD_CLOSINGS,
+  INITIAL_AUDIT_TRAILS,
+  INITIAL_CURRENCY_RATES
+} from '../data/initialFinanceData';
 
 const STORAGE_KEYS = {
   PROJECTS: 'rajawali_projects',
@@ -39,7 +53,13 @@ const STORAGE_KEYS = {
   USERS: 'rajawali_users_accounts',
   ACTIVE_USER: 'rajawali_active_session_user',
   SELECTED_PROJECT: 'rajawali_selected_project_id',
-  USER_ROLE: 'rajawali_user_role'
+  USER_ROLE: 'rajawali_user_role',
+  CHART_OF_ACCOUNTS: 'rajawali_finance_coa',
+  FINANCE_TRANSACTIONS: 'rajawali_finance_transactions',
+  BANK_STATEMENTS: 'rajawali_finance_bank_statements',
+  PERIOD_CLOSINGS: 'rajawali_finance_period_closings',
+  AUDIT_TRAILS: 'rajawali_finance_audit_trails',
+  CURRENCY_RATES: 'rajawali_finance_currency_rates'
 };
 
 export const storageService = {
@@ -303,5 +323,114 @@ export const storageService = {
     localStorage.removeItem(STORAGE_KEYS.USERS);
     // Don't necessarily clear active user if user just wants data reset, or reset users to default
     this.saveUsers(INITIAL_USERS);
+    localStorage.removeItem(STORAGE_KEYS.CHART_OF_ACCOUNTS);
+    localStorage.removeItem(STORAGE_KEYS.FINANCE_TRANSACTIONS);
+    localStorage.removeItem(STORAGE_KEYS.BANK_STATEMENTS);
+    localStorage.removeItem(STORAGE_KEYS.PERIOD_CLOSINGS);
+    localStorage.removeItem(STORAGE_KEYS.AUDIT_TRAILS);
+    localStorage.removeItem(STORAGE_KEYS.CURRENCY_RATES);
+  },
+
+  // Finance Storage Handlers
+  getChartOfAccounts(): ChartOfAccount[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.CHART_OF_ACCOUNTS);
+    if (!raw) {
+      this.saveChartOfAccounts(INITIAL_CHART_OF_ACCOUNTS);
+      return INITIAL_CHART_OF_ACCOUNTS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_CHART_OF_ACCOUNTS;
+    }
+  },
+
+  saveChartOfAccounts(data: ChartOfAccount[]) {
+    localStorage.setItem(STORAGE_KEYS.CHART_OF_ACCOUNTS, JSON.stringify(data));
+  },
+
+  getFinanceTransactions(): FinanceTransaction[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINANCE_TRANSACTIONS);
+    if (!raw) {
+      this.saveFinanceTransactions(INITIAL_FINANCE_TRANSACTIONS);
+      return INITIAL_FINANCE_TRANSACTIONS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_FINANCE_TRANSACTIONS;
+    }
+  },
+
+  saveFinanceTransactions(data: FinanceTransaction[]) {
+    localStorage.setItem(STORAGE_KEYS.FINANCE_TRANSACTIONS, JSON.stringify(data));
+  },
+
+  getBankStatements(): BankStatementImport[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.BANK_STATEMENTS);
+    if (!raw) {
+      this.saveBankStatements(INITIAL_BANK_STATEMENTS);
+      return INITIAL_BANK_STATEMENTS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_BANK_STATEMENTS;
+    }
+  },
+
+  saveBankStatements(data: BankStatementImport[]) {
+    localStorage.setItem(STORAGE_KEYS.BANK_STATEMENTS, JSON.stringify(data));
+  },
+
+  getPeriodClosings(): PeriodClosing[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.PERIOD_CLOSINGS);
+    if (!raw) {
+      this.savePeriodClosings(INITIAL_PERIOD_CLOSINGS);
+      return INITIAL_PERIOD_CLOSINGS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_PERIOD_CLOSINGS;
+    }
+  },
+
+  savePeriodClosings(data: PeriodClosing[]) {
+    localStorage.setItem(STORAGE_KEYS.PERIOD_CLOSINGS, JSON.stringify(data));
+  },
+
+  getAuditTrails(): AuditTrailItem[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUDIT_TRAILS);
+    if (!raw) {
+      this.saveAuditTrails(INITIAL_AUDIT_TRAILS);
+      return INITIAL_AUDIT_TRAILS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_AUDIT_TRAILS;
+    }
+  },
+
+  saveAuditTrails(data: AuditTrailItem[]) {
+    localStorage.setItem(STORAGE_KEYS.AUDIT_TRAILS, JSON.stringify(data));
+  },
+
+  getCurrencyRates(): CurrencyRate[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.CURRENCY_RATES);
+    if (!raw) {
+      this.saveCurrencyRates(INITIAL_CURRENCY_RATES);
+      return INITIAL_CURRENCY_RATES;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return INITIAL_CURRENCY_RATES;
+    }
+  },
+
+  saveCurrencyRates(data: CurrencyRate[]) {
+    localStorage.setItem(STORAGE_KEYS.CURRENCY_RATES, JSON.stringify(data));
   }
 };

@@ -20,6 +20,8 @@ interface NavbarProps {
   selectedProjectId?: string; // 'ALL' or specific id
   onSelectProject?: (id: string) => void;
   currentUser?: UserAccount;
+  users?: UserAccount[];
+  onSwitchUser?: (user: UserAccount) => void;
   onLogout?: () => void;
   onResetData?: () => void;
   lowStockCount?: number;
@@ -35,6 +37,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedProjectId = 'ALL',
   onSelectProject,
   currentUser,
+  users = [],
+  onSwitchUser,
   onLogout,
   onResetData,
   isSidebarOpen = false,
@@ -220,6 +224,40 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <Cloud className="w-4 h-4 text-blue-400" />
                           <span>Google Drive Sync & Cadangan</span>
                         </button>
+                      )}
+
+                      {/* Quick Tester Switcher */}
+                      {users.length > 1 && onSwitchUser && (
+                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                            <span>⚡ Ganti Akun Tester:</span>
+                            <span className="text-slate-500 font-normal">1-Klik</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                            {users.map((u) => (
+                              <button
+                                key={u.id}
+                                onClick={() => {
+                                  setIsUserMenuOpen(false);
+                                  onSwitchUser(u);
+                                }}
+                                className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                                  currentUser?.id === u.id
+                                    ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
+                                    : 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 truncate">
+                                  <span>{u.avatar || '👤'}</span>
+                                  <span className="truncate">{u.name.split(' ')[0]} ({u.role.split(' ')[0]})</span>
+                                </div>
+                                {currentUser?.id === u.id && (
+                                  <span className="text-[10px] text-amber-400 font-mono">Aktif</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       <div className="pt-2 border-t border-slate-800">
