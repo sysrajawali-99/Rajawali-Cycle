@@ -61,8 +61,8 @@ export default function App() {
   const [sops, setSops] = useState<SopItem[]>([]);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Initial Load from storage
-  useEffect(() => {
+  // Load all state from storage
+  const loadAllData = () => {
     const loadedProjects = storageService.getProjects();
     const loadedUsers = storageService.getUsers();
     const activeUser = storageService.getActiveUser();
@@ -91,6 +91,11 @@ export default function App() {
     }
 
     setIsLoaded(true);
+  };
+
+  // Initial Load from storage
+  useEffect(() => {
+    loadAllData();
   }, []);
 
   // Update handlers with persistent storage
@@ -487,6 +492,14 @@ export default function App() {
         lowStockCount={lowStockCount}
         activeTasksCount={activeTasksCount}
         unreadBlastCount={unreadBlastCount}
+      />
+
+      {/* Google Drive Sync Modal */}
+      <GoogleDriveSyncModal
+        isOpen={isDriveModalOpen}
+        onClose={() => setIsDriveModalOpen(false)}
+        userName={currentUser?.name}
+        onDataRestored={loadAllData}
       />
     </div>
   );
