@@ -72,7 +72,37 @@ export function formatDateTimeStamp(dateInput: Date = new Date()): string {
   return `${day}/${month}/${year} ${hours}:${minutes}:${seconds} WIB`;
 }
 
-export function downloadCSV(filename: string, rows: (string | number)[][]) {
+export function downloadCSV(arg1: string | any[], arg2?: string | any[]) {
+  let filename = 'export.csv';
+  let rowsData: any[] = [];
+
+  if (typeof arg1 === 'string') {
+    filename = arg1;
+    rowsData = Array.isArray(arg2) ? arg2 : [];
+  } else if (Array.isArray(arg1)) {
+    rowsData = arg1;
+    if (typeof arg2 === 'string') {
+      filename = arg2;
+    }
+  }
+
+  if (rowsData.length === 0) {
+    return;
+  }
+
+  let formattedRows: (string | number)[][] = [];
+
+  // Check if rows are objects (Record<string, any>[])
+  if (typeof rowsData[0] === 'object' && rowsData[0] !== null && !Array.isArray(rowsData[0])) {
+    const headers = Object.keys(rowsData[0]);
+    formattedRows.push(headers);
+    rowsData.forEach((item) => {
+      formattedRows.push(headers.map((h) => (item[h] !== undefined && item[h] !== null ? item[h] : '')));
+    });
+  } else {
+    formattedRows = rowsData as (string | number)[][];
+  }
+
   const processRow = (row: (string | number)[]) => {
     return row
       .map((val) => {
@@ -85,7 +115,7 @@ export function downloadCSV(filename: string, rows: (string | number)[][]) {
       .join(',');
   };
 
-  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map(processRow).join('\r\n');
+  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + formattedRows.map(processRow).join('\r\n');
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);

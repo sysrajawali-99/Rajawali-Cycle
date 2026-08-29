@@ -158,7 +158,7 @@ export interface AuditTrailItem {
   userName: string;
   userRole: string;
   actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'RECONCILE' | 'CLOSE_PERIOD' | 'REOPEN_PERIOD' | 'IMPORT_STATEMENT';
-  module: 'Uang Masuk' | 'Uang Keluar' | 'Jurnal Umum' | 'Jurnal Penyesuaian' | 'Rekonsiliasi Bank' | 'Tutup Buku' | 'Master Akun COA';
+  module: 'Uang Masuk' | 'Uang Keluar' | 'Jurnal Umum' | 'Jurnal Penyesuaian' | 'Rekonsiliasi Bank' | 'Tutup Buku' | 'Master Akun COA' | 'Investasi & Bagi Hasil' | 'Utang Piutang' | 'Arus Kas' | string;
   recordId: string;
   recordCode?: string;
   description: string;
@@ -510,9 +510,10 @@ export interface InvestmentScheduleRow {
   totalPayout: number;
   status: ProfitSharingStatus; // "Ditunda" / "DI Realisasikan"
   realizationDate?: string;
-  bankAccountSnapshot: string;
-  accountHolderSnapshot: string;
-  bankNameSnapshot: string;
+  bankAccountSnapshot?: string;
+  bankAccountNumberSnapshot?: string;
+  accountHolderSnapshot?: string;
+  bankNameSnapshot?: string;
   transferProof?: string;
   notes?: string;
   updatedBy?: string;

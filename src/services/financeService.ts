@@ -300,6 +300,16 @@ export const financeService = {
     };
   },
 
+  generateProfitLossStatement(
+    accounts: ChartOfAccount[],
+    transactions: FinanceTransaction[],
+    startDate?: string,
+    endDate?: string,
+    projectId?: string
+  ): ProfitLossStatement {
+    return this.generateProfitLoss(accounts, transactions, startDate, endDate, projectId);
+  },
+
   // 4. GENERATE NERACA (BALANCE SHEET)
   generateBalanceSheet(
     accounts: ChartOfAccount[],
