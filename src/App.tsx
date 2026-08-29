@@ -24,6 +24,11 @@ import {
   PeriodClosing,
   AuditTrailItem
 } from './types';
+import {
+  DebtRecord,
+  ReceivableRecord,
+  InvestmentRecord
+} from './types/finance';
 import { storageService } from './services/storageService';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
@@ -41,6 +46,10 @@ import { ProjectLocationSettings } from './components/projects/ProjectLocationSe
 import { GoogleDriveSyncModal } from './components/drive/GoogleDriveSyncModal';
 import { LoginPage } from './components/auth/LoginPage';
 import { FinanceCashJournal } from './components/finance/FinanceCashJournal';
+import { FinanceDebtsReceivables } from './components/finance/FinanceDebtsReceivables';
+import { FinanceInvestments } from './components/finance/FinanceInvestments';
+import { FinanceOutflowForecast } from './components/finance/FinanceOutflowForecast';
+import { FinanceProfitLoss } from './components/finance/FinanceProfitLoss';
 import { FinanceBankReconcile } from './components/finance/FinanceBankReconcile';
 import { FinanceStatements } from './components/finance/FinanceStatements';
 import { FinanceAnalyticsAudit } from './components/finance/FinanceAnalyticsAudit';
@@ -75,6 +84,9 @@ export default function App() {
   const [bankStatements, setBankStatements] = useState<BankStatementImport[]>([]);
   const [periodClosings, setPeriodClosings] = useState<PeriodClosing[]>([]);
   const [auditTrails, setAuditTrails] = useState<AuditTrailItem[]>([]);
+  const [debts, setDebts] = useState<DebtRecord[]>([]);
+  const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
+  const [investments, setInvestments] = useState<InvestmentRecord[]>([]);
 
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
@@ -102,6 +114,9 @@ export default function App() {
     setBankStatements(storageService.getBankStatements());
     setPeriodClosings(storageService.getPeriodClosings());
     setAuditTrails(storageService.getAuditTrails());
+    setDebts(storageService.getDebts());
+    setReceivables(storageService.getReceivables());
+    setInvestments(storageService.getInvestments());
 
     if (activeUser) {
       // Find latest updated version of user from users list
@@ -212,6 +227,18 @@ export default function App() {
     storageService.saveChartOfAccounts(updated);
   };
 
+  const handleUpdateAccount = (account: ChartOfAccount) => {
+    const updated = accounts.map((a) => (a.code === account.code ? account : a));
+    setAccounts(updated);
+    storageService.saveChartOfAccounts(updated);
+  };
+
+  const handleDeleteAccount = (accountCode: string) => {
+    const updated = accounts.filter((a) => a.code !== accountCode);
+    setAccounts(updated);
+    storageService.saveChartOfAccounts(updated);
+  };
+
   const handleUpdateBankStatements = (statements: BankStatementImport[]) => {
     setBankStatements(statements);
     storageService.saveBankStatements(statements);
@@ -221,6 +248,51 @@ export default function App() {
     const updated = [audit, ...auditTrails];
     setAuditTrails(updated);
     storageService.saveAuditTrails(updated);
+  };
+
+  // Debts, Receivables & Investment Handlers
+  const handleUpdateDebts = (updatedDebts: DebtRecord[]) => {
+    setDebts(updatedDebts);
+    storageService.saveDebts(updatedDebts);
+  };
+
+  const handleUpdateReceivables = (updatedRecs: ReceivableRecord[]) => {
+    setReceivables(updatedRecs);
+    storageService.saveReceivables(updatedRecs);
+  };
+
+  const handleAddInvestment = (inv: InvestmentRecord) => {
+    const updated = [inv, ...investments];
+    setInvestments(updated);
+    storageService.saveInvestments(updated);
+  };
+
+  const handleUpdateInvestment = (inv: InvestmentRecord) => {
+    const updated = investments.map((item) => (item.id === inv.id ? inv : item));
+    setInvestments(updated);
+    storageService.saveInvestments(updated);
+  };
+
+  const handleDeleteInvestment = (id: string, reason: string, pin: string) => {
+    const target = investments.find((i) => i.id === id);
+    const updated = investments.filter((item) => item.id !== id);
+    setInvestments(updated);
+    storageService.saveInvestments(updated);
+
+    if (target) {
+      handleAddAuditLog({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toLocaleString('id-ID'),
+        userName: currentUser?.name || 'Super Admin (HQ)',
+        userRole: currentUser?.role || 'Finance',
+        actionType: 'DELETE',
+        module: 'Investasi & Bagi Hasil',
+        recordId: target.id,
+        recordCode: target.code,
+        description: `Menghapus kontrak investasi ${target.investorName} (Alasan: ${reason})`,
+        amount: target.capitalAmount
+      });
+    }
   };
 
   // User Management Handlers
@@ -350,6 +422,14 @@ export default function App() {
     setMutations(storageService.getMutations());
     setBlasts(storageService.getBlasts());
     setSops(storageService.getSops());
+    setDebts(storageService.getDebts());
+    setReceivables(storageService.getReceivables());
+    setInvestments(storageService.getInvestments());
+    setAccounts(storageService.getChartOfAccounts());
+    setFinanceTransactions(storageService.getFinanceTransactions());
+    setBankStatements(storageService.getBankStatements());
+    setPeriodClosings(storageService.getPeriodClosings());
+    setAuditTrails(storageService.getAuditTrails());
   };
 
   // Badge counts
@@ -554,7 +634,60 @@ export default function App() {
                 onUpdateTransaction={handleUpdateFinanceTransaction}
                 onDeleteTransaction={handleDeleteFinanceTransaction}
                 onAddAccount={handleAddAccount}
+                onUpdateAccount={handleUpdateAccount}
+                onDeleteAccount={handleDeleteAccount}
                 onLogAudit={handleAddAuditLog}
+              />
+            )}
+
+            {/* Divisi Finance: Pencatatan Hutang & Piutang Usaha */}
+            {currentView === 'finance_debts_receivables' && (
+              <FinanceDebtsReceivables
+                debts={debts}
+                receivables={receivables}
+                accounts={accounts}
+                projects={projects}
+                currentUser={currentUser}
+                onUpdateDebts={handleUpdateDebts}
+                onUpdateReceivables={handleUpdateReceivables}
+                onAddTransaction={handleAddFinanceTransaction}
+                onLogAudit={handleAddAuditLog}
+              />
+            )}
+
+            {/* Divisi Finance: Pencatatan Investasi & Bagi Hasil 12 Baris Jadwal */}
+            {currentView === 'finance_investments' && (
+              <FinanceInvestments
+                investments={investments}
+                projects={projects}
+                currentUser={currentUser}
+                onAddInvestment={handleAddInvestment}
+                onUpdateInvestment={handleUpdateInvestment}
+                onDeleteInvestment={handleDeleteInvestment}
+                onLogAudit={handleAddAuditLog}
+              />
+            )}
+
+            {/* Divisi Finance: Forecast Rencana Pengeluaran (Gaji Manpower + Hutang + Bagi Hasil) */}
+            {currentView === 'finance_outflow_forecast' && (
+              <FinanceOutflowForecast
+                employees={employees}
+                timesheets={timesheets}
+                debts={debts}
+                investments={investments}
+                accounts={accounts}
+                projects={projects}
+                currentUser={currentUser}
+              />
+            )}
+
+            {/* Divisi Finance: Laporan Laba Rugi (Profit & Loss) */}
+            {currentView === 'finance_profit_loss' && (
+              <FinanceProfitLoss
+                accounts={accounts}
+                transactions={financeTransactions}
+                projects={projects}
+                currentUser={currentUser}
               />
             )}
 

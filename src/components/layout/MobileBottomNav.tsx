@@ -68,6 +68,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     'sops',
     'reports',
     'finance_cash_journal',
+    'finance_debts_receivables',
+    'finance_investments',
+    'finance_outflow_forecast',
+    'finance_profit_loss',
     'finance_bank_reconcile',
     'finance_statements',
     'finance_analytics_audit'
@@ -183,6 +187,30 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       icon: <Layers className="w-4 h-4 text-emerald-400" />
     },
     {
+      id: 'finance_debts_receivables' as AppView,
+      label: 'Pencatatan Hutang & Piutang',
+      description: 'Hutang vendor, piutang klien & aging',
+      icon: <FileSpreadsheet className="w-4 h-4 text-rose-400" />
+    },
+    {
+      id: 'finance_investments' as AppView,
+      label: 'Pencatatan Investasi & Bagi Hasil',
+      description: '12 baris jadwal, investor & reminder',
+      icon: <Briefcase className="w-4 h-4 text-purple-400" />
+    },
+    {
+      id: 'finance_outflow_forecast' as AppView,
+      label: 'Forecast Rencana Pengeluaran',
+      description: 'Gaji manpower + hutang + bagi hasil',
+      icon: <Layers className="w-4 h-4 text-amber-400" />
+    },
+    {
+      id: 'finance_profit_loss' as AppView,
+      label: 'Laba Rugi (Profit & Loss)',
+      description: 'Laporan laba rugi komprehensif',
+      icon: <BookOpen className="w-4 h-4 text-emerald-400" />
+    },
+    {
       id: 'finance_bank_reconcile' as AppView,
       label: 'Rekening Koran & Rekonsiliasi',
       description: 'Upload e-Statement & auto-matching',
@@ -191,7 +219,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     {
       id: 'finance_statements' as AppView,
       label: 'Laporan Keuangan (SAK)',
-      description: 'Laba rugi, neraca, arus kas & ekuitas',
+      description: 'Neraca, arus kas & permodalan',
       icon: <BookOpen className="w-4 h-4 text-blue-400" />
     },
     {

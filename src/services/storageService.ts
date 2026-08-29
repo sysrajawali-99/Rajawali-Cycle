@@ -15,7 +15,10 @@ import {
   BankStatementImport,
   PeriodClosing,
   AuditTrailItem,
-  CurrencyRate
+  CurrencyRate,
+  DebtRecord,
+  ReceivableRecord,
+  InvestmentRecord
 } from '../types';
 import {
   INITIAL_PROJECTS,
@@ -36,7 +39,10 @@ import {
   INITIAL_BANK_STATEMENTS,
   INITIAL_PERIOD_CLOSINGS,
   INITIAL_AUDIT_TRAILS,
-  INITIAL_CURRENCY_RATES
+  INITIAL_CURRENCY_RATES,
+  INITIAL_DEBTS,
+  INITIAL_RECEIVABLES,
+  INITIAL_INVESTMENTS
 } from '../data/initialFinanceData';
 
 const STORAGE_KEYS = {
@@ -59,7 +65,10 @@ const STORAGE_KEYS = {
   BANK_STATEMENTS: 'rajawali_finance_bank_statements',
   PERIOD_CLOSINGS: 'rajawali_finance_period_closings',
   AUDIT_TRAILS: 'rajawali_finance_audit_trails',
-  CURRENCY_RATES: 'rajawali_finance_currency_rates'
+  CURRENCY_RATES: 'rajawali_finance_currency_rates',
+  DEBTS: 'rajawali_finance_debts',
+  RECEIVABLES: 'rajawali_finance_receivables',
+  INVESTMENTS: 'rajawali_finance_investments'
 };
 
 export const storageService = {
@@ -446,5 +455,68 @@ export const storageService = {
 
   saveCurrencyRates(data: CurrencyRate[]) {
     localStorage.setItem(STORAGE_KEYS.CURRENCY_RATES, JSON.stringify(data));
+  },
+
+  // -------------------------------------------------------------------------
+  // DEBTS (HUTANG USAHA & OPERASIONAL)
+  // -------------------------------------------------------------------------
+  getDebts(): DebtRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.DEBTS);
+    if (!raw) {
+      this.saveDebts(INITIAL_DEBTS);
+      return INITIAL_DEBTS;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_DEBTS;
+    } catch {
+      return INITIAL_DEBTS;
+    }
+  },
+
+  saveDebts(data: DebtRecord[]) {
+    localStorage.setItem(STORAGE_KEYS.DEBTS, JSON.stringify(data));
+  },
+
+  // -------------------------------------------------------------------------
+  // RECEIVABLES (PIUTANG USAHA & KONTRAK KLIEN)
+  // -------------------------------------------------------------------------
+  getReceivables(): ReceivableRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.RECEIVABLES);
+    if (!raw) {
+      this.saveReceivables(INITIAL_RECEIVABLES);
+      return INITIAL_RECEIVABLES;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_RECEIVABLES;
+    } catch {
+      return INITIAL_RECEIVABLES;
+    }
+  },
+
+  saveReceivables(data: ReceivableRecord[]) {
+    localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify(data));
+  },
+
+  // -------------------------------------------------------------------------
+  // INVESTMENTS (INVESTASI & BAGI HASIL INVESTOR)
+  // -------------------------------------------------------------------------
+  getInvestments(): InvestmentRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.INVESTMENTS);
+    if (!raw) {
+      this.saveInvestments(INITIAL_INVESTMENTS);
+      return INITIAL_INVESTMENTS;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_INVESTMENTS;
+    } catch {
+      return INITIAL_INVESTMENTS;
+    }
+  },
+
+  saveInvestments(data: InvestmentRecord[]) {
+    localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(data));
   }
 };

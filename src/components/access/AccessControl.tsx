@@ -160,6 +160,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
     email: string;
     role: UserRole;
     password: string;
+    securityPin: string;
     assignedProjectId: string;
     isLocationLocked: boolean;
     allowedViews: AppView[];
@@ -171,6 +172,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
     email: '',
     role: 'Admin Lokasi 1',
     password: 'password123',
+    securityPin: '123456',
     assignedProjectId: projects[0]?.id || 'proj-1',
     isLocationLocked: true,
     allowedViews: [
@@ -352,6 +354,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       email: newUserForm.email.trim() || `${newUserForm.username.trim()}@rajawali.co.id`,
       role: newUserForm.role,
       password: newUserForm.password || 'password123',
+      securityPin: newUserForm.securityPin || '123456',
       avatar: newUserForm.role === 'Super Admin (HQ)' ? '👑' : newUserForm.role === 'Admin Operasional' ? '🏢' : '📍',
       assignedProjectId: newUserForm.assignedProjectId,
       isLocationLocked: newUserForm.isLocationLocked,
@@ -369,6 +372,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       email: '',
       role: 'Admin Lokasi 1',
       password: 'password123',
+      securityPin: '123456',
       assignedProjectId: projects[0]?.id || 'proj-1',
       isLocationLocked: true,
       allowedViews: ['dashboard', 'timesheet', 'employees', 'inventory', 'tasks', 'blast', 'sops', 'reports'],
@@ -896,6 +900,26 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
                   />
                 </div>
+
+                <div className="sm:col-span-2 bg-rose-950/20 border border-rose-900/40 p-3 rounded-xl">
+                  <label className="block text-xs font-bold text-rose-300 mb-1 flex items-center space-x-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-rose-400" />
+                    <span>PIN Keamanan Penghapusan Data (Security PIN - 6 Digit)</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={selectedUserForEdit.securityPin || ''}
+                    onChange={(e) =>
+                      setSelectedUserForEdit({ ...selectedUserForEdit, securityPin: e.target.value.replace(/\D/g, '').slice(0, 6) })
+                    }
+                    placeholder="123456"
+                    className="w-full bg-slate-950 border border-rose-900/50 rounded-xl px-3 py-2 text-xs font-mono tracking-widest text-rose-300 outline-none focus:border-rose-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Diperlukan saat staf menghapus Transaksi Kas/Bank atau Akun COA untuk integritas Audit Trail.
+                  </span>
+                </div>
               </div>
 
               {/* Location Scope Settings */}
@@ -1181,6 +1205,26 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                     onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
                   />
+                </div>
+
+                <div className="sm:col-span-2 bg-rose-950/20 border border-rose-900/40 p-3 rounded-xl">
+                  <label className="block text-xs font-bold text-rose-300 mb-1 flex items-center space-x-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Setup PIN Keamanan Penghapusan Data (Security PIN - 6 Digit)</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={newUserForm.securityPin}
+                    onChange={(e) =>
+                      setNewUserForm({ ...newUserForm, securityPin: e.target.value.replace(/\D/g, '').slice(0, 6) })
+                    }
+                    placeholder="123456"
+                    className="w-full bg-slate-950 border border-rose-900/50 rounded-xl px-3 py-2 text-xs font-mono tracking-widest text-rose-300 outline-none focus:border-rose-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    PIN default awal adalah 123456. User wajib memasukkan PIN ini saat melakukan penghapusan data.
+                  </span>
                 </div>
               </div>
 

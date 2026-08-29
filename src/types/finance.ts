@@ -32,13 +32,17 @@ export interface ChartOfAccount {
   code: string;
   name: string;
   type: AccountType;
-  category: AccountCategory;
+  category: AccountCategory | string;
   normalBalance: 'Debit' | 'Credit';
   initialBalance: number;
   currentBalance: number;
   description: string;
   isActive: boolean;
   isSystem?: boolean;
+  isSubAccount?: boolean;
+  parentCode?: string;
+  parentName?: string;
+  level?: number; // 1 = Akun Induk / Header, 2 = Akun Standar / Sub-Akun Level 1, 3 = Sub-Akun Level 2
 }
 
 export type TransactionType = 'IN' | 'OUT' | 'JOURNAL' | 'ADJUSTMENT';
@@ -189,6 +193,7 @@ export interface FinancialRatios {
   returnOnAssets: number; // (Laba Bersih / Total Aset) * 100
   returnOnEquity: number; // (Laba Bersih / Total Ekuitas) * 100
   debtToEquityRatio: number; // Total Liabilitas / Total Ekuitas
+  debtToAssetRatio: number; // Total Liabilitas / Total Aset
   workingCapital: number; // Aset Lancar - Liabilitas Lancar
   monthlyBurnRate: number; // Rata-rata beban operasional bulanan
   cashRunwayMonths: number; // Total Kas / Monthly Burn Rate
@@ -196,39 +201,55 @@ export interface FinancialRatios {
 
 export type FinancialRatio = FinancialRatios;
 
+export interface StatementAccountItem {
+  code: string;
+  accountCode: string;
+  name: string;
+  accountName: string;
+  amount: number;
+}
+
 export interface ProfitLossStatement {
   periodLabel: string;
-  revenueAccounts: { code: string; name: string; amount: number }[];
+  revenueAccounts: StatementAccountItem[];
+  revenues: StatementAccountItem[];
   totalRevenue: number;
-  cogsAccounts: { code: string; name: string; amount: number }[];
+  cogsAccounts: StatementAccountItem[];
+  cogs: StatementAccountItem[];
   totalCogs: number;
+  totalCOGS: number;
   grossProfit: number;
   grossMarginPct: number;
-  opexAccounts: { code: string; name: string; amount: number }[];
+  grossProfitMargin: number;
+  opexAccounts: StatementAccountItem[];
+  operationalExpenses: StatementAccountItem[];
   totalOpex: number;
+  totalExpenses: number;
   operatingIncome: number;
   operatingMarginPct: number;
-  otherIncomeAccounts: { code: string; name: string; amount: number }[];
+  otherIncomeAccounts: StatementAccountItem[];
   totalOtherIncome: number;
-  otherExpenseAccounts: { code: string; name: string; amount: number }[];
+  otherExpenseAccounts: StatementAccountItem[];
   totalOtherExpense: number;
   netProfit: number;
   netMarginPct: number;
+  netProfitMargin: number;
 }
 
 export interface BalanceSheetStatement {
   asOfDate: string;
-  currentAssets: { code: string; name: string; amount: number }[];
+  currentAssets: StatementAccountItem[];
   totalCurrentAssets: number;
-  fixedAssets: { code: string; name: string; amount: number }[];
+  fixedAssets: StatementAccountItem[];
   totalFixedAssets: number;
   totalAssets: number;
-  currentLiabilities: { code: string; name: string; amount: number }[];
+  currentLiabilities: StatementAccountItem[];
   totalCurrentLiabilities: number;
-  longTermLiabilities: { code: string; name: string; amount: number }[];
+  longTermLiabilities: StatementAccountItem[];
   totalLongTermLiabilities: number;
   totalLiabilities: number;
-  equityAccounts: { code: string; name: string; amount: number }[];
+  equityAccounts: StatementAccountItem[];
+  equityItems: StatementAccountItem[];
   currentPeriodNetProfit: number;
   totalEquity: number;
   totalLiabilitiesAndEquity: number;
@@ -236,38 +257,74 @@ export interface BalanceSheetStatement {
   variance: number;
 }
 
+export interface CashFlowActivityItem {
+  accountName: string;
+  description: string;
+  amount: number;
+}
+
 export interface CashFlowStatement {
   periodLabel: string;
+  operatingActivities: CashFlowActivityItem[];
   operatingInflows: { description: string; amount: number }[];
   totalOperatingInflows: number;
   operatingOutflows: { description: string; amount: number }[];
   totalOperatingOutflows: number;
   netOperatingCashFlow: number;
+  netCashFromOperating: number;
 
+  investingActivities: CashFlowActivityItem[];
   investingInflows: { description: string; amount: number }[];
   investingOutflows: { description: string; amount: number }[];
   netInvestingCashFlow: number;
+  netCashFromInvesting: number;
 
+  financingActivities: CashFlowActivityItem[];
   financingInflows: { description: string; amount: number }[];
   financingOutflows: { description: string; amount: number }[];
   netFinancingCashFlow: number;
+  netCashFromFinancing: number;
 
   netCashChange: number;
+  netCashIncrease: number;
   beginningCash: number;
   endingCash: number;
 }
 
 export interface EquityStatement {
   periodLabel: string;
+  beginningEquity: number;
   beginningShareCapital: number;
+  additionalCapital: number;
   capitalAdditions: number;
   endingShareCapital: number;
   beginningRetainedEarnings: number;
   currentNetProfit: number;
+  netProfitPeriod: number;
   dividendsPaid: number;
+  drawingsOrDividends: number;
+  adjustments: number;
   endingRetainedEarnings: number;
   totalBeginningEquity: number;
   totalEndingEquity: number;
+  endingEquity: number;
+}
+
+export interface TrialBalanceRow {
+  accountCode: string;
+  accountName: string;
+  type: string;
+  category: string;
+  debitBalance: number;
+  creditBalance: number;
+}
+
+export interface TrialBalanceSummary {
+  rows: TrialBalanceRow[];
+  totalDebit: number;
+  totalCredit: number;
+  isBalanced: boolean;
+  difference: number;
 }
 
 export interface CurrencyRate {
@@ -277,3 +334,263 @@ export interface CurrencyRate {
   rateToIdr: number;
   lastUpdated: string;
 }
+
+export interface AICostCenterAnomaly {
+  costCenterName: string;
+  category?: string;
+  accountCategory?: string;
+  currentExpense?: number;
+  benchmarkPercent?: number;
+  actualPercent?: number;
+  variancePercentage?: number;
+  severity?: 'LOW' | 'MEDIUM' | 'WARNING' | 'CRITICAL';
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  description?: string;
+  recommendation: string;
+}
+
+export interface AIFinancialInsight {
+  timestamp: string;
+  model: string;
+  healthScore: number; // 0 - 100
+  healthStatus: 'Sangat Sehat' | 'Sehat & Efisien' | 'Perlu Pengawasan' | 'Kritis / Defisit' | 'SEHAT' | 'WASPADA' | 'KRITIS';
+  summary?: string;
+  executiveSummary?: string;
+  strengths?: string[];
+  keyRisks?: string[];
+  recommendations?: Array<{
+    id?: string;
+    title: string;
+    category?: string;
+    impact?: string;
+    estimatedSavings?: number;
+    actionPlan?: string;
+  }>;
+  costOptimizationAdvice?: {
+    title: string;
+    impact: 'Tinggi' | 'Sedang' | 'Rendah';
+    potentialSaving: number;
+    description: string;
+    actionSteps: string[];
+  }[];
+  costCenterAnomalies?: AICostCenterAnomaly[];
+  cashFlowLiquidityAdvice?: {
+    cashRunwayMonths: number;
+    burnRateMonthly: number;
+    liquidityStatus: string;
+    advice: string;
+  };
+  cashFlowForecast?: {
+    nextMonthInflowEstimate: number;
+    nextMonthOutflowEstimate: number;
+    safetyBufferRecommendation: number;
+    runwayMonths: string | number;
+  };
+  costEfficiencyAnalysis?: string;
+  riskFactors?: string[];
+  taxAndComplianceAdvice?: {
+    topic: string;
+    regulation: string;
+    status: 'Compliant' | 'Warning' | 'Attention Required';
+    recommendation: string;
+  }[];
+  closingReadinessAdvice?: {
+    isReadyForClosing: boolean;
+    unreconciledItemsCount: number;
+    recommendations: string[];
+  };
+  strategicGoalsNextPeriod?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// 7. PENCATATAN HUTANG & PIUTANG (ACCOUNTS PAYABLE & RECEIVABLE)
+// ---------------------------------------------------------------------------
+
+export type DebtType = 
+  | 'HUTANG_VENDOR' 
+  | 'HUTANG_OPERASIONAL' 
+  | 'HUTANG_LEASING_MESIN' 
+  | 'HUTANG_PINJAMAN' 
+  | 'HUTANG_LAINNYA';
+
+export type DebtStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+
+export interface DebtPaymentHistory {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  paymentMethod: PaymentMethod | string;
+  accountCode: string; // Akun Kas/Bank yang digunakan membayar
+  referenceNumber?: string;
+  notes?: string;
+  recordedBy: string;
+  attachmentName?: string;
+}
+
+export interface DebtRecord {
+  id: string;
+  code: string; // e.g. HUT-2026-08-001
+  type: DebtType;
+  creditorName: string; // Vendor / Supplier / Lembaga
+  contactPerson?: string;
+  phone?: string;
+  invoiceNumber: string; // No Faktur / Tagihan Vendor
+  issueDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: DebtStatus;
+  projectId: string; // 'ALL' or specific projectId
+  projectName?: string;
+  accountCode: string; // e.g. '2110' - Utang Usaha / Supplier
+  category: string;
+  notes?: string;
+  payments: DebtPaymentHistory[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type ReceivableType = 
+  | 'PIUTANG_KONTRAK_JASA' 
+  | 'PIUTANG_PROJECT_KHUSUS' 
+  | 'PIUTANG_LAINNYA';
+
+export type ReceivableStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+
+export interface ReceivablePaymentHistory {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  paymentMethod: PaymentMethod | string;
+  accountCode: string; // Akun Kas/Bank tujuan transfer
+  referenceNumber?: string;
+  notes?: string;
+  recordedBy: string;
+  attachmentName?: string;
+}
+
+export interface ReceivableRecord {
+  id: string;
+  code: string; // e.g. PIU-2026-08-001
+  type: ReceivableType;
+  customerName: string; // Klien / Gedung / Customer
+  contactPerson?: string;
+  phone?: string;
+  invoiceNumber: string; // No Invoice Resmi Rajawali
+  issueDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD
+  termOfPayment: string; // 'Net 15' | 'Net 30' | 'Net 45' | 'Net 60' | 'COD'
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: ReceivableStatus;
+  projectId: string; // Proyek / Site terkait
+  projectName?: string;
+  accountCode: string; // e.g. '1140' - Piutang Usaha
+  notes?: string;
+  payments: ReceivablePaymentHistory[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 8. PENCATATAN INVESTASI & BAGI HASIL INVESTOR
+// ---------------------------------------------------------------------------
+
+export type ProfitSharingStatus = 'Ditunda' | 'DI Realisasikan';
+
+export interface InvestmentScheduleRow {
+  id: string;
+  monthIndex: number; // Bulan ke- 1, 2, ... 12
+  monthLabel: string; // e.g. "Bulan ke-1 (Sep 2026)"
+  dueDate: string; // YYYY-MM-DD (Tanggal pemberian bagi hasil)
+  profitAmount: number; // Nilai bagi hasil per bulan
+  principalReturnAmount?: number; // Pengembalian pokok modal jika ada
+  totalPayout: number;
+  status: ProfitSharingStatus; // "Ditunda" / "DI Realisasikan"
+  realizationDate?: string;
+  bankAccountSnapshot: string;
+  accountHolderSnapshot: string;
+  bankNameSnapshot: string;
+  transferProof?: string;
+  notes?: string;
+  updatedBy?: string;
+}
+
+export interface InvestmentRecord {
+  id: string;
+  code: string; // e.g. INV-2026-001
+  investorName: string;
+  investorContact?: string;
+  investorEmail?: string;
+  investorIdNumber?: string; // KTP / NPWP
+  startDate: string; // Tanggal Mulai Investasi
+  endDate: string; // Tanggal Berakhir Investasi
+  durationMonths: number; // Durasi dalam bulan (e.g. 12 bulan)
+  capitalAmount: number; // Modal Kerja / Nilai Pokok Investasi
+  allocation: string; // Alokasi investasi / modal kerja (Site, Mesin, Manpower)
+  projectId?: string; // 'ALL' or specific projectId
+  projectName?: string;
+  profitSharingPercent: number; // Nilai Bagi Hasil dalam persen % per bulan (e.g. 1.5%)
+  profitSharingDay: number; // Tanggal pemberian bagi hasil tiap bulannya (e.g. tanggal 25)
+  monthlyProfitAmount: number; // Nominal bagi hasil per bulan (capitalAmount * profitSharingPercent / 100)
+  totalProjectedProfit: number; // Total bagi hasil seluruh periode
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'EXTENDED' | 'TERMINATED';
+  schedules: InvestmentScheduleRow[]; // Otomatis terbentuk n baris (misal 12 baris)
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 9. FORECAST RENCANA PENGELUARAN (CASH OUTFLOW FORECAST)
+// ---------------------------------------------------------------------------
+
+export interface SitePayrollProjection {
+  projectId: string;
+  projectName: string;
+  activeHeadcount: number;
+  basicSalaryTotal: number;
+  allowanceTotal: number;
+  overtimeEstimate: number;
+  bpjsTotal: number;
+  totalPayrollEstimate: number;
+}
+
+export interface OutflowForecastItem {
+  id: string;
+  date: string;
+  periodMonth: string; // YYYY-MM
+  category: 'PAYROLL_MANPOWER' | 'HUTANG_VENDOR' | 'BAGI_HASIL_INVESTOR' | 'OPERASIONAL_RUTIN' | 'CHEMICAL_LOGISTIK';
+  categoryLabel: string;
+  title: string;
+  recipientOrVendor: string;
+  projectId: string;
+  projectName: string;
+  amount: number;
+  dueDate: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'NORMAL';
+  isFixedOrCommitted: boolean;
+  notes?: string;
+}
+
+export interface OutflowForecastMonthlySummary {
+  month: string; // YYYY-MM
+  monthLabel: string; // "Agustus 2026"
+  payrollTotal: number;
+  debtsTotal: number;
+  investorProfitTotal: number;
+  operationalTotal: number;
+  grandTotal: number;
+  dailyBreakdown?: Array<{
+    date: string;
+    dayLabel: string;
+    totalAmount: number;
+    itemsCount: number;
+  }>;
+}
+

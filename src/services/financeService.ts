@@ -5,7 +5,12 @@ import {
   CostCenterReport,
   FinancialRatios,
   PeriodClosing,
-  AuditTrailItem
+  AuditTrailItem,
+  ProfitLossStatement,
+  BalanceSheetStatement,
+  CashFlowStatement,
+  EquityStatement,
+  StatementAccountItem
 } from '../types/finance';
 import { Project } from '../types';
 import jsPDF from 'jspdf';
@@ -42,79 +47,7 @@ export interface TrialBalanceRow {
   creditBalance: number;
 }
 
-export interface ProfitLossStatement {
-  periodLabel: string;
-  revenueAccounts: { code: string; name: string; amount: number }[];
-  totalRevenue: number;
-  cogsAccounts: { code: string; name: string; amount: number }[];
-  totalCogs: number;
-  grossProfit: number;
-  grossMarginPct: number;
-  opexAccounts: { code: string; name: string; amount: number }[];
-  totalOpex: number;
-  operatingIncome: number;
-  operatingMarginPct: number;
-  otherIncomeAccounts: { code: string; name: string; amount: number }[];
-  totalOtherIncome: number;
-  otherExpenseAccounts: { code: string; name: string; amount: number }[];
-  totalOtherExpense: number;
-  netProfit: number;
-  netMarginPct: number;
-}
-
-export interface BalanceSheetStatement {
-  asOfDate: string;
-  currentAssets: { code: string; name: string; amount: number }[];
-  totalCurrentAssets: number;
-  fixedAssets: { code: string; name: string; amount: number }[];
-  totalFixedAssets: number;
-  totalAssets: number;
-  currentLiabilities: { code: string; name: string; amount: number }[];
-  totalCurrentLiabilities: number;
-  longTermLiabilities: { code: string; name: string; amount: number }[];
-  totalLongTermLiabilities: number;
-  totalLiabilities: number;
-  equityAccounts: { code: string; name: string; amount: number }[];
-  currentPeriodNetProfit: number;
-  totalEquity: number;
-  totalLiabilitiesAndEquity: number;
-  isBalanced: boolean;
-  variance: number;
-}
-
-export interface CashFlowStatement {
-  periodLabel: string;
-  operatingInflows: { description: string; amount: number }[];
-  totalOperatingInflows: number;
-  operatingOutflows: { description: string; amount: number }[];
-  totalOperatingOutflows: number;
-  netOperatingCashFlow: number;
-
-  investingInflows: { description: string; amount: number }[];
-  investingOutflows: { description: string; amount: number }[];
-  netInvestingCashFlow: number;
-
-  financingInflows: { description: string; amount: number }[];
-  financingOutflows: { description: string; amount: number }[];
-  netFinancingCashFlow: number;
-
-  netCashChange: number;
-  beginningCash: number;
-  endingCash: number;
-}
-
-export interface EquityStatement {
-  periodLabel: string;
-  beginningShareCapital: number;
-  capitalAdditions: number;
-  endingShareCapital: number;
-  beginningRetainedEarnings: number;
-  currentNetProfit: number;
-  dividendsPaid: number;
-  endingRetainedEarnings: number;
-  totalBeginningEquity: number;
-  totalEndingEquity: number;
-}
+export type { ProfitLossStatement, BalanceSheetStatement, CashFlowStatement, EquityStatement };
 
 export const financeService = {
   // Format currency helper
@@ -272,11 +205,23 @@ export const financeService = {
     };
 
     // Revenue (41xx, 42xx)
-    const revenueAccounts = getAccountSum('41');
+    const revenueAccounts = getAccountSum('41').map((a) => ({
+      code: a.code,
+      accountCode: a.code,
+      name: a.name,
+      accountName: a.name,
+      amount: a.amount
+    }));
     const totalRevenue = revenueAccounts.reduce((sum, item) => sum + item.amount, 0);
 
     // COGS (51xx)
-    const cogsAccounts = getAccountSum('51');
+    const cogsAccounts = getAccountSum('51').map((a) => ({
+      code: a.code,
+      accountCode: a.code,
+      name: a.name,
+      accountName: a.name,
+      amount: a.amount
+    }));
     const totalCogs = cogsAccounts.reduce((sum, item) => sum + item.amount, 0);
 
     const grossProfit = totalRevenue - totalCogs;
@@ -287,7 +232,9 @@ export const financeService = {
       .filter((l) => l.account.code.startsWith('61') && l.account.code !== '6170')
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: Math.max(0, l.endingBalance)
       }))
       .filter((item) => item.amount > 0);
@@ -297,14 +244,22 @@ export const financeService = {
     const operatingMarginPct = totalRevenue > 0 ? (operatingIncome / totalRevenue) * 100 : 0;
 
     // Other Income (42xx) & Other Expenses (6170)
-    const otherIncomeAccounts = getAccountSum('42');
+    const otherIncomeAccounts = getAccountSum('42').map((a) => ({
+      code: a.code,
+      accountCode: a.code,
+      name: a.name,
+      accountName: a.name,
+      amount: a.amount
+    }));
     const totalOtherIncome = otherIncomeAccounts.reduce((sum, item) => sum + item.amount, 0);
 
     const otherExpenseAccounts = ledgers
       .filter((l) => l.account.code === '6170')
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: Math.max(0, l.endingBalance)
       }))
       .filter((item) => item.amount > 0);
@@ -320,13 +275,19 @@ export const financeService = {
     return {
       periodLabel,
       revenueAccounts,
+      revenues: revenueAccounts,
       totalRevenue,
       cogsAccounts,
+      cogs: cogsAccounts,
       totalCogs,
+      totalCOGS: totalCogs,
       grossProfit,
       grossMarginPct,
+      grossProfitMargin: grossMarginPct,
       opexAccounts,
+      operationalExpenses: opexAccounts,
       totalOpex,
+      totalExpenses: totalOpex,
       operatingIncome,
       operatingMarginPct,
       otherIncomeAccounts,
@@ -334,7 +295,8 @@ export const financeService = {
       otherExpenseAccounts,
       totalOtherExpense,
       netProfit,
-      netMarginPct
+      netMarginPct,
+      netProfitMargin: netMarginPct
     };
   },
 
@@ -356,7 +318,9 @@ export const financeService = {
       .filter((l) => l.account.code.startsWith('11'))
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: l.endingBalance
       }));
     const totalCurrentAssets = currentAssets.reduce((sum, a) => sum + a.amount, 0);
@@ -369,7 +333,9 @@ export const financeService = {
         const isContra = l.account.normalBalance === 'Credit';
         return {
           code: l.account.code,
+          accountCode: l.account.code,
           name: l.account.name,
+          accountName: l.account.name,
           amount: isContra ? -Math.abs(l.endingBalance) : l.endingBalance
         };
       });
@@ -381,7 +347,9 @@ export const financeService = {
       .filter((l) => l.account.code.startsWith('21'))
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: l.endingBalance
       }));
     const totalCurrentLiabilities = currentLiabilities.reduce((sum, l) => sum + l.amount, 0);
@@ -391,7 +359,9 @@ export const financeService = {
       .filter((l) => l.account.code.startsWith('22'))
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: l.endingBalance
       }));
     const totalLongTermLiabilities = longTermLiabilities.reduce((sum, l) => sum + l.amount, 0);
@@ -402,7 +372,9 @@ export const financeService = {
       .filter((l) => l.account.code.startsWith('3'))
       .map((l) => ({
         code: l.account.code,
+        accountCode: l.account.code,
         name: l.account.name,
+        accountName: l.account.name,
         amount: l.endingBalance
       }));
     const baseEquity = equityAccounts.reduce((sum, e) => sum + e.amount, 0);
@@ -430,6 +402,7 @@ export const financeService = {
       totalLongTermLiabilities,
       totalLiabilities,
       equityAccounts,
+      equityItems: equityAccounts,
       currentPeriodNetProfit,
       totalEquity,
       totalLiabilitiesAndEquity,
@@ -507,20 +480,40 @@ export const financeService = {
       .reduce((sum, a) => sum + (a.initialBalance || 0), 0);
     const endingCash = beginningCash + netCashChange;
 
+    const operatingActivities = [
+      ...operatingInflows.map((i) => ({ accountName: i.description, description: i.description, amount: i.amount })),
+      ...operatingOutflows.map((o) => ({ accountName: o.description, description: o.description, amount: -o.amount }))
+    ];
+    const investingActivities = [
+      ...investingInflows.map((i) => ({ accountName: i.description, description: i.description, amount: i.amount })),
+      ...investingOutflows.map((o) => ({ accountName: o.description, description: o.description, amount: -o.amount }))
+    ];
+    const financingActivities = [
+      ...financingInflows.map((i) => ({ accountName: i.description, description: i.description, amount: i.amount })),
+      ...financingOutflows.map((o) => ({ accountName: o.description, description: o.description, amount: -o.amount }))
+    ];
+
     return {
       periodLabel: startDate && endDate ? `${startDate} s/d ${endDate}` : 'Periode Berjalan 2026',
+      operatingActivities,
       operatingInflows,
       totalOperatingInflows,
       operatingOutflows,
       totalOperatingOutflows,
       netOperatingCashFlow,
+      netCashFromOperating: netOperatingCashFlow,
+      investingActivities,
       investingInflows,
       investingOutflows,
       netInvestingCashFlow,
+      netCashFromInvesting: netInvestingCashFlow,
+      financingActivities,
       financingInflows,
       financingOutflows,
       netFinancingCashFlow,
+      netCashFromFinancing: netFinancingCashFlow,
       netCashChange,
+      netCashIncrease: netCashChange,
       beginningCash,
       endingCash
     };
@@ -529,7 +522,7 @@ export const financeService = {
   // 6. GENERATE LAPORAN PERUBAHAN EKUITAS
   generateEquityStatement(
     accounts: ChartOfAccount[],
-    transactions: FinanceTransaction[],
+    transactionsOrNetProfit: FinanceTransaction[] | number,
     startDate?: string,
     endDate?: string
   ): EquityStatement {
@@ -539,8 +532,13 @@ export const financeService = {
     const beginningShareCapital = capitalAccount?.initialBalance || 500000000;
     const beginningRetainedEarnings = retainedAccount?.initialBalance || 331500000;
 
-    const pl = this.generateProfitLoss(accounts, transactions, startDate, endDate);
-    const currentNetProfit = pl.netProfit;
+    let currentNetProfit = 0;
+    if (typeof transactionsOrNetProfit === 'number') {
+      currentNetProfit = transactionsOrNetProfit;
+    } else if (Array.isArray(transactionsOrNetProfit)) {
+      const pl = this.generateProfitLoss(accounts, transactionsOrNetProfit, startDate, endDate);
+      currentNetProfit = pl.netProfit;
+    }
 
     const capitalAdditions = 0;
     const dividendsPaid = 0;
@@ -553,69 +551,108 @@ export const financeService = {
 
     return {
       periodLabel: startDate && endDate ? `${startDate} s/d ${endDate}` : 'Tahun Berjalan 2026',
+      beginningEquity: totalBeginningEquity,
       beginningShareCapital,
+      additionalCapital: capitalAdditions,
       capitalAdditions,
       endingShareCapital,
       beginningRetainedEarnings,
       currentNetProfit,
+      netProfitPeriod: currentNetProfit,
       dividendsPaid,
+      drawingsOrDividends: dividendsPaid,
+      adjustments: 0,
       endingRetainedEarnings,
       totalBeginningEquity,
-      totalEndingEquity
+      totalEndingEquity,
+      endingEquity: totalEndingEquity
     };
   },
 
   // 7. FINANCIAL RATIOS & ANALYTICS
   calculateFinancialRatios(
-    accounts: ChartOfAccount[],
-    transactions: FinanceTransaction[]
+    arg1: any,
+    arg2?: any,
+    arg3?: any,
+    arg4?: any
   ): FinancialRatios {
-    const bs = this.generateBalanceSheet(accounts, transactions);
-    const pl = this.generateProfitLoss(accounts, transactions);
+    let bs: BalanceSheetStatement;
+    let pl: ProfitLossStatement;
+
+    if (arg3 && arg4 && typeof arg3 === 'object' && typeof arg4 === 'object') {
+      pl = arg3;
+      bs = arg4;
+    } else if (arg1 && arg2 && !Array.isArray(arg1) && !Array.isArray(arg2) && typeof arg1 === 'object' && typeof arg2 === 'object') {
+      pl = arg1;
+      bs = arg2;
+    } else if (Array.isArray(arg1) && Array.isArray(arg2)) {
+      bs = this.generateBalanceSheet(arg1, arg2);
+      pl = this.generateProfitLoss(arg1, arg2);
+    } else {
+      // Fallback empty
+      return {
+        currentRatio: 0,
+        quickRatio: 0,
+        cashRatio: 0,
+        grossProfitMargin: 0,
+        operatingProfitMargin: 0,
+        netProfitMargin: 0,
+        returnOnAssets: 0,
+        returnOnEquity: 0,
+        debtToEquityRatio: 0,
+        debtToAssetRatio: 0,
+        workingCapital: 0,
+        monthlyBurnRate: 0,
+        cashRunwayMonths: 0
+      };
+    }
 
     const cashAccounts = ['1110', '1120', '1121', '1130'];
-    const totalCash = bs.currentAssets
-      .filter((a) => cashAccounts.includes(a.code))
-      .reduce((sum, a) => sum + a.amount, 0);
+    const currentAssetsList = bs?.currentAssets || [];
+    const totalCash = currentAssetsList
+      .filter((a) => cashAccounts.includes(a.code || a.accountCode))
+      .reduce((sum, a) => sum + (a.amount || 0), 0);
 
-    const accountsReceivable = bs.currentAssets
-      .filter((a) => a.code === '1140')
-      .reduce((sum, a) => sum + a.amount, 0);
+    const accountsReceivable = currentAssetsList
+      .filter((a) => (a.code || a.accountCode) === '1140')
+      .reduce((sum, a) => sum + (a.amount || 0), 0);
 
-    const currentLiabilities = Math.max(1, bs.totalCurrentLiabilities);
-    const currentAssets = bs.totalCurrentAssets;
-    const totalRevenue = Math.max(1, pl.totalRevenue);
-    const totalEquity = Math.max(1, bs.totalEquity);
-    const totalAssets = Math.max(1, bs.totalAssets);
+    const currentLiabilities = Math.max(1, bs?.totalCurrentLiabilities || 0);
+    const currentAssets = bs?.totalCurrentAssets || 0;
+    const totalRevenue = Math.max(1, pl?.totalRevenue || 0);
+    const totalEquity = Math.max(1, bs?.totalEquity || 0);
+    const totalAssets = Math.max(1, bs?.totalAssets || 0);
 
     const currentRatio = currentAssets / currentLiabilities;
     const quickRatio = (totalCash + accountsReceivable) / currentLiabilities;
     const cashRatio = totalCash / currentLiabilities;
-    const grossProfitMargin = (pl.grossProfit / totalRevenue) * 100;
-    const operatingProfitMargin = (pl.operatingIncome / totalRevenue) * 100;
-    const netProfitMargin = (pl.netProfit / totalRevenue) * 100;
-    const returnOnAssets = (pl.netProfit / totalAssets) * 100;
-    const returnOnEquity = (pl.netProfit / totalEquity) * 100;
-    const debtToEquityRatio = bs.totalLiabilities / totalEquity;
+    const grossProfitMargin = ((pl?.grossProfit || 0) / totalRevenue) * 100;
+    const operatingProfitMargin = ((pl?.operatingIncome || 0) / totalRevenue) * 100;
+    const netProfitMargin = ((pl?.netProfit || 0) / totalRevenue) * 100;
+    const returnOnAssets = ((pl?.netProfit || 0) / totalAssets) * 100;
+    const returnOnEquity = ((pl?.netProfit || 0) / totalEquity) * 100;
+    const debtToEquityRatio = (bs?.totalLiabilities || 0) / totalEquity;
+    const debtToAssetRatio = (bs?.totalLiabilities || 0) / totalAssets;
     const workingCapital = currentAssets - currentLiabilities;
 
     // Monthly burn rate (HPP + OPEX / count of months approx 1)
-    const monthlyBurnRate = pl.totalCogs + pl.totalOpex;
+    const monthlyBurnRate = (pl?.totalCogs || pl?.totalCOGS || 0) + (pl?.totalOpex || pl?.totalExpenses || 0);
     const cashRunwayMonths = monthlyBurnRate > 0 ? totalCash / (monthlyBurnRate / 2) : 12;
 
     return {
-      currentRatio,
-      quickRatio,
-      cashRatio,
-      grossProfitMargin,
-      operatingProfitMargin,
-      netProfitMargin,
-      returnOnAssets,
-      returnOnEquity,
-      debtToEquityRatio,
-      workingCapital,
-      monthlyBurnRate,
-      cashRunwayMonths
+      currentRatio: isNaN(currentRatio) ? 0 : currentRatio,
+      quickRatio: isNaN(quickRatio) ? 0 : quickRatio,
+      cashRatio: isNaN(cashRatio) ? 0 : cashRatio,
+      grossProfitMargin: isNaN(grossProfitMargin) ? 0 : grossProfitMargin,
+      operatingProfitMargin: isNaN(operatingProfitMargin) ? 0 : operatingProfitMargin,
+      netProfitMargin: isNaN(netProfitMargin) ? 0 : netProfitMargin,
+      returnOnAssets: isNaN(returnOnAssets) ? 0 : returnOnAssets,
+      returnOnEquity: isNaN(returnOnEquity) ? 0 : returnOnEquity,
+      debtToEquityRatio: isNaN(debtToEquityRatio) ? 0 : debtToEquityRatio,
+      debtToAssetRatio: isNaN(debtToAssetRatio) ? 0 : debtToAssetRatio,
+      workingCapital: isNaN(workingCapital) ? 0 : workingCapital,
+      monthlyBurnRate: isNaN(monthlyBurnRate) ? 0 : monthlyBurnRate,
+      cashRunwayMonths: isNaN(cashRunwayMonths) ? 0 : cashRunwayMonths
     };
   },
 

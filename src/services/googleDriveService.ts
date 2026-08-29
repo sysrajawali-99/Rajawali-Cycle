@@ -10,7 +10,13 @@ import {
   CleaningTask,
   BlastAnnouncement,
   SopDocument,
-  UserAccount
+  UserAccount,
+  ChartOfAccount,
+  FinanceTransaction,
+  BankStatementImport,
+  PeriodClosing,
+  AuditTrailItem,
+  CurrencyRate
 } from '../types';
 
 export const DEFAULT_DRIVE_FOLDER_ID = '1GaPlyK1JeoLhjxcuxeapN2N9oJ9yNAJA';
@@ -66,6 +72,12 @@ export const SUBFOLDER_DEFINITIONS = [
     name: '06_Laporan_Eksekutif',
     description: 'Ringkasan performa operasional dan rekap keuangan bulanan (.csv)',
     icon: 'BarChart3'
+  },
+  {
+    key: 'finance',
+    name: '07_Finance_dan_Accounting',
+    description: 'Jurnal Kas/Bank, Master COA, Laporan Keuangan SAK, & Audit Trail (.csv & .json)',
+    icon: 'DollarSign'
   }
 ] as const;
 
@@ -122,6 +134,8 @@ export interface LastBackupNotification {
     totalTasks: number;
     totalSops: number;
     totalInventoryItems: number;
+    totalFinanceTransactions?: number;
+    totalCoaAccounts?: number;
   };
   syncedFilesCount: number;
   mode: 'single' | 'batch_all';
@@ -145,6 +159,12 @@ export interface DatabaseBackupSnapshot {
     blasts: BlastAnnouncement[];
     sops: SopDocument[];
     users: UserAccount[];
+    financeAccounts?: ChartOfAccount[];
+    financeTransactions?: FinanceTransaction[];
+    bankStatements?: BankStatementImport[];
+    periodClosings?: PeriodClosing[];
+    auditTrails?: AuditTrailItem[];
+    currencyRates?: CurrencyRate[];
   };
   summary: {
     totalProjects: number;
@@ -153,6 +173,8 @@ export interface DatabaseBackupSnapshot {
     totalTasks: number;
     totalSops: number;
     totalInventoryItems: number;
+    totalFinanceTransactions?: number;
+    totalCoaAccounts?: number;
   };
 }
 
@@ -663,12 +685,18 @@ export const googleDriveService = {
     const blasts = storageService.getBlasts();
     const sops = storageService.getSops();
     const users = storageService.getUsers();
+    const financeAccounts = storageService.getChartOfAccounts();
+    const financeTransactions = storageService.getFinanceTransactions();
+    const bankStatements = storageService.getBankStatements();
+    const periodClosings = storageService.getPeriodClosings();
+    const auditTrails = storageService.getAuditTrails();
+    const currencyRates = storageService.getCurrencyRates();
 
     return {
       app: 'Rajawali Cycle - Outsourcing Suite',
       version: '2.5 (Drive Subfolder Edition)',
       timestamp: new Date().toISOString(),
-      description: customNote || 'Full Automated System Snapshot',
+      description: customNote || 'Full Automated System Snapshot with Finance & Accounting',
       author: authorName || 'Super Admin HQ',
       data: {
         projects,
@@ -681,7 +709,13 @@ export const googleDriveService = {
         tasks,
         blasts,
         sops,
-        users
+        users,
+        financeAccounts,
+        financeTransactions,
+        bankStatements,
+        periodClosings,
+        auditTrails,
+        currencyRates
       },
       summary: {
         totalProjects: projects.length,
@@ -689,7 +723,9 @@ export const googleDriveService = {
         totalTimesheets: timesheets.length,
         totalTasks: tasks.length,
         totalSops: sops.length,
-        totalInventoryItems: inventoryItems.length
+        totalInventoryItems: inventoryItems.length,
+        totalFinanceTransactions: financeTransactions.length,
+        totalCoaAccounts: financeAccounts.length
       }
     };
   },
@@ -858,7 +894,7 @@ export const googleDriveService = {
    * Export specific module CSV to its dedicated subfolder (updating live file)
    */
   async exportModuleCsvToSubfolder(
-    moduleKey: 'employees' | 'timesheets' | 'inventory' | 'tasks_sop' | 'reports'
+    moduleKey: 'employees' | 'timesheets' | 'inventory' | 'tasks_sop' | 'reports' | 'finance'
   ): Promise<DriveBackupFile> {
     const settings = this.getSyncSettings();
     const subfolders = await this.ensureAllSubfoldersExist(settings.folderId);
@@ -965,6 +1001,30 @@ export const googleDriveService = {
         `"${s.lastUpdated}"`
       ]);
       csvContent = [headersTasks.join(','), ...rowsTasks.map((r) => r.join(',')), ...rowsSops.map((r) => r.join(','))].join('\r\n');
+    } else if (moduleKey === 'finance') {
+      targetFolder = subfolders.finance;
+      fileName = '01_Jurnal_Kas_dan_Bank.csv';
+      const transactions = storageService.getFinanceTransactions();
+      const accounts = storageService.getChartOfAccounts();
+      const accMap = new Map(accounts.map((a) => [a.code, a.name]));
+
+      const headers = ['No Bukti', 'Tanggal', 'Jenis', 'Judul Transaksi', 'Keterangan', 'Akun Kas/Bank', 'Akun Lawan', 'Cost Center', 'Divisi', 'Metode Bayar', 'Pihak Terkait', 'Nominal (Rp)', 'Status Reconcile'];
+      const rows = transactions.map((t) => [
+        `"${t.code}"`,
+        `"${t.date}"`,
+        `"${t.type}"`,
+        `"${(t.title || '').replace(/"/g, '""')}"`,
+        `"${(t.description || '').replace(/"/g, '""')}"`,
+        `"${t.primaryAccountCode} - ${accMap.get(t.primaryAccountCode) || ''}"`,
+        `"${t.contraAccountCode} - ${accMap.get(t.contraAccountCode) || ''}"`,
+        `"${t.projectName || 'HQ'}"`,
+        `"${t.division || 'Cleaning'}"`,
+        `"${t.paymentMethod}"`,
+        `"${t.payeeOrPayer || '-'}"`,
+        t.amount,
+        t.isReconciled ? '"Matched"' : '"Unreconciled"'
+      ]);
+      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
     } else {
       targetFolder = subfolders.reports;
       fileName = 'Ringkasan_Eksekutif_Operasional.csv';
@@ -1000,6 +1060,138 @@ export const googleDriveService = {
   },
 
   /**
+   * Backup dedicated Finance & Accounting Module to Drive Subfolder (07_Finance_dan_Accounting)
+   * Produces:
+   * 1. 01_Jurnal_Transaksi_Kas_Bank.csv
+   * 2. 02_Master_Bagan_Akun_COA.csv
+   * 3. 03_Log_Audit_Trail_Keuangan.csv
+   * 4. 04_Snapshot_Finance_Master.json
+   */
+  async backupFinanceModuleToDrive(authorName?: string, customNote?: string): Promise<{
+    files: DriveBackupFile[];
+    folderInfo: DriveFolderInfo;
+  }> {
+    const settings = this.getSyncSettings();
+    const subfolders = await this.ensureAllSubfoldersExist(settings.folderId);
+    const financeFolder = subfolders.finance;
+
+    const transactions = storageService.getFinanceTransactions();
+    const accounts = storageService.getChartOfAccounts();
+    const auditTrails = storageService.getAuditTrails();
+    const periodClosings = storageService.getPeriodClosings();
+    const bankStatements = storageService.getBankStatements();
+    const accMap = new Map(accounts.map((a) => [a.code, a.name]));
+
+    const uploadedFiles: DriveBackupFile[] = [];
+
+    // 1. Jurnal Kas & Bank CSV
+    const trxHeaders = ['No Bukti', 'Tanggal', 'Tipe', 'Judul Transaksi', 'Keterangan', 'Akun Kas/Bank', 'Akun Lawan', 'Cost Center', 'Divisi', 'Metode Bayar', 'Pihak Terkait', 'No Ref', 'Nominal (Rp)', 'Reconciled'];
+    const trxRows = transactions.map((t) => [
+      `"${t.code}"`,
+      `"${t.date}"`,
+      `"${t.type}"`,
+      `"${(t.title || '').replace(/"/g, '""')}"`,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      `"${t.primaryAccountCode} - ${accMap.get(t.primaryAccountCode) || ''}"`,
+      `"${t.contraAccountCode} - ${accMap.get(t.contraAccountCode) || ''}"`,
+      `"${t.projectName || 'HQ'}"`,
+      `"${t.division || 'Cleaning'}"`,
+      `"${t.paymentMethod}"`,
+      `"${t.payeeOrPayer || '-'}"`,
+      `"${t.referenceNumber || '-'}"`,
+      t.amount,
+      t.isReconciled ? '"YES"' : '"NO"'
+    ]);
+    const trxCsv = [trxHeaders.join(','), ...trxRows.map((r) => r.join(','))].join('\r\n');
+    const trxFile = await this.saveOrUpdateFileInDrive({
+      fileName: '01_Jurnal_Transaksi_Kas_Bank.csv',
+      mimeType: 'text/csv',
+      content: trxCsv,
+      folderId: financeFolder.id,
+      description: `Buku Kas & Jurnal Keuangan (${transactions.length} Transaksi) - Diperbarui ${new Date().toLocaleString('id-ID')}`,
+      updateIfExists: true
+    });
+    uploadedFiles.push(trxFile);
+
+    // 2. Master COA CSV
+    const coaHeaders = ['Kode Akun', 'Nama Akun', 'Tipe Akun', 'Hirarki', 'Kode Induk', 'Kategori PSAK', 'Saldo Normal', 'Saldo Awal (Rp)', 'Saldo Berjalan (Rp)', 'Status'];
+    const coaRows = accounts.map((a) => [
+      `"${a.code}"`,
+      `"${(a.name || '').replace(/"/g, '""')}"`,
+      `"${a.type}"`,
+      a.isSubAccount ? '"Sub-Akun"' : '"Akun Induk"',
+      `"${a.parentCode || '-'}"`,
+      `"${a.category}"`,
+      `"${a.normalBalance}"`,
+      a.initialBalance || 0,
+      a.currentBalance || 0,
+      a.isActive ? '"Aktif"' : '"Nonaktif"'
+    ]);
+    const coaCsv = [coaHeaders.join(','), ...coaRows.map((r) => r.join(','))].join('\r\n');
+    const coaFile = await this.saveOrUpdateFileInDrive({
+      fileName: '02_Master_Bagan_Akun_COA.csv',
+      mimeType: 'text/csv',
+      content: coaCsv,
+      folderId: financeFolder.id,
+      description: `Chart of Accounts & Sub COA (${accounts.length} Akun)`,
+      updateIfExists: true
+    });
+    uploadedFiles.push(coaFile);
+
+    // 3. Audit Trail CSV
+    const auditHeaders = ['Timestamp', 'User', 'Role', 'Aksi', 'Modul', 'ID Data', 'No Bukti', 'Keterangan Log', 'Nominal (Rp)'];
+    const auditRows = auditTrails.map((aud) => [
+      `"${aud.timestamp}"`,
+      `"${aud.userName}"`,
+      `"${aud.userRole}"`,
+      `"${aud.actionType}"`,
+      `"${aud.module}"`,
+      `"${aud.recordId}"`,
+      `"${aud.recordCode || '-'}"`,
+      `"${(aud.description || '').replace(/"/g, '""')}"`,
+      aud.amount || 0
+    ]);
+    const auditCsv = [auditHeaders.join(','), ...auditRows.map((r) => r.join(','))].join('\r\n');
+    const auditFile = await this.saveOrUpdateFileInDrive({
+      fileName: '03_Log_Audit_Trail_Keuangan.csv',
+      mimeType: 'text/csv',
+      content: auditCsv,
+      folderId: financeFolder.id,
+      description: `Jejak Audit Keuangan & Rekam Penghapusan PIN (${auditTrails.length} Catatan)`,
+      updateIfExists: true
+    });
+    uploadedFiles.push(auditFile);
+
+    // 4. JSON Full Finance Snapshot
+    const financeSnapshot = {
+      app: 'Rajawali Cycle - Finance & Accounting Module',
+      version: '2.5',
+      timestamp: new Date().toISOString(),
+      author: authorName || 'Finance & Accounting Lead',
+      description: customNote || 'Cadangan Khusus Divisi Keuangan & Akuntansi',
+      accounts,
+      transactions,
+      auditTrails,
+      periodClosings,
+      bankStatements
+    };
+    const jsonFile = await this.saveOrUpdateFileInDrive({
+      fileName: 'Rajawali_Finance_Snapshot.json',
+      mimeType: 'application/json',
+      content: JSON.stringify(financeSnapshot, null, 2),
+      folderId: financeFolder.id,
+      description: `Snapshot Lengkap Data Finance (${transactions.length} Trx, ${accounts.length} COA, ${auditTrails.length} Audit Logs)`,
+      updateIfExists: true
+    });
+    uploadedFiles.push(jsonFile);
+
+    return {
+      files: uploadedFiles,
+      folderInfo: financeFolder
+    };
+  },
+
+  /**
    * Restore database from snapshot JSON string
    */
   restoreDatabaseFromSnapshot(snapshotJson: string): { success: boolean; summary?: any; error?: string } {
@@ -1023,6 +1215,14 @@ export const googleDriveService = {
       if (Array.isArray(data.sops)) storageService.saveSops(data.sops);
       if (Array.isArray(data.users)) storageService.saveUsers(data.users);
 
+      // Restore finance records if present in snapshot
+      if (Array.isArray(data.financeAccounts)) storageService.saveChartOfAccounts(data.financeAccounts);
+      if (Array.isArray(data.financeTransactions)) storageService.saveFinanceTransactions(data.financeTransactions);
+      if (Array.isArray(data.bankStatements)) storageService.saveBankStatements(data.bankStatements);
+      if (Array.isArray(data.periodClosings)) storageService.savePeriodClosings(data.periodClosings);
+      if (Array.isArray(data.auditTrails)) storageService.saveAuditTrails(data.auditTrails);
+      if (Array.isArray(data.currencyRates)) storageService.saveCurrencyRates(data.currencyRates);
+
       return {
         success: true,
         summary: parsed.summary || {
@@ -1030,7 +1230,9 @@ export const googleDriveService = {
           totalEmployees: data.employees?.length || 0,
           totalTimesheets: data.timesheets?.length || 0,
           totalTasks: data.tasks?.length || 0,
-          totalSops: data.sops?.length || 0
+          totalSops: data.sops?.length || 0,
+          totalFinanceTransactions: data.financeTransactions?.length || 0,
+          totalCoaAccounts: data.financeAccounts?.length || 0
         }
       };
     } catch (err: any) {

@@ -1074,14 +1074,19 @@ export const INITIAL_USERS: UserAccount[] = [
       'sops',
       'reports',
       'finance_cash_journal',
-      'finance_bank_reconcile',
+      'finance_debts_receivables',
+      'finance_investments',
+      'finance_outflow_forecast',
+      'finance_profit_loss',
       'finance_statements',
+      'finance_bank_reconcile',
       'finance_analytics_audit',
       'access_control'
     ],
     status: 'Aktif',
     phone: '0811-9988-7766',
     lastLogin: '2026-08-26 15:30',
+    securityPin: '123456',
     canDeleteTasks: true,
     canDeleteSops: true
   },
@@ -1098,14 +1103,19 @@ export const INITIAL_USERS: UserAccount[] = [
     allowedViews: [
       'dashboard',
       'finance_cash_journal',
-      'finance_bank_reconcile',
+      'finance_debts_receivables',
+      'finance_investments',
+      'finance_outflow_forecast',
+      'finance_profit_loss',
       'finance_statements',
+      'finance_bank_reconcile',
       'finance_analytics_audit',
       'reports'
     ],
     status: 'Aktif',
     phone: '0813-8899-0011',
-    lastLogin: '2026-08-26 14:45'
+    lastLogin: '2026-08-26 14:45',
+    securityPin: '123456'
   },
   {
     id: 'user-admin',
@@ -1128,13 +1138,18 @@ export const INITIAL_USERS: UserAccount[] = [
       'sops',
       'reports',
       'finance_cash_journal',
-      'finance_bank_reconcile',
+      'finance_debts_receivables',
+      'finance_investments',
+      'finance_outflow_forecast',
+      'finance_profit_loss',
       'finance_statements',
+      'finance_bank_reconcile',
       'finance_analytics_audit'
     ],
     status: 'Aktif',
     phone: '0812-4455-6677',
-    lastLogin: '2026-08-26 14:15'
+    lastLogin: '2026-08-26 14:15',
+    securityPin: '123456'
   },
   {
     id: 'user-lokasi1',
@@ -1159,7 +1174,8 @@ export const INITIAL_USERS: UserAccount[] = [
     ],
     status: 'Aktif',
     phone: '0812-3456-7890',
-    lastLogin: '2026-08-26 11:20'
+    lastLogin: '2026-08-26 11:20',
+    securityPin: '123456'
   },
   {
     id: 'user-lokasi2',
@@ -1184,7 +1200,8 @@ export const INITIAL_USERS: UserAccount[] = [
     ],
     status: 'Aktif',
     phone: '0813-9876-5432',
-    lastLogin: '2026-08-26 10:45'
+    lastLogin: '2026-08-26 10:45',
+    securityPin: '123456'
   },
   {
     id: 'user-supervisor',
@@ -1208,6 +1225,7 @@ export const INITIAL_USERS: UserAccount[] = [
     status: 'Aktif',
     phone: '0812-9888-1122',
     lastLogin: '2026-08-26 09:15',
+    securityPin: '123456',
     canDeleteTasks: true
   },
   {
@@ -1230,6 +1248,7 @@ export const INITIAL_USERS: UserAccount[] = [
     ],
     status: 'Aktif',
     phone: '0811-2233-4455',
-    lastLogin: '2026-08-26 08:30'
+    lastLogin: '2026-08-26 08:30',
+    securityPin: '123456'
   }
 ];

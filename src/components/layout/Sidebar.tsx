@@ -24,7 +24,11 @@ import {
   Receipt,
   FileCheck,
   PieChart,
-  Scale
+  Scale,
+  ArrowDownUp,
+  TrendingDown,
+  TrendingUp,
+  CreditCard
 } from 'lucide-react';
 import { AppView, UserAccount } from '../../types';
 
@@ -151,6 +155,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: <Wallet className="w-4 h-4 text-emerald-400" />
     },
     {
+      id: 'finance_debts_receivables',
+      label: 'Pencatatan Hutang & Piutang',
+      description: 'Hutang Vendor, Piutang Klien & Aging',
+      icon: <ArrowDownUp className="w-4 h-4 text-rose-400" />
+    },
+    {
+      id: 'finance_investments',
+      label: 'Pencatatan Investasi & Bagi Hasil',
+      description: '12 Baris Jadwal, Investor & Reminder',
+      icon: <Briefcase className="w-4 h-4 text-purple-400" />
+    },
+    {
+      id: 'finance_outflow_forecast',
+      label: 'Forecast Rencana Pengeluaran',
+      description: 'Gaji Manpower + Hutang + Bagi Hasil',
+      icon: <TrendingDown className="w-4 h-4 text-amber-400" />
+    },
+    {
+      id: 'finance_profit_loss',
+      label: 'Laba Rugi (Profit & Loss)',
+      description: 'Laporan Laba Rugi Komprehensif',
+      icon: <TrendingUp className="w-4 h-4 text-emerald-400" />
+    },
+    {
       id: 'finance_bank_reconcile',
       label: 'Rekening Koran & Rekonsiliasi',
       description: 'Upload e-Statement & Auto-Match',
@@ -159,7 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'finance_statements',
       label: 'Laporan Keuangan (SAK)',
-      description: 'Laba Rugi, Neraca, Arus Kas & Ekuitas',
+      description: 'Neraca, Arus Kas & Perubahan Modal',
       icon: <Scale className="w-4 h-4 text-blue-400" />
     },
     {

@@ -18,16 +18,25 @@ import {
   PieChart,
   Sliders,
   DollarSign,
-  Download
+  Download,
+  Sparkles,
+  CloudUpload,
+  KeyRound,
+  AlertTriangle,
+  ChevronRight,
+  HelpCircle
 } from 'lucide-react';
 import {
   AuditTrailItem,
   FinanceTransaction,
   ChartOfAccount,
-  PeriodClosing
+  PeriodClosing,
+  TrialBalanceSummary
 } from '../../types/finance';
 import { UserAccount, Project } from '../../types';
 import { financeService } from '../../services/financeService';
+import { AIFinancialAdvisoryModal } from './AIFinancialAdvisoryModal';
+import { GoogleDriveFinanceSyncModal } from './GoogleDriveFinanceSyncModal';
 
 interface FinanceAnalyticsAuditProps {
   auditLogs: AuditTrailItem[];
@@ -50,6 +59,13 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('ALL');
 
+  // AI Advisory Modal & Tab Selection
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [aiModalTab, setAiModalTab] = useState<'INSIGHTS' | 'COST_ANALYSIS' | 'CLOSING_AUDIT'>('INSIGHTS');
+
+  // Google Drive Finance Sync Modal
+  const [isGDriveModalOpen, setIsGDriveModalOpen] = useState(false);
+
   // Closed Periods State
   const [closedPeriods, setClosedPeriods] = useState<PeriodClosing[]>([
     {
@@ -68,6 +84,26 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
   const [periodToClose, setPeriodToClose] = useState('2026-08');
   const [closingNotes, setClosingNotes] = useState('');
 
+  // Financial aggregates
+  const totalIncome = useMemo(() => {
+    return transactions.filter((t) => t.type === 'IN').reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions]);
+
+  const totalExpense = useMemo(() => {
+    return transactions.filter((t) => t.type === 'OUT').reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions]);
+
+  const totalCash = useMemo(() => {
+    return accounts
+      .filter((a) => a.type === 'Asset' && (a.category === 'Kas & Setara Kas' || a.category === 'Bank'))
+      .reduce((sum, a) => sum + a.currentBalance, 0);
+  }, [accounts]);
+
+  // Trial Balance calculation
+  const trialBalanceSummary = useMemo<TrialBalanceSummary>(() => {
+    return financeService.generateTrialBalance(accounts, transactions);
+  }, [accounts, transactions]);
+
   // Filtered Audit Logs
   const filteredLogs = useMemo(() => {
     return auditLogs.filter((log) => {
@@ -83,6 +119,11 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
       return true;
     });
   }, [auditLogs, actionFilter, searchQuery]);
+
+  // Deletion logs count with PIN verification
+  const deleteLogs = useMemo(() => {
+    return auditLogs.filter((l) => l.actionType === 'DELETE');
+  }, [auditLogs]);
 
   // Analytics: Cost Center Expenses Breakdown
   const projectExpenses = useMemo(() => {
@@ -226,20 +267,9 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
     financeService.exportToCSV(`Analisa_Pengeluaran_Biaya_${new Date().toISOString().split('T')[0]}`, headers, rows);
   };
 
-  // Export Closed Periods to CSV
-  const handleExportClosingCSV = () => {
-    const headers = ['Periode Bulan', 'Waktu Ditutup', 'Ditutup Oleh', 'Status Penguncian', 'Total Pendapatan (Rp)', 'Total Beban (Rp)', 'Laba Bersih (Rp)', 'Catatan'];
-    const rows = closedPeriods.map((c) => [
-      c.periodMonth,
-      c.closedAt,
-      c.closedBy,
-      c.isLocked ? 'Terkunci (Locked)' : 'Terbuka (Unlocked)',
-      c.totalRevenue,
-      c.totalExpenses,
-      c.netProfit,
-      c.notes || '-'
-    ]);
-    financeService.exportToCSV(`Riwayat_Tutup_Buku_Akuntansi_${new Date().toISOString().split('T')[0]}`, headers, rows);
+  const openAIModalWithTab = (tab: 'INSIGHTS' | 'COST_ANALYSIS' | 'CLOSING_AUDIT') => {
+    setAiModalTab(tab);
+    setIsAIModalOpen(true);
   };
 
   return (
@@ -256,12 +286,36 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
                 Audit Trail, Analisa Biaya & Tutup Buku
               </h1>
               <p className="text-xs text-slate-400">
-                Log jejak aktivitas transaksi, kepatuhan audit anti-fraud, dan penguncian periode keuangan
+                Log jejak aktivitas transaksi, kepatuhan audit PIN, analisa AI, dan penguncian periode keuangan
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          {/* Action Hub */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* AI Advisor Button */}
+            <button
+              onClick={() => openAIModalWithTab('INSIGHTS')}
+              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
+              title="Konsultasi saran strategis keuangan berbasis AI"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              <span>Saran Ahli Keuangan AI</span>
+            </button>
+
+            {/* GDrive Backup Button */}
+            <button
+              onClick={() => setIsGDriveModalOpen(true)}
+              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+              title="Backup seluruh data keuangan ke Google Drive"
+            >
+              <CloudUpload className="w-4 h-4 text-emerald-200" />
+              <span>Backup GDrive Finance</span>
+            </button>
+
+            <div className="h-6 w-px bg-slate-800 hidden sm:block" />
+
+            {/* View Tabs */}
             <button
               onClick={() => setActiveTab('AUDIT')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -306,13 +360,44 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
       {/* ------------------------------------------------------------- */}
       {activeTab === 'AUDIT' && (
         <div className="space-y-4 animate-in fade-in">
+          {/* AI Compliance & Security Banner */}
+          <div className="bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-900/40 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-start space-x-3">
+              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0 mt-0.5">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xs font-bold text-white">
+                    Audit Kepatuhan & Integritas Data Anti-Fraud
+                  </h3>
+                  <span className="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.2 rounded border border-purple-500/30">
+                    Sistem PIN Aktif
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Semua aktivitas penghapusan transaksi dan COA wajib melalui verifikasi PIN Otorisasi 6 digit.
+                  Tercatat <strong>{deleteLogs.length} aktivitas penghapusan</strong> dalam database jejak audit.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => openAIModalWithTab('INSIGHTS')}
+              className="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors shrink-0 cursor-pointer self-end md:self-center"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Anomali AI</span>
+            </button>
+          </div>
+
           {/* Filter & Search Bar */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Cari deskripsi audit, nama user, kode voucher..."
+                placeholder="Cari deskripsi audit, nama user, kode voucher, PIN..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
@@ -329,7 +414,7 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
                 <option value="ALL">Semua Aksi</option>
                 <option value="CREATE">Pencatatan Baru (CREATE)</option>
                 <option value="UPDATE">Perubahan (UPDATE)</option>
-                <option value="DELETE">Penghapusan (DELETE)</option>
+                <option value="DELETE">Penghapusan dengan PIN (DELETE)</option>
                 <option value="RECONCILE">Rekonsiliasi Bank</option>
                 <option value="PERIOD_CLOSE">Tutup Buku</option>
               </select>
@@ -343,7 +428,7 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
                 title="Download riwayat log jejak audit dalam format CSV untuk Excel atau Google Sheets"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Download as CSV</span>
+                <span>Export CSV</span>
               </button>
             </div>
           </div>
@@ -386,7 +471,7 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
 
                         <td className="p-3.5">
                           <span
-                            className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                            className={`px-2 py-0.5 rounded-md font-bold text-[10px] border flex items-center space-x-1 w-fit ${
                               log.actionType === 'CREATE'
                                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 : log.actionType === 'UPDATE'
@@ -398,7 +483,8 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
                                 : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                             }`}
                           >
-                            {log.actionType}
+                            {log.actionType === 'DELETE' && <KeyRound className="w-3 h-3" />}
+                            <span>{log.actionType}</span>
                           </span>
                         </td>
 
@@ -426,6 +512,59 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
       {/* ------------------------------------------------------------- */}
       {activeTab === 'ANALYTICS' && (
         <div className="space-y-4 animate-in fade-in">
+          {/* AI Cost Center Advisory Card */}
+          <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 border border-blue-900/40 rounded-2xl p-4.5 shadow-lg space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                    <span>Saran Ahli Keuangan AI: Efisiensi & Kontrol Beban Proyek</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Deteksi anomali pemakaian bahan chemical, lembur tenaga alih daya, dan overhead kantor
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => openAIModalWithTab('COST_ANALYSIS')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-lg shadow-blue-900/30 cursor-pointer self-end sm:self-center"
+              >
+                <span>Buka Detail Analisa AI</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-xs">
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400 block font-semibold">Beban Terbesar</span>
+                <div className="font-bold text-white">
+                  {expenseCategories[0]?.name || 'Gaji & Upah Tenaga Kebersihan'}
+                </div>
+                <span className="text-[10px] text-amber-400">
+                  {expenseCategories[0] ? financeService.formatRupiah(expenseCategories[0].amount) : 'Rp 0'}
+                </span>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400 block font-semibold">Fokus Penghematan AI</span>
+                <div className="font-bold text-emerald-400">Sentralisasi Chemical & Takaran</div>
+                <span className="text-[10px] text-slate-400">Potensi efisiensi 5-8% dari total beban</span>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400 block font-semibold">Rasio Beban Operasional</span>
+                <div className="font-bold text-cyan-400">
+                  {totalIncome > 0 ? ((totalExpense / totalIncome) * 100).toFixed(1) : 0}% dari Omset
+                </div>
+                <span className="text-[10px] text-emerald-400">Dalam batas sehat SAK (&lt; 85%)</span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Breakdown per Site / Cost Center */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
@@ -443,7 +582,7 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
                     title="Download analisa pengeluaran biaya per lokasi dan kategori ke format CSV"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-300" />
-                    <span>Download as CSV</span>
+                    <span>Export CSV</span>
                   </button>
                   <span className="text-xs text-slate-400 font-mono">
                     Total: {projectExpenses.length} Lokasi
@@ -526,157 +665,211 @@ export const FinanceAnalyticsAudit: React.FC<FinanceAnalyticsAuditProps> = ({
       {/* TAB 3: TUTUP BUKU & PENGUNCIAN PERIODE AKUNTANSI */}
       {/* ------------------------------------------------------------- */}
       {activeTab === 'CLOSING' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-in fade-in">
-          {/* Closing Action Form */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 lg:col-span-1">
-            <div className="border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center space-x-2">
-                <Lock className="w-4 h-4 text-emerald-400" />
-                <span>Form Kunci & Tutup Buku</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Mengunci transaksi pada periode agar tidak dapat diubah atau dihapus kembali
-              </p>
+        <div className="space-y-4 animate-in fade-in">
+          {/* AI Pre-Closing Readiness Alert Card */}
+          <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-teal-950/40 border border-emerald-900/40 rounded-2xl p-4.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                <Sparkles className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-white">
+                    Audit Kesiapan Tutup Buku (AI Pre-Closing Audit)
+                  </h3>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.2 rounded border border-emerald-500/30">
+                    {trialBalanceSummary.isBalanced ? 'Neraca Saldo Balanced' : 'Perlu Penyesuaian'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Pemeriksaan otomatis kesesuaian saldo debit/kredit, rekonsiliasi mutasi bank, dan alokasi laba ditahan (Retained Earnings).
+                </p>
+              </div>
             </div>
 
-            <form onSubmit={handleExecuteClosing} className="space-y-3.5">
-              <div>
-                <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                  Pilih Bulan Buku *
-                </label>
-                <input
-                  type="month"
-                  required
-                  value={periodToClose}
-                  onChange={(e) => setPeriodToClose(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
-                />
-              </div>
+            <button
+              onClick={() => openAIModalWithTab('CLOSING_AUDIT')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-lg shadow-emerald-900/30 cursor-pointer self-end sm:self-center shrink-0"
+            >
+              <span>Lihat Checklist Akuntan AI</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                  Catatan Auditor / Finance Manager
-                </label>
-                <textarea
-                  rows={3}
-                  value={closingNotes}
-                  onChange={(e) => setClosingNotes(e.target.value)}
-                  placeholder="Contoh: Seluruh rekonsiliasi bank dan jurnal penyesuaian telah klop & selesai diaudit."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300/90 space-y-1">
-                <div className="font-bold flex items-center space-x-1">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span>Kepatuhan Audit:</span>
-                </div>
-                <p>
-                  Setelah periode ditutup, pengguna tidak dapat membuat transaksi baru atau mengedit jurnal
-                  pada tanggal periode tersebut.
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Closing Action Form */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 lg:col-span-1">
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-sm flex items-center space-x-2">
+                  <Lock className="w-4 h-4 text-emerald-400" />
+                  <span>Form Kunci & Tutup Buku</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Mengunci transaksi pada periode agar tidak dapat diubah atau dihapus kembali
                 </p>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
-              >
-                Kunci & Tutup Periode Sekarang
-              </button>
-            </form>
-          </div>
+              <form onSubmit={handleExecuteClosing} className="space-y-3.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Pilih Bulan Buku *
+                  </label>
+                  <input
+                    type="month"
+                    required
+                    value={periodToClose}
+                    onChange={(e) => setPeriodToClose(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  />
+                </div>
 
-          {/* List of Closed Periods */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 lg:col-span-2">
-            <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-white text-sm">Daftar Riwayat Periode Tutup Buku</h3>
-                <p className="text-xs text-slate-400">Status penguncian dan performa laba pada setiap periode</p>
-              </div>
-              <span className="text-xs font-mono text-emerald-400 font-bold">
-                {closedPeriods.length} Periode
-              </span>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Catatan Auditor / Finance Manager
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={closingNotes}
+                    onChange={(e) => setClosingNotes(e.target.value)}
+                    placeholder="Contoh: Seluruh rekonsiliasi bank dan jurnal penyesuaian telah klop & selesai diaudit."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300/90 space-y-1">
+                  <div className="font-bold flex items-center space-x-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>Kepatuhan Audit:</span>
+                  </div>
+                  <p>
+                    Setelah periode ditutup, pengguna tidak dapat membuat transaksi baru atau mengedit jurnal
+                    pada tanggal periode tersebut.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+                >
+                  Kunci & Tutup Periode Sekarang
+                </button>
+              </form>
             </div>
 
-            <div className="space-y-3">
-              {closedPeriods.map((p) => (
-                <div
-                  key={p.id}
-                  className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
-                    <div className="flex items-center space-x-2.5">
-                      <div
-                        className={`p-2 rounded-xl border ${
-                          p.isLocked
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                            : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                        }`}
-                      >
-                        {p.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-white">Periode: {p.periodMonth}</div>
-                        <div className="text-[10px] text-slate-400">
-                          Ditutup pada {p.closedAt} oleh {p.closedBy}
+            {/* List of Closed Periods */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 lg:col-span-2">
+              <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-white text-sm">Daftar Riwayat Periode Tutup Buku</h3>
+                  <p className="text-xs text-slate-400">Status penguncian dan performa laba pada setiap periode</p>
+                </div>
+                <span className="text-xs font-mono text-emerald-400 font-bold">
+                  {closedPeriods.length} Periode
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {closedPeriods.map((p) => (
+                  <div
+                    key={p.id}
+                    className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-center space-x-2.5">
+                        <div
+                          className={`p-2 rounded-xl border ${
+                            p.isLocked
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          }`}
+                        >
+                          {p.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white">Periode: {p.periodMonth}</div>
+                          <div className="text-[10px] text-slate-400">
+                            Ditutup pada {p.closedAt} oleh {p.closedBy}
+                          </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            p.isLocked
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          }`}
+                        >
+                          {p.isLocked ? 'LOCKED (TERKUNCI)' : 'UNLOCKED (TERBUKA)'}
+                        </span>
+
+                        <button
+                          onClick={() => handleToggleLock(p)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all cursor-pointer"
+                        >
+                          {p.isLocked ? 'Buka Kunci' : 'Kunci Ulang'}
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                          p.isLocked
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        }`}
-                      >
-                        {p.isLocked ? 'LOCKED (TERKUNCI)' : 'UNLOCKED (TERBUKA)'}
-                      </span>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-slate-900 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-slate-400 block">Total Pendapatan:</span>
+                        <span className="font-mono font-bold text-emerald-400">
+                          {financeService.formatRupiah(p.totalRevenue)}
+                        </span>
+                      </div>
 
-                      <button
-                        onClick={() => handleToggleLock(p)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all cursor-pointer"
-                      >
-                        {p.isLocked ? 'Buka Kunci' : 'Kunci Ulang'}
-                      </button>
+                      <div className="bg-slate-900 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-slate-400 block">Total Beban:</span>
+                        <span className="font-mono font-bold text-rose-400">
+                          {financeService.formatRupiah(p.totalExpenses)}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-slate-400 block">Laba Bersih:</span>
+                        <span className="font-mono font-bold text-blue-400">
+                          {financeService.formatRupiah(p.netProfit)}
+                        </span>
+                      </div>
                     </div>
+
+                    {p.notes && (
+                      <div className="text-[11px] text-slate-400 italic bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/40">
+                        "{p.notes}"
+                      </div>
+                    )}
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-slate-900 p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Total Pendapatan:</span>
-                      <span className="font-mono font-bold text-emerald-400">
-                        {financeService.formatRupiah(p.totalRevenue)}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900 p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Total Beban:</span>
-                      <span className="font-mono font-bold text-rose-400">
-                        {financeService.formatRupiah(p.totalExpenses)}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900 p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Laba Bersih:</span>
-                      <span className="font-mono font-bold text-blue-400">
-                        {financeService.formatRupiah(p.netProfit)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {p.notes && (
-                    <div className="text-[11px] text-slate-400 italic bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/40">
-                      "{p.notes}"
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* AI Financial Advisory Modal */}
+      <AIFinancialAdvisoryModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        accounts={accounts}
+        transactions={transactions}
+        trialBalance={trialBalanceSummary}
+        totalIncome={totalIncome}
+        totalExpense={totalExpense}
+        totalCash={totalCash}
+        currentPeriod={periodToClose}
+        initialTab={aiModalTab}
+      />
+
+      {/* Google Drive Finance Backup Modal */}
+      <GoogleDriveFinanceSyncModal
+        isOpen={isGDriveModalOpen}
+        onClose={() => setIsGDriveModalOpen(false)}
+        userName={currentUser?.name || 'Finance Manager'}
+        onAddAuditLog={onAddAuditLog}
+      />
     </div>
   );
 };

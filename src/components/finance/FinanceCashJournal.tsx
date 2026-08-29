@@ -23,7 +23,15 @@ import {
   FileText,
   DollarSign,
   Receipt,
-  Scale
+  Scale,
+  FolderTree,
+  CornerDownRight,
+  GitBranch,
+  Check,
+  X,
+  Tag,
+  Info,
+  ChevronRight
 } from 'lucide-react';
 import {
   ChartOfAccount,
@@ -32,10 +40,13 @@ import {
   PaymentMethod,
   DivisionType,
   PeriodClosing,
-  AuditTrailItem
+  AuditTrailItem,
+  AccountType,
+  AccountCategory
 } from '../../types/finance';
 import { Project, UserAccount } from '../../types';
 import { financeService } from '../../services/financeService';
+import { SecurityPinModal } from '../common/SecurityPinModal';
 
 interface FinanceCashJournalProps {
   accounts: ChartOfAccount[];
@@ -47,6 +58,8 @@ interface FinanceCashJournalProps {
   onUpdateTransaction?: (trx: FinanceTransaction) => void;
   onDeleteTransaction?: (trxId: string) => void;
   onAddAccount?: (account: ChartOfAccount) => void;
+  onUpdateAccount?: (account: ChartOfAccount) => void;
+  onDeleteAccount?: (accountCode: string) => void;
   onLogAudit?: (audit: AuditTrailItem) => void;
 }
 
@@ -60,6 +73,8 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
   onUpdateTransaction,
   onDeleteTransaction,
   onAddAccount,
+  onUpdateAccount,
+  onDeleteAccount,
   onLogAudit
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
@@ -83,6 +98,30 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
   const [isDepreciationModalOpen, setIsDepreciationModalOpen] = useState(false);
   const [isCoaModalOpen, setIsCoaModalOpen] = useState(false);
   const [viewTransactionDetail, setViewTransactionDetail] = useState<FinanceTransaction | null>(null);
+
+  // COA / Sub COA Management States
+  const [coaModalMode, setCoaModalMode] = useState<'create' | 'edit'>('create');
+  const [coaSearchQuery, setCoaSearchQuery] = useState('');
+  const [coaFilterType, setCoaFilterType] = useState<string>('ALL');
+  const [coaFilterHierarchy, setCoaFilterHierarchy] = useState<'ALL' | 'PARENT' | 'SUB'>('ALL');
+  const [coaFilterCategory, setCoaFilterCategory] = useState<string>('ALL');
+  const [accountToDelete, setAccountToDelete] = useState<ChartOfAccount | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<FinanceTransaction | null>(null);
+
+  const [coaFormData, setCoaFormData] = useState({
+    accountKind: 'PARENT' as 'PARENT' | 'SUB',
+    parentCode: '',
+    code: '',
+    name: '',
+    type: 'Asset' as AccountType,
+    category: 'Kas & Bank' as string,
+    customCategory: '',
+    normalBalance: 'Debit' as 'Debit' | 'Credit',
+    initialBalance: '',
+    description: '',
+    isActive: true,
+    editingOriginalCode: ''
+  });
 
   // Form State for Cash In / Out
   const [formData, setFormData] = useState({
@@ -631,19 +670,364 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
     financeService.exportToCSV('Neraca_Saldo_Trial_Balance', headers, rows);
   };
 
-  // Export Chart of Accounts to CSV
+  // Standard Accounting Categories
+  const STANDARD_CATEGORIES: AccountCategory[] = [
+    'Kas & Bank',
+    'Piutang Usaha',
+    'Persediaan & Logistik',
+    'Biaya Dibayar di Muka',
+    'Aset Tetap',
+    'Akumulasi Penyusutan',
+    'Utang Usaha / Supplier',
+    'Utang Gaji & Operasional',
+    'Utang Pajak',
+    'Utang Jangka Panjang',
+    'Modal Saham',
+    'Laba Ditahan',
+    'Pendapatan Jasa Kontrak',
+    'Pendapatan Jasa Khusus',
+    'Pendapatan Non-Operasional',
+    'HPP - Tenaga Kerja Langsung',
+    'HPP - Chemical & Perlengkapan',
+    'Beban Gaji Staf & Manajemen',
+    'Beban Operasional Gedung',
+    'Beban Pemeliharaan & Mesin',
+    'Beban Pemasaran & Representasi',
+    'Beban Umum & Administrasi',
+    'Beban Penyusutan Aset',
+    'Beban Pajak & Bunga Bank'
+  ];
+
+  // Helper to generate smart next Sub COA code based on parent code
+  const generateNextSubAccountCode = (parentCode: string) => {
+    const parent = accounts.find((a) => a.code === parentCode);
+    if (!parent) return '';
+    const children = accounts.filter(
+      (a) => a.parentCode === parentCode || a.code.startsWith(`${parentCode}-`) || a.code.startsWith(`${parentCode}.`)
+    );
+    let highest = 0;
+    children.forEach((c) => {
+      const match = c.code.match(/[-.](\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > highest) highest = num;
+      }
+    });
+    const nextNum = highest + 1;
+    return `${parentCode}-${String(nextNum).padStart(2, '0')}`;
+  };
+
+  // Open Add Account modal with prefilled defaults
+  const handleOpenAddCoaModal = (kind: 'PARENT' | 'SUB' = 'PARENT', targetParentCode?: string) => {
+    setCoaModalMode('create');
+    if (kind === 'SUB') {
+      const parentAccounts = accounts.filter((a) => !a.isSubAccount);
+      const selectedParent = targetParentCode
+        ? accounts.find((a) => a.code === targetParentCode)
+        : parentAccounts[0] || accounts[0];
+      const pCode = selectedParent ? selectedParent.code : '';
+      const autoCode = pCode ? generateNextSubAccountCode(pCode) : '';
+      setCoaFormData({
+        accountKind: 'SUB',
+        parentCode: pCode,
+        code: autoCode,
+        name: '',
+        type: selectedParent?.type || 'Asset',
+        category: selectedParent?.category || 'Kas & Bank',
+        customCategory: '',
+        normalBalance: selectedParent?.normalBalance || 'Debit',
+        initialBalance: '',
+        description: '',
+        isActive: true,
+        editingOriginalCode: ''
+      });
+    } else {
+      setCoaFormData({
+        accountKind: 'PARENT',
+        parentCode: '',
+        code: '',
+        name: '',
+        type: 'Asset',
+        category: 'Kas & Bank',
+        customCategory: '',
+        normalBalance: 'Debit',
+        initialBalance: '',
+        description: '',
+        isActive: true,
+        editingOriginalCode: ''
+      });
+    }
+    setIsCoaModalOpen(true);
+  };
+
+  // Open Edit Account modal
+  const handleOpenEditCoaModal = (acc: ChartOfAccount) => {
+    setCoaModalMode('edit');
+    const isSub = !!acc.isSubAccount || !!acc.parentCode;
+    const isStandardCat = STANDARD_CATEGORIES.includes(acc.category as AccountCategory);
+    setCoaFormData({
+      accountKind: isSub ? 'SUB' : 'PARENT',
+      parentCode: acc.parentCode || '',
+      code: acc.code,
+      name: acc.name,
+      type: acc.type,
+      category: isStandardCat ? acc.category : 'CUSTOM',
+      customCategory: isStandardCat ? '' : acc.category,
+      normalBalance: acc.normalBalance,
+      initialBalance: String(acc.initialBalance || 0),
+      description: acc.description || '',
+      isActive: acc.isActive,
+      editingOriginalCode: acc.code
+    });
+    setIsCoaModalOpen(true);
+  };
+
+  // Save Account (Create or Update)
+  const handleSaveCoaAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = coaFormData.code.trim();
+    const cleanName = coaFormData.name.trim();
+
+    if (!cleanCode) {
+      alert('Mohon masukkan Kode Akun COA.');
+      return;
+    }
+    if (!cleanName) {
+      alert('Mohon masukkan Nama Akun.');
+      return;
+    }
+
+    if (coaModalMode === 'create' || (coaModalMode === 'edit' && cleanCode !== coaFormData.editingOriginalCode)) {
+      const exists = accounts.some((a) => a.code.toLowerCase() === cleanCode.toLowerCase());
+      if (exists) {
+        alert(`Kode Akun "${cleanCode}" sudah terdaftar dalam sistem. Mohon gunakan kode akun unik.`);
+        return;
+      }
+    }
+
+    const initBalNum = parseFloat(coaFormData.initialBalance.replace(/[^\d.-]/g, '')) || 0;
+    const finalCategory =
+      coaFormData.category === 'CUSTOM'
+        ? (coaFormData.customCategory.trim() || 'Lain-Lain')
+        : coaFormData.category;
+
+    const parentAcc =
+      coaFormData.accountKind === 'SUB' && coaFormData.parentCode
+        ? accounts.find((a) => a.code === coaFormData.parentCode)
+        : undefined;
+
+    const accountPayload: ChartOfAccount = {
+      code: cleanCode,
+      name: cleanName,
+      type: coaFormData.type,
+      category: finalCategory,
+      normalBalance: coaFormData.normalBalance,
+      initialBalance: initBalNum,
+      currentBalance:
+        coaModalMode === 'create'
+          ? initBalNum
+          : (accounts.find((a) => a.code === coaFormData.editingOriginalCode)?.currentBalance ?? initBalNum),
+      description: coaFormData.description.trim(),
+      isActive: coaFormData.isActive,
+      isSystem: false,
+      isSubAccount: coaFormData.accountKind === 'SUB',
+      parentCode: coaFormData.accountKind === 'SUB' ? coaFormData.parentCode : undefined,
+      parentName: parentAcc ? parentAcc.name : undefined,
+      level: coaFormData.accountKind === 'SUB' ? 2 : 1
+    };
+
+    if (coaModalMode === 'create') {
+      if (onAddAccount) {
+        onAddAccount(accountPayload);
+      }
+      if (onLogAudit) {
+        onLogAudit({
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          userName: currentUser?.name || 'Finance Staff',
+          userRole: currentUser?.role || 'Admin Operasional',
+          actionType: 'CREATE',
+          module: 'Bagan Akun (COA)',
+          recordId: accountPayload.code,
+          recordCode: accountPayload.code,
+          description: `Penambahan ${accountPayload.isSubAccount ? 'Sub COA' : 'Akun COA'} [${accountPayload.code}] ${accountPayload.name} (${accountPayload.type} - ${accountPayload.category})`,
+          amount: initBalNum
+        });
+      }
+    } else {
+      if (onUpdateAccount) {
+        onUpdateAccount(accountPayload);
+      }
+      if (onLogAudit) {
+        onLogAudit({
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          userName: currentUser?.name || 'Finance Staff',
+          userRole: currentUser?.role || 'Admin Operasional',
+          actionType: 'UPDATE',
+          module: 'Bagan Akun (COA)',
+          recordId: accountPayload.code,
+          recordCode: accountPayload.code,
+          description: `Pembaruan Akun COA [${accountPayload.code}] ${accountPayload.name}`,
+          amount: accountPayload.currentBalance
+        });
+      }
+    }
+
+    setIsCoaModalOpen(false);
+  };
+
+  // Delete Account Handler with Security PIN Verification
+  const handleExecuteDeleteAccount = (reason: string) => {
+    if (!accountToDelete) return;
+
+    if (accountToDelete.isSystem) {
+      alert('Akun standar sistem PSAK tidak dapat dihapus untuk menjaga konsistensi laporan.');
+      setAccountToDelete(null);
+      return;
+    }
+
+    const hasChildren = accounts.some((a) => a.parentCode === accountToDelete.code);
+    if (hasChildren) {
+      alert(`Akun ini memiliki Sub-Akun turunan. Mohon hapus atau alihkan Sub COA terlebih dahulu sebelum menghapus akun induk [${accountToDelete.code}].`);
+      setAccountToDelete(null);
+      return;
+    }
+
+    const hasTransactions = transactions.some(
+      (t) =>
+        t.primaryAccountCode === accountToDelete.code ||
+        t.contraAccountCode === accountToDelete.code ||
+        (t.journalEntries && t.journalEntries.some((j) => j.accountCode === accountToDelete.code))
+    );
+
+    if (hasTransactions) {
+      alert(`Akun [${accountToDelete.code}] memiliki riwayat transaksi/jurnal. Untuk kepatuhan audit, ubah status akun menjadi Nonaktif alih-alih menghapusnya.`);
+      setAccountToDelete(null);
+      return;
+    }
+
+    if (onDeleteAccount) {
+      onDeleteAccount(accountToDelete.code);
+      if (onLogAudit) {
+        onLogAudit({
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          userName: currentUser?.name || 'Finance Staff',
+          userRole: currentUser?.role || 'Admin Operasional',
+          actionType: 'DELETE',
+          module: 'Bagan Akun (COA)',
+          recordId: accountToDelete.code,
+          recordCode: accountToDelete.code,
+          description: `Penghapusan Akun COA [${accountToDelete.code}] ${accountToDelete.name} via Verifikasi PIN Otorisasi. Alasan: ${reason}`
+        });
+      }
+    }
+    setAccountToDelete(null);
+  };
+
+  // Delete Transaction Handler with Security PIN Verification
+  const handleExecuteDeleteTransaction = (reason: string) => {
+    if (!transactionToDelete) return;
+
+    if (financeService.isDateInClosedPeriod(transactionToDelete.date, periodClosings)) {
+      alert('Transaksi pada periode yang telah DITUTUP tidak dapat dihapus.');
+      setTransactionToDelete(null);
+      return;
+    }
+
+    if (onDeleteTransaction) {
+      onDeleteTransaction(transactionToDelete.id);
+      if (onLogAudit) {
+        onLogAudit({
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          userName: currentUser?.name || 'Finance Staff',
+          userRole: currentUser?.role || 'Admin Operasional',
+          actionType: 'DELETE',
+          module: 'Buku Kas & Transaksi',
+          recordId: transactionToDelete.id,
+          recordCode: transactionToDelete.code,
+          description: `Penghapusan Transaksi [${transactionToDelete.code}] ${transactionToDelete.title} via Verifikasi PIN Otorisasi. Alasan: ${reason}`,
+          amount: transactionToDelete.amount
+        });
+      }
+    }
+    setTransactionToDelete(null);
+  };
+
+  // Filtered Accounts for COA Tab
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((acc) => {
+      if (coaFilterType !== 'ALL' && acc.type !== coaFilterType) return false;
+      if (coaFilterHierarchy === 'PARENT' && acc.isSubAccount) return false;
+      if (coaFilterHierarchy === 'SUB' && !acc.isSubAccount) return false;
+      if (coaFilterCategory !== 'ALL' && acc.category !== coaFilterCategory) return false;
+      if (coaSearchQuery.trim()) {
+        const q = coaSearchQuery.toLowerCase();
+        const matchCode = acc.code.toLowerCase().includes(q);
+        const matchName = acc.name.toLowerCase().includes(q);
+        const matchCategory = (acc.category || '').toLowerCase().includes(q);
+        const matchDesc = (acc.description || '').toLowerCase().includes(q);
+        const matchParent =
+          (acc.parentCode || '').toLowerCase().includes(q) ||
+          (acc.parentName || '').toLowerCase().includes(q);
+        if (!matchCode && !matchName && !matchCategory && !matchDesc && !matchParent) return false;
+      }
+      return true;
+    });
+  }, [accounts, coaFilterType, coaFilterHierarchy, coaFilterCategory, coaSearchQuery]);
+
+  // Total Accounts Metrics
+  const coaMetrics = useMemo(() => {
+    const totalCount = accounts.length;
+    const parentCount = accounts.filter((a) => !a.isSubAccount).length;
+    const subCount = accounts.filter((a) => a.isSubAccount).length;
+    const totalAssetBalance = accounts
+      .filter((a) => a.type === 'Asset')
+      .reduce((sum, a) => sum + (a.currentBalance || 0), 0);
+    const totalCashBankBalance = accounts
+      .filter((a) => a.category === 'Kas & Bank')
+      .reduce((sum, a) => sum + (a.currentBalance || 0), 0);
+
+    return {
+      totalCount,
+      parentCount,
+      subCount,
+      totalAssetBalance,
+      totalCashBankBalance
+    };
+  }, [accounts]);
+
+  // Export Chart of Accounts to CSV (with Sub COA hierarchy support)
   const handleExportCOACSV = () => {
-    const headers = ['Kode Akun', 'Nama Akun', 'Tipe Akun', 'Kategori Laporan', 'Saldo Normal', 'Saldo Berjalan (Rp)', 'Keterangan'];
+    const headers = [
+      'Kode Akun',
+      'Nama Akun',
+      'Tipe Akun',
+      'Hirarki',
+      'Kode Akun Induk',
+      'Nama Akun Induk',
+      'Kategori Laporan (PSAK)',
+      'Saldo Normal',
+      'Saldo Berjalan (Rp)',
+      'Status',
+      'Keterangan'
+    ];
     const rows = accounts.map((acc) => [
       acc.code,
       acc.name,
       acc.type,
+      acc.isSubAccount ? 'Sub COA' : 'Akun Utama (Induk)',
+      acc.parentCode || '-',
+      acc.parentName || '-',
       acc.category,
       acc.normalBalance,
       acc.currentBalance,
+      acc.isActive ? 'Aktif' : 'Nonaktif',
       acc.description || ''
     ]);
-    financeService.exportToCSV('Bagan_Akun_COA_PSAK', headers, rows);
+    financeService.exportToCSV('Bagan_Akun_COA_PSAK_Rajawali', headers, rows);
   };
 
   return (
@@ -1058,13 +1442,9 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
                             </button>
                             {onDeleteTransaction && (
                               <button
-                                onClick={() => {
-                                  if (confirm(`Hapus transaksi ${trx.code}?`)) {
-                                    onDeleteTransaction(trx.id);
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-all"
-                                title="Hapus Transaksi"
+                                onClick={() => setTransactionToDelete(trx)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                                title="Hapus Transaksi (Memerlukan PIN Keamanan)"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1374,102 +1754,369 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
       )}
 
       {/* ------------------------------------------------------------- */}
-      {/* TAB 4: BAGAN AKUN (CHART OF ACCOUNTS / COA) */}
+      {/* TAB 4: BAGAN AKUN (CHART OF ACCOUNTS / COA & SUB COA) */}
       {/* ------------------------------------------------------------- */}
       {activeSubTab === 'coa' && (
         <div className="space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-800">
+          {/* Top Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Total Bagan Akun</span>
+                <Layers className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-xl font-black text-white">{coaMetrics.totalCount} <span className="text-xs font-normal text-slate-500">Akun</span></div>
+              <div className="text-[10px] text-slate-500 mt-1">Struktur COA Aktif PSAK</div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Akun Utama (Induk)</span>
+                <Building2 className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="text-xl font-black text-blue-400">{coaMetrics.parentCount} <span className="text-xs font-normal text-slate-500">Header</span></div>
+              <div className="text-[10px] text-slate-500 mt-1">Akun Utama Level 1</div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Sub-Akun (Sub COA)</span>
+                <GitBranch className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-xl font-black text-emerald-400">{coaMetrics.subCount} <span className="text-xs font-normal text-slate-500">Rincian</span></div>
+              <div className="text-[10px] text-slate-500 mt-1">Sub-Pos, Proyek & Bank</div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Kas & Bank Berjalan</span>
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-sm sm:text-base font-black text-emerald-400 font-mono truncate">
+                {financeService.formatRupiah(coaMetrics.totalCashBankBalance)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Likuiditas Lancar</div>
+            </div>
+
+            <div className="col-span-2 sm:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Total Nilai Aset</span>
+                <Scale className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="text-sm sm:text-base font-black text-purple-300 font-mono truncate">
+                {financeService.formatRupiah(coaMetrics.totalAssetBalance)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Total Aktiva Terdaftar</div>
+            </div>
+          </div>
+
+          {/* Main Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+            {/* Header & Main Actions */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-slate-800">
               <div>
                 <h2 className="text-base font-bold text-white flex items-center space-x-2">
                   <Layers className="w-5 h-5 text-amber-400" />
-                  <span>Bagan Akun Standar (Chart of Accounts - PSAK)</span>
+                  <span>Bagan Akun Standar (Chart of Accounts & Sub COA - PSAK)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Struktur akun akuntansi 4-digit terintegrasi untuk bisnis cleaning & facility service
+                  Kelola struktur akun induk dan sub-akun turunan untuk klasifikasi rincian per bank, cabang, divisi, atau pos beban
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   id="download-coa-csv-btn"
                   data-testid="download-as-csv-btn"
                   onClick={handleExportCOACSV}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-emerald-750 hover:bg-emerald-650 text-white font-bold text-xs border border-emerald-600/50 shadow-md shadow-emerald-950/40 transition-all cursor-pointer"
-                  title="Download daftar bagan akun (COA) lengkap dalam format CSV untuk Excel atau Google Sheets"
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition-all cursor-pointer"
+                  title="Download daftar COA & Sub COA lengkap format CSV"
                 >
-                  <Download className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Download as CSV</span>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Download CSV</span>
                 </button>
 
                 <button
-                  onClick={() => setIsCoaModalOpen(true)}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs transition-all cursor-pointer"
+                  onClick={() => handleOpenAddCoaModal('PARENT')}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-900/30 transition-all cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Tambah Akun Baru</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Akun Utama (Induk)</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenAddCoaModal('SUB')}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-950/40 transition-all cursor-pointer"
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>+ Tambah Sub COA</span>
                 </button>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Filter & Search Toolbar */}
+            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5 flex-1">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari kode, nama akun, sub COA, kategori..."
+                    value={coaSearchQuery}
+                    onChange={(e) => setCoaSearchQuery(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                  {coaSearchQuery && (
+                    <button
+                      onClick={() => setCoaSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tipe */}
+                <select
+                  value={coaFilterType}
+                  onChange={(e) => setCoaFilterType(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">Semua Tipe Akun</option>
+                  <option value="Asset">Asset (Aset & Kas)</option>
+                  <option value="Liability">Liability (Liabilitas & Utang)</option>
+                  <option value="Equity">Equity (Ekuitas & Modal)</option>
+                  <option value="Revenue">Revenue (Pendapatan)</option>
+                  <option value="Expense">Expense (Beban & HPP)</option>
+                </select>
+
+                {/* Filter Hirarki */}
+                <select
+                  value={coaFilterHierarchy}
+                  onChange={(e) => setCoaFilterHierarchy(e.target.value as any)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">Semua Hirarki</option>
+                  <option value="PARENT">Hanya Akun Utama (Induk)</option>
+                  <option value="SUB">Hanya Sub-Akun (Sub COA)</option>
+                </select>
+
+                {/* Filter Kategori */}
+                <select
+                  value={coaFilterCategory}
+                  onChange={(e) => setCoaFilterCategory(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 max-w-[180px] truncate"
+                >
+                  <option value="ALL">Semua Kategori</option>
+                  {Array.from(new Set(accounts.map((a) => a.category))).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+
+                {(coaSearchQuery || coaFilterType !== 'ALL' || coaFilterHierarchy !== 'ALL' || coaFilterCategory !== 'ALL') && (
+                  <button
+                    onClick={() => {
+                      setCoaSearchQuery('');
+                      setCoaFilterType('ALL');
+                      setCoaFilterHierarchy('ALL');
+                      setCoaFilterCategory('ALL');
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold"
+                  >
+                    Reset Filter
+                  </button>
+                )}
+              </div>
+
+              <div className="text-right text-[11px] text-slate-400 whitespace-nowrap self-center">
+                Menampilkan <strong className="text-white">{filteredAccounts.length}</strong> dari <strong className="text-white">{accounts.length}</strong> akun
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800 text-[11px] uppercase tracking-wider">
                   <tr>
-                    <th className="p-3">Kode</th>
-                    <th className="p-3">Nama Akun</th>
+                    <th className="p-3">Kode Akun</th>
+                    <th className="p-3">Nama Akun & Struktur</th>
                     <th className="p-3">Tipe</th>
-                    <th className="p-3">Kategori</th>
+                    <th className="p-3">Kategori Laporan</th>
                     <th className="p-3 text-center">Saldo Normal</th>
                     <th className="p-3 text-right">Saldo Saat Ini</th>
                     <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
-                  {accounts.map((acc) => (
-                    <tr key={acc.code} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="p-3 font-mono font-extrabold text-amber-400">{acc.code}</td>
-                      <td className="p-3">
-                        <div className="font-bold text-white">{acc.name}</div>
-                        <div className="text-[10px] text-slate-500">{acc.description}</div>
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                            acc.type === 'Asset'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : acc.type === 'Liability'
-                              ? 'bg-rose-500/20 text-rose-300'
-                              : acc.type === 'Equity'
-                              ? 'bg-purple-500/20 text-purple-300'
-                              : acc.type === 'Revenue'
-                              ? 'bg-emerald-500/20 text-emerald-300'
-                              : 'bg-amber-500/20 text-amber-300'
-                          }`}
-                        >
-                          {acc.type}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-400">{acc.category}</td>
-                      <td className="p-3 text-center">
-                        <span
-                          className={`font-semibold text-[11px] ${
-                            acc.normalBalance === 'Debit' ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {acc.normalBalance}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right font-mono font-bold text-white">
-                        {financeService.formatRupiah(acc.currentBalance)}
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">
-                          Aktif
-                        </span>
+                  {filteredAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-500">
+                        <Layers className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                        <p className="font-semibold text-slate-400">Tidak ada akun yang sesuai dengan filter.</p>
+                        <p className="text-[11px] text-slate-600 mt-1">Coba sesuaikan kata kunci pencarian atau reset filter.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredAccounts.map((acc) => {
+                      const isSub = !!acc.isSubAccount || !!acc.parentCode;
+                      const hasSubAccounts = accounts.some((a) => a.parentCode === acc.code);
+
+                      return (
+                        <tr
+                          key={acc.code}
+                          className={`hover:bg-slate-800/40 transition-colors ${
+                            isSub ? 'bg-slate-950/40' : ''
+                          }`}
+                        >
+                          {/* Kode */}
+                          <td className="p-3 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              {isSub && (
+                                <span className="text-slate-600 ml-2">
+                                  <CornerDownRight className="w-3.5 h-3.5 text-amber-500/70 inline" />
+                                </span>
+                              )}
+                              <span
+                                className={`font-mono font-extrabold ${
+                                  isSub ? 'text-amber-300 text-[11px]' : 'text-amber-400 text-xs'
+                                }`}
+                              >
+                                {acc.code}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Nama Akun & Struktur */}
+                          <td className="p-3">
+                            <div className="flex items-center space-x-2">
+                              <span className={`font-bold ${isSub ? 'text-slate-200' : 'text-white'}`}>
+                                {acc.name}
+                              </span>
+                              {isSub ? (
+                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[9px] font-semibold border border-amber-500/20">
+                                  <GitBranch className="w-2.5 h-2.5" />
+                                  <span>Sub: {acc.parentCode || 'Induk'}</span>
+                                </span>
+                              ) : hasSubAccounts ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 text-[9px] font-semibold border border-blue-500/20">
+                                  Induk
+                                </span>
+                              ) : null}
+                            </div>
+                            {acc.description && (
+                              <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                                {acc.description}
+                              </div>
+                            )}
+                            {isSub && acc.parentName && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Induk: <span className="text-slate-300">{acc.parentCode} - {acc.parentName}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Tipe */}
+                          <td className="p-3 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                                acc.type === 'Asset'
+                                  ? 'bg-blue-500/20 text-blue-300'
+                                  : acc.type === 'Liability'
+                                  ? 'bg-rose-500/20 text-rose-300'
+                                  : acc.type === 'Equity'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : acc.type === 'Revenue'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : 'bg-amber-500/20 text-amber-300'
+                              }`}
+                            >
+                              {acc.type}
+                            </span>
+                          </td>
+
+                          {/* Kategori */}
+                          <td className="p-3 text-slate-300 whitespace-nowrap">{acc.category}</td>
+
+                          {/* Saldo Normal */}
+                          <td className="p-3 text-center whitespace-nowrap">
+                            <span
+                              className={`font-semibold text-[11px] ${
+                                acc.normalBalance === 'Debit' ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {acc.normalBalance}
+                            </span>
+                          </td>
+
+                          {/* Saldo Saat Ini */}
+                          <td className="p-3 text-right font-mono font-bold text-white whitespace-nowrap">
+                            {financeService.formatRupiah(acc.currentBalance)}
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3 text-center whitespace-nowrap">
+                            {acc.isActive ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">
+                                Aktif
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-semibold">
+                                Nonaktif
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end space-x-1.5">
+                              {!isSub && (
+                                <button
+                                  onClick={() => handleOpenAddCoaModal('SUB', acc.code)}
+                                  className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 transition-all cursor-pointer"
+                                  title={`Tambah Sub-Akun turunan di bawah ${acc.code} - ${acc.name}`}
+                                >
+                                  + Sub COA
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  setSelectedLedgerAccountCode(acc.code);
+                                  setActiveSubTab('ledger');
+                                }}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                                title="Buka Buku Besar untuk akun ini"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenEditCoaModal(acc)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-colors"
+                                title="Edit Akun COA"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              {!acc.isSystem && (
+                                <button
+                                  onClick={() => setAccountToDelete(acc)}
+                                  className="p-1 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-rose-400 hover:text-rose-300 transition-colors"
+                                  title="Hapus Akun"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -2318,6 +2965,417 @@ export const FinanceCashJournal: React.FC<FinanceCashJournalProps> = ({
           </div>
         </div>
       )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: TAMBAH & EDIT AKUN COA / SUB COA */}
+      {/* ------------------------------------------------------------- */}
+      {isCoaModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-2xl w-full space-y-4 shadow-2xl animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  {coaFormData.accountKind === 'SUB' ? (
+                    <GitBranch className="w-5 h-5" />
+                  ) : (
+                    <Layers className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">
+                    {coaModalMode === 'create'
+                      ? coaFormData.accountKind === 'SUB'
+                        ? 'Tambah Sub COA (Sub-Akun Rincian)'
+                        : 'Tambah Akun COA Utama (Induk)'
+                      : `Edit Akun COA [${coaFormData.editingOriginalCode}]`}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Konfigurasi kode akun, klasifikasi PSAK, dan saldo awal untuk pembukuan akuntansi
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCoaModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveCoaAccount} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Account Kind Selector (Only when creating) */}
+              {coaModalMode === 'create' && (
+                <div className="bg-slate-950 p-1.5 rounded-2xl border border-slate-800 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCoaFormData((prev) => ({
+                        ...prev,
+                        accountKind: 'PARENT',
+                        parentCode: '',
+                        code: ''
+                      }));
+                    }}
+                    className={`flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      coaFormData.accountKind === 'PARENT'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-950'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Akun Utama / Induk</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parentAccounts = accounts.filter((a) => !a.isSubAccount);
+                      const defaultParent = parentAccounts[0] || accounts[0];
+                      const pCode = defaultParent?.code || '';
+                      const autoCode = pCode ? generateNextSubAccountCode(pCode) : '';
+                      setCoaFormData((prev) => ({
+                        ...prev,
+                        accountKind: 'SUB',
+                        parentCode: pCode,
+                        code: autoCode,
+                        type: defaultParent?.type || prev.type,
+                        category: defaultParent?.category || prev.category,
+                        normalBalance: defaultParent?.normalBalance || prev.normalBalance
+                      }));
+                    }}
+                    className={`flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      coaFormData.accountKind === 'SUB'
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <GitBranch className="w-4 h-4" />
+                    <span>Sub-Akun (Sub COA)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Sub COA: Select Parent Account */}
+              {coaFormData.accountKind === 'SUB' && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-300 flex items-center space-x-1.5">
+                      <GitBranch className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Pilih Akun Induk (Parent COA) *</span>
+                    </label>
+                    <span className="text-[10px] text-amber-300/80">Tipe & Kategori otomatis terhubung</span>
+                  </div>
+
+                  <select
+                    value={coaFormData.parentCode}
+                    onChange={(e) => {
+                      const selectedParentCode = e.target.value;
+                      const parent = accounts.find((a) => a.code === selectedParentCode);
+                      const autoCode = generateNextSubAccountCode(selectedParentCode);
+                      setCoaFormData((prev) => ({
+                        ...prev,
+                        parentCode: selectedParentCode,
+                        code: autoCode,
+                        type: parent ? parent.type : prev.type,
+                        category: parent ? parent.category : prev.category,
+                        normalBalance: parent ? parent.normalBalance : prev.normalBalance
+                      }));
+                    }}
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  >
+                    <option value="" disabled>-- Pilih Akun Induk --</option>
+                    {accounts
+                      .filter((a) => !a.isSubAccount)
+                      .map((p) => (
+                        <option key={p.code} value={p.code}>
+                          [{p.code}] {p.name} ({p.type} - {p.category})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Code & Name Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-300">
+                      Kode Akun COA *
+                    </label>
+                    {coaFormData.accountKind === 'SUB' && (
+                      <span className="text-[9px] text-amber-400 font-mono">Format: [Induk]-[XX]</span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder={coaFormData.accountKind === 'SUB' ? 'e.g. 1120-01' : 'e.g. 1140'}
+                    value={coaFormData.code}
+                    onChange={(e) => setCoaFormData({ ...coaFormData, code: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Nama Akun / Sub-Akun *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={
+                      coaFormData.accountKind === 'SUB'
+                        ? 'e.g. Bank Mandiri KCP Sudirman (Rek. Operasional)'
+                        : 'e.g. Piutang Retensi Proyek'
+                    }
+                    value={coaFormData.name}
+                    onChange={(e) => setCoaFormData({ ...coaFormData, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Tipe Akun & Kategori */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Tipe Golongan Akun (PSAK)
+                  </label>
+                  <select
+                    value={coaFormData.type}
+                    disabled={coaFormData.accountKind === 'SUB'}
+                    onChange={(e) => {
+                      const newType = e.target.value as AccountType;
+                      const defaultNormal =
+                        newType === 'Asset' || newType === 'Expense' ? 'Debit' : 'Credit';
+                      setCoaFormData((prev) => ({
+                        ...prev,
+                        type: newType,
+                        normalBalance: defaultNormal
+                      }));
+                    }}
+                    className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 ${
+                      coaFormData.accountKind === 'SUB' ? 'opacity-80 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <option value="Asset">Asset (Aset / Aktiva / Kas)</option>
+                    <option value="Liability">Liability (Liabilitas / Kewajiban / Utang)</option>
+                    <option value="Equity">Equity (Ekuitas / Modal Saham)</option>
+                    <option value="Revenue">Revenue (Pendapatan Operasional & Lainnya)</option>
+                    <option value="Expense">Expense (Beban Usaha, HPP & Operasional)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Kategori Laporan
+                  </label>
+                  <select
+                    value={coaFormData.category}
+                    disabled={coaFormData.accountKind === 'SUB'}
+                    onChange={(e) => setCoaFormData({ ...coaFormData, category: e.target.value })}
+                    className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 ${
+                      coaFormData.accountKind === 'SUB' ? 'opacity-80 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {STANDARD_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">+ Kategori Kustom Lainnya...</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Category Input (if selected) */}
+              {coaFormData.category === 'CUSTOM' && (
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 block mb-1">
+                    Nama Kategori Kustom Baru *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Beban Outsourcing Tenaga Pengamanan"
+                    value={coaFormData.customCategory}
+                    onChange={(e) => setCoaFormData({ ...coaFormData, customCategory: e.target.value })}
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              )}
+
+              {/* Saldo Normal & Saldo Awal */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Saldo Normal Akun
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCoaFormData({ ...coaFormData, normalBalance: 'Debit' })}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        coaFormData.normalBalance === 'Debit'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-850'
+                      }`}
+                    >
+                      Debit (D)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCoaFormData({ ...coaFormData, normalBalance: 'Credit' })}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                        coaFormData.normalBalance === 'Credit'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-850'
+                      }`}
+                    >
+                      Kredit (K)
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-300">
+                      Saldo Awal (Rp)
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {financeService.formatRupiah(parseFloat(coaFormData.initialBalance.replace(/[^\d.-]/g, '')) || 0)}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={coaFormData.initialBalance}
+                    onChange={(e) => setCoaFormData({ ...coaFormData, initialBalance: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Keterangan & Peruntukan Akun
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Penjelasan fungsi akun atau peruntukan proyek/divisi..."
+                  value={coaFormData.description}
+                  onChange={(e) => setCoaFormData({ ...coaFormData, description: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Status Toggle */}
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="coa-is-active"
+                  checked={coaFormData.isActive}
+                  onChange={(e) => setCoaFormData({ ...coaFormData, isActive: e.target.checked })}
+                  className="rounded border-slate-800 text-amber-500 focus:ring-amber-500 h-4 w-4 bg-slate-950"
+                />
+                <label htmlFor="coa-is-active" className="text-xs font-bold text-slate-300 cursor-pointer">
+                  Akun Aktif (Dapat digunakan untuk pencatatan kas, transaksi & jurnal)
+                </label>
+              </div>
+
+              {/* Visual Preview Card */}
+              <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 flex items-center space-x-1.5">
+                    <Info className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Pratinjau Akun dalam Laporan</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Hirarki: {coaFormData.accountKind === 'SUB' ? 'Sub-Akun Rincian' : 'Akun Utama (Level 1)'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800/80 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono font-black text-amber-400">{coaFormData.code || '----'}</span>
+                      <span className="font-bold text-white">{coaFormData.name || '(Nama Akun Belum Diisi)'}</span>
+                      {coaFormData.accountKind === 'SUB' && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
+                          SUB COA
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {coaFormData.type} • {coaFormData.category} • Normal: <span className={coaFormData.normalBalance === 'Debit' ? 'text-emerald-400' : 'text-rose-400'}>{coaFormData.normalBalance}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-400">Saldo Awal</div>
+                    <div className="font-mono font-bold text-white text-xs">
+                      {financeService.formatRupiah(parseFloat(coaFormData.initialBalance.replace(/[^\d.-]/g, '')) || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsCoaModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-900/40 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{coaModalMode === 'create' ? 'Simpan Akun COA' : 'Simpan Perubahan'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: SECURITY PIN AUTHORIZATION FOR TRANSACTION DELETION */}
+      {/* ------------------------------------------------------------- */}
+      <SecurityPinModal
+        isOpen={!!transactionToDelete}
+        onClose={() => setTransactionToDelete(null)}
+        onConfirm={(reason) => handleExecuteDeleteTransaction(reason)}
+        title="Otorisasi PIN Hapus Transaksi"
+        itemCode={transactionToDelete?.code}
+        itemName={transactionToDelete?.title}
+        itemAmount={transactionToDelete?.amount}
+        itemDetails={`${transactionToDelete?.type === 'IN' ? 'Uang Masuk (BKM)' : transactionToDelete?.type === 'OUT' ? 'Uang Keluar (BKK)' : 'Jurnal Transaksi'} • Lokasi: ${transactionToDelete?.projectName || 'HQ'}`}
+        moduleName="Buku Kas & Transaksi"
+        currentUser={currentUser}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: SECURITY PIN AUTHORIZATION FOR COA / SUB COA DELETION */}
+      {/* ------------------------------------------------------------- */}
+      <SecurityPinModal
+        isOpen={!!accountToDelete}
+        onClose={() => setAccountToDelete(null)}
+        onConfirm={(reason) => handleExecuteDeleteAccount(reason)}
+        title="Otorisasi PIN Hapus Akun COA"
+        itemCode={accountToDelete?.code}
+        itemName={accountToDelete?.name}
+        itemAmount={accountToDelete?.currentBalance}
+        itemDetails={`${accountToDelete?.type} - ${accountToDelete?.category} (${accountToDelete?.isSubAccount ? 'Sub COA' : 'Akun Utama'})`}
+        moduleName="Bagan Akun (COA)"
+        currentUser={currentUser}
+      />
     </div>
   );
 };

@@ -118,7 +118,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
             : '0%'
         ]),
         ['TOTAL HPP', financeService.formatRupiah(profitLoss.totalCOGS), ''],
-        ['LABA KOTOR (GROSS PROFIT)', financeService.formatRupiah(profitLoss.grossProfit), `${profitLoss.grossProfitMargin.toFixed(1)}%`],
+        ['LABA KOTOR (GROSS PROFIT)', financeService.formatRupiah(profitLoss.grossProfit), `${(profitLoss.grossProfitMargin ?? 0).toFixed(1)}%`],
         ['', '', ''],
         ['BEBAN OPERASIONAL & UMUM', '', ''],
         ...profitLoss.operationalExpenses.map((e) => [
@@ -129,7 +129,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
             : '0%'
         ]),
         ['TOTAL BEBAN OPERASIONAL', financeService.formatRupiah(profitLoss.totalExpenses), ''],
-        ['LABA BERSIH (NET PROFIT)', financeService.formatRupiah(profitLoss.netProfit), `${profitLoss.netProfitMargin.toFixed(1)}%`]
+        ['LABA BERSIH (NET PROFIT)', financeService.formatRupiah(profitLoss.netProfit), `${(profitLoss.netProfitMargin ?? 0).toFixed(1)}%`]
       ];
 
       financeService.exportFinancialStatementPDF(
@@ -240,14 +240,14 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
     } else if (activeTab === 'RATIO') {
       const headers = ['Indikator Rasio Keuangan', 'Nilai Rasio', 'Status Analisa'];
       const rows: (string | number)[][] = [
-        ['Net Profit Margin (NPM)', `${ratios.netProfitMargin.toFixed(2)}%`, ratios.netProfitMargin >= 10 ? 'Sehat (Diatas Target)' : 'Perlu Optimasi'],
-        ['Gross Profit Margin (GPM)', `${ratios.grossProfitMargin.toFixed(2)}%`, ratios.grossProfitMargin >= 25 ? 'Efisiensi HPP Baik' : 'HPP Tinggi'],
-        ['Current Ratio (Likuiditas Lancar)', `${ratios.currentRatio.toFixed(2)}x`, ratios.currentRatio >= 1.5 ? 'Sangat Likuid' : 'Kurang Likuid'],
-        ['Quick Ratio (Acid Test)', `${ratios.quickRatio.toFixed(2)}x`, ratios.quickRatio >= 1.0 ? 'Aman Menutup Utang Cepat' : 'Waspada Kas'],
-        ['Debt to Asset Ratio (DAR)', `${(ratios.debtToAssetRatio * 100).toFixed(2)}%`, ratios.debtToAssetRatio <= 0.5 ? 'Solvabel (Struktur Modal Kuat)' : 'Utang Tinggi'],
-        ['Debt to Equity Ratio (DER)', `${(ratios.debtToEquityRatio * 100).toFixed(2)}%`, ratios.debtToEquityRatio <= 1.0 ? 'Leverage Seimbang' : 'Leverage Tinggi'],
-        ['Return on Assets (ROA)', `${ratios.returnOnAssets.toFixed(2)}%`, 'Produktivitas Aset Optimal'],
-        ['Return on Equity (ROE)', `${ratios.returnOnEquity.toFixed(2)}%`, 'Tingkat Imbal Hasil Modal Positif']
+        ['Net Profit Margin (NPM)', `${(ratios.netProfitMargin ?? 0).toFixed(2)}%`, (ratios.netProfitMargin ?? 0) >= 10 ? 'Sehat (Diatas Target)' : 'Perlu Optimasi'],
+        ['Gross Profit Margin (GPM)', `${(ratios.grossProfitMargin ?? 0).toFixed(2)}%`, (ratios.grossProfitMargin ?? 0) >= 25 ? 'Efisiensi HPP Baik' : 'HPP Tinggi'],
+        ['Current Ratio (Likuiditas Lancar)', `${(ratios.currentRatio ?? 0).toFixed(2)}x`, (ratios.currentRatio ?? 0) >= 1.5 ? 'Sangat Likuid' : 'Kurang Likuid'],
+        ['Quick Ratio (Acid Test)', `${(ratios.quickRatio ?? 0).toFixed(2)}x`, (ratios.quickRatio ?? 0) >= 1.0 ? 'Aman Menutup Utang Cepat' : 'Waspada Kas'],
+        ['Debt to Asset Ratio (DAR)', `${((ratios.debtToAssetRatio ?? 0) * 100).toFixed(2)}%`, (ratios.debtToAssetRatio ?? 0) <= 0.5 ? 'Solvabel (Struktur Modal Kuat)' : 'Utang Tinggi'],
+        ['Debt to Equity Ratio (DER)', `${((ratios.debtToEquityRatio ?? 0) * 100).toFixed(2)}%`, (ratios.debtToEquityRatio ?? 0) <= 1.0 ? 'Leverage Seimbang' : 'Leverage Tinggi'],
+        ['Return on Assets (ROA)', `${(ratios.returnOnAssets ?? 0).toFixed(2)}%`, 'Produktivitas Aset Optimal'],
+        ['Return on Equity (ROE)', `${(ratios.returnOnEquity ?? 0).toFixed(2)}%`, 'Tingkat Imbal Hasil Modal Positif']
       ];
 
       financeService.exportFinancialStatementPDF(
@@ -289,7 +289,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
           profitLoss.totalRevenue > 0 ? `${((c.amount / profitLoss.totalRevenue) * 100).toFixed(2)}%` : '0%'
         ]),
         ['TOTAL HPP', '', 'Total Beban Pokok Pendapatan', profitLoss.totalCOGS, ''],
-        ['LABA KOTOR (GROSS PROFIT)', '', 'Laba Kotor Operasional', profitLoss.grossProfit, `${profitLoss.grossProfitMargin.toFixed(2)}%`],
+        ['LABA KOTOR (GROSS PROFIT)', '', 'Laba Kotor Operasional', profitLoss.grossProfit, `${(profitLoss.grossProfitMargin ?? 0).toFixed(2)}%`],
         ['', '', '', '', ''],
         ['BEBAN OPERASIONAL & UMUM', '', '', '', ''],
         ...profitLoss.operationalExpenses.map((e) => [
@@ -300,7 +300,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
           profitLoss.totalRevenue > 0 ? `${((e.amount / profitLoss.totalRevenue) * 100).toFixed(2)}%` : '0%'
         ]),
         ['TOTAL BEBAN OPERASIONAL', '', 'Total Beban Usaha & Administrasi', profitLoss.totalExpenses, ''],
-        ['LABA BERSIH (NET PROFIT)', '', 'Laba Bersih Setelah Pajak/Operasional', profitLoss.netProfit, `${profitLoss.netProfitMargin.toFixed(2)}%`]
+        ['LABA BERSIH (NET PROFIT)', '', 'Laba Bersih Setelah Pajak/Operasional', profitLoss.netProfit, `${(profitLoss.netProfitMargin ?? 0).toFixed(2)}%`]
       ];
       financeService.exportToCSV(filename, headers, rows);
     } else if (activeTab === 'BS') {
@@ -402,14 +402,14 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
       const filename = `Analisa_Rasio_Keuangan_${selectedMonth}_${projectName}`;
       const headers = ['Indikator Rasio', 'Kategori', 'Nilai Rasio', 'Persentase / Multiplier', 'Status Analisa'];
       const rows: (string | number)[][] = [
-        ['Net Profit Margin (NPM)', 'Profitabilitas', `${ratios.netProfitMargin.toFixed(2)}%`, `${ratios.netProfitMargin.toFixed(2)}%`, ratios.netProfitMargin >= 10 ? 'Sehat (Diatas Target)' : 'Perlu Optimasi'],
-        ['Gross Profit Margin (GPM)', 'Profitabilitas', `${ratios.grossProfitMargin.toFixed(2)}%`, `${ratios.grossProfitMargin.toFixed(2)}%`, ratios.grossProfitMargin >= 25 ? 'Efisiensi HPP Baik' : 'HPP Tinggi'],
-        ['Current Ratio', 'Likuiditas', `${ratios.currentRatio.toFixed(2)}x`, `${(ratios.currentRatio * 100).toFixed(0)}%`, ratios.currentRatio >= 1.5 ? 'Sangat Likuid' : 'Kurang Likuid'],
-        ['Quick Ratio (Acid Test)', 'Likuiditas', `${ratios.quickRatio.toFixed(2)}x`, `${(ratios.quickRatio * 100).toFixed(0)}%`, ratios.quickRatio >= 1.0 ? 'Aman Menutup Utang Cepat' : 'Waspada Kas'],
-        ['Debt to Asset Ratio (DAR)', 'Solvabilitas', `${(ratios.debtToAssetRatio * 100).toFixed(2)}%`, `${(ratios.debtToAssetRatio * 100).toFixed(2)}%`, ratios.debtToAssetRatio <= 0.5 ? 'Solvabel (Modal Kuat)' : 'Utang Tinggi'],
-        ['Debt to Equity Ratio (DER)', 'Solvabilitas', `${(ratios.debtToEquityRatio * 100).toFixed(2)}%`, `${(ratios.debtToEquityRatio * 100).toFixed(2)}%`, ratios.debtToEquityRatio <= 1.0 ? 'Leverage Seimbang' : 'Leverage Tinggi'],
-        ['Return on Assets (ROA)', 'Rentabilitas', `${ratios.returnOnAssets.toFixed(2)}%`, `${ratios.returnOnAssets.toFixed(2)}%`, 'Produktivitas Aset Optimal'],
-        ['Return on Equity (ROE)', 'Rentabilitas', `${ratios.returnOnEquity.toFixed(2)}%`, `${ratios.returnOnEquity.toFixed(2)}%`, 'Imbal Hasil Modal Positif']
+        ['Net Profit Margin (NPM)', 'Profitabilitas', `${(ratios.netProfitMargin ?? 0).toFixed(2)}%`, `${(ratios.netProfitMargin ?? 0).toFixed(2)}%`, (ratios.netProfitMargin ?? 0) >= 10 ? 'Sehat (Diatas Target)' : 'Perlu Optimasi'],
+        ['Gross Profit Margin (GPM)', 'Profitabilitas', `${(ratios.grossProfitMargin ?? 0).toFixed(2)}%`, `${(ratios.grossProfitMargin ?? 0).toFixed(2)}%`, (ratios.grossProfitMargin ?? 0) >= 25 ? 'Efisiensi HPP Baik' : 'HPP Tinggi'],
+        ['Current Ratio', 'Likuiditas', `${(ratios.currentRatio ?? 0).toFixed(2)}x`, `${((ratios.currentRatio ?? 0) * 100).toFixed(0)}%`, (ratios.currentRatio ?? 0) >= 1.5 ? 'Sangat Likuid' : 'Kurang Likuid'],
+        ['Quick Ratio (Acid Test)', 'Likuiditas', `${(ratios.quickRatio ?? 0).toFixed(2)}x`, `${((ratios.quickRatio ?? 0) * 100).toFixed(0)}%`, (ratios.quickRatio ?? 0) >= 1.0 ? 'Aman Menutup Utang Cepat' : 'Waspada Kas'],
+        ['Debt to Asset Ratio (DAR)', 'Solvabilitas', `${((ratios.debtToAssetRatio ?? 0) * 100).toFixed(2)}%`, `${((ratios.debtToAssetRatio ?? 0) * 100).toFixed(2)}%`, (ratios.debtToAssetRatio ?? 0) <= 0.5 ? 'Solvabel (Modal Kuat)' : 'Utang Tinggi'],
+        ['Debt to Equity Ratio (DER)', 'Solvabilitas', `${((ratios.debtToEquityRatio ?? 0) * 100).toFixed(2)}%`, `${((ratios.debtToEquityRatio ?? 0) * 100).toFixed(2)}%`, (ratios.debtToEquityRatio ?? 0) <= 1.0 ? 'Leverage Seimbang' : 'Leverage Tinggi'],
+        ['Return on Assets (ROA)', 'Rentabilitas', `${(ratios.returnOnAssets ?? 0).toFixed(2)}%`, `${(ratios.returnOnAssets ?? 0).toFixed(2)}%`, 'Produktivitas Aset Optimal'],
+        ['Return on Equity (ROE)', 'Rentabilitas', `${(ratios.returnOnEquity ?? 0).toFixed(2)}%`, `${(ratios.returnOnEquity ?? 0).toFixed(2)}%`, 'Imbal Hasil Modal Positif']
       ];
       financeService.exportToCSV(filename, headers, rows);
     }
@@ -652,7 +652,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                 {financeService.formatRupiah(profitLoss.grossProfit)}
               </div>
               <span className="text-[10px] text-blue-300/80 font-bold">
-                Margin: {profitLoss.grossProfitMargin.toFixed(1)}%
+                Margin: {(profitLoss.grossProfitMargin ?? 0).toFixed(1)}%
               </span>
             </div>
 
@@ -662,7 +662,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                 {financeService.formatRupiah(profitLoss.netProfit)}
               </div>
               <span className="text-[10px] text-emerald-300/80 font-bold">
-                Net Margin: {profitLoss.netProfitMargin.toFixed(1)}%
+                Net Margin: {(profitLoss.netProfitMargin ?? 0).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -772,7 +772,7 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                   {financeService.formatRupiah(profitLoss.netProfit)}
                 </span>
                 <div className="text-xs text-emerald-300 font-bold">
-                  Net Profit Margin: {profitLoss.netProfitMargin.toFixed(1)}%
+                  Net Profit Margin: {(profitLoss.netProfitMargin ?? 0).toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -1138,8 +1138,8 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                 </span>
                 <h2 className="text-2xl font-black text-white mt-0.5">SANGAT SEHAT & SOLVABEL</h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-xl">
-                  Berdasarkan kalkulasi likuiditas lancar (Current Ratio {ratios.currentRatio.toFixed(2)}x) dan
-                  tingkat profitabilitas (NPM {ratios.netProfitMargin.toFixed(1)}%), arus kas dan permodalan
+                  Berdasarkan kalkulasi likuiditas lancar (Current Ratio {(ratios.currentRatio ?? 0).toFixed(2)}x) dan
+                  tingkat profitabilitas (NPM {(ratios.netProfitMargin ?? 0).toFixed(1)}%), arus kas dan permodalan
                   PT Rajawali Sukses Mandiri dalam kondisi prima untuk ekspansi.
                 </p>
               </div>
@@ -1170,22 +1170,22 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Net Profit Margin (NPM):</span>
                   <span className="font-bold text-emerald-400 font-mono">
-                    {ratios.netProfitMargin.toFixed(2)}%
+                    {(ratios.netProfitMargin ?? 0).toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Gross Profit Margin (GPM):</span>
                   <span className="font-bold text-blue-400 font-mono">
-                    {ratios.grossProfitMargin.toFixed(2)}%
+                    {(ratios.grossProfitMargin ?? 0).toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Return on Assets (ROA):</span>
-                  <span className="font-bold text-white font-mono">{ratios.returnOnAssets.toFixed(2)}%</span>
+                  <span className="font-bold text-white font-mono">{(ratios.returnOnAssets ?? 0).toFixed(2)}%</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-slate-400">Return on Equity (ROE):</span>
-                  <span className="font-bold text-white font-mono">{ratios.returnOnEquity.toFixed(2)}%</span>
+                  <span className="font-bold text-white font-mono">{(ratios.returnOnEquity ?? 0).toFixed(2)}%</span>
                 </div>
               </div>
             </div>
@@ -1205,11 +1205,11 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Current Ratio:</span>
-                  <span className="font-bold text-blue-400 font-mono">{ratios.currentRatio.toFixed(2)}x</span>
+                  <span className="font-bold text-blue-400 font-mono">{(ratios.currentRatio ?? 0).toFixed(2)}x</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Quick Ratio (Acid Test):</span>
-                  <span className="font-bold text-cyan-400 font-mono">{ratios.quickRatio.toFixed(2)}x</span>
+                  <span className="font-bold text-cyan-400 font-mono">{(ratios.quickRatio ?? 0).toFixed(2)}x</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
                   Kemampuan membayar kewajiban jangka pendek tanpa menunggu penagihan piutang sangat tinggi.
@@ -1233,13 +1233,13 @@ export const FinanceStatements: React.FC<FinanceStatementsProps> = ({
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Debt to Asset Ratio (DAR):</span>
                   <span className="font-bold text-white font-mono">
-                    {(ratios.debtToAssetRatio * 100).toFixed(2)}%
+                    {((ratios.debtToAssetRatio ?? 0) * 100).toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Debt to Equity Ratio (DER):</span>
                   <span className="font-bold text-white font-mono">
-                    {(ratios.debtToEquityRatio * 100).toFixed(2)}%
+                    {((ratios.debtToEquityRatio ?? 0) * 100).toFixed(2)}%
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed pt-1">

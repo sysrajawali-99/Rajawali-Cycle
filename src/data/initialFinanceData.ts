@@ -4,7 +4,12 @@ import {
   BankStatementImport,
   PeriodClosing,
   AuditTrailItem,
-  CurrencyRate
+  CurrencyRate,
+  DebtRecord,
+  ReceivableRecord,
+  InvestmentRecord,
+  InvestmentScheduleRow,
+  ProfitSharingStatus
 } from '../types/finance';
 
 export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
@@ -881,3 +886,402 @@ export const INITIAL_CURRENCY_RATES: CurrencyRate[] = [
     lastUpdated: '2026-08-29 08:00'
   }
 ];
+
+// ---------------------------------------------------------------------------
+// INITIAL DEBTS (PENCATATAN HUTANG USAHA & OPERASIONAL)
+// ---------------------------------------------------------------------------
+export const INITIAL_DEBTS: DebtRecord[] = [
+  {
+    id: 'debt-001',
+    code: 'HUT-2026-08-001',
+    type: 'HUTANG_VENDOR',
+    creditorName: 'PT Diversey Hygiene Indonesia',
+    contactPerson: 'Bpk. Hendra Kurniawan',
+    phone: '0812-3344-5566',
+    invoiceNumber: 'INV/DIV/2026/08/991',
+    issueDate: '2026-08-05',
+    dueDate: '2026-09-05',
+    totalAmount: 38500000,
+    paidAmount: 18500000,
+    remainingAmount: 20000000,
+    status: 'PARTIAL',
+    projectId: 'ALL',
+    projectName: 'Pusat Logistik HQ',
+    accountCode: '2110',
+    category: 'Pengadaan Chemical & Disinfektan Sanitasi',
+    notes: 'Pembelian bulk chemical lantai, glass cleaner, dan sanitasi rumah sakit termin 30 hari',
+    payments: [
+      {
+        id: 'dp-001',
+        date: '2026-08-15',
+        amount: 18500000,
+        paymentMethod: 'Bank BCA (123-456-7890)',
+        accountCode: '1120',
+        referenceNumber: 'TRF-BCA-981245',
+        notes: 'Pembayaran DP Termin 1 50%',
+        recordedBy: 'Dewi Lestari, S.Ak'
+      }
+    ],
+    createdAt: '2026-08-05 10:00',
+    updatedAt: '2026-08-15 14:30'
+  },
+  {
+    id: 'debt-002',
+    code: 'HUT-2026-08-002',
+    type: 'HUTANG_LEASING_MESIN',
+    creditorName: 'PT Karcher Indonesia Machinery',
+    contactPerson: 'Ibu Rina Oktaviani',
+    phone: '0811-9988-1234',
+    invoiceNumber: 'KRC-LSG-2026-07-44',
+    issueDate: '2026-07-28',
+    dueDate: '2026-08-28',
+    totalAmount: 45000000,
+    paidAmount: 0,
+    remainingAmount: 45000000,
+    status: 'OVERDUE',
+    projectId: 'proj-1',
+    projectName: 'Mall Gandaria City',
+    accountCode: '2110',
+    category: 'Cicilan Mesin Ride-on Scrubber BD 50/50',
+    notes: 'Cicilan leasing unit scrubber otomatis untuk lobby mall lantai dasar',
+    payments: [],
+    createdAt: '2026-07-28 11:30'
+  },
+  {
+    id: 'debt-003',
+    code: 'HUT-2026-08-003',
+    type: 'HUTANG_OPERASIONAL',
+    creditorName: 'CV Mitra Seragam Pratama',
+    contactPerson: 'Bpk. Agus Salim',
+    phone: '0857-8899-2233',
+    invoiceNumber: 'MSP-SRG-2026-08-12',
+    issueDate: '2026-08-10',
+    dueDate: '2026-09-10',
+    totalAmount: 16500000,
+    paidAmount: 0,
+    remainingAmount: 16500000,
+    status: 'UNPAID',
+    projectId: 'ALL',
+    projectName: 'Konsolidasi Seluruh Site',
+    accountCode: '2120',
+    category: 'Pengadaan Seragam & Sepatu Safety Karyawan Baru',
+    notes: 'Pengadaan 120 pasang seragam kerja, rompi safety K3 dan ID Card',
+    payments: [],
+    createdAt: '2026-08-10 14:00'
+  },
+  {
+    id: 'debt-004',
+    code: 'HUT-2026-08-004',
+    type: 'HUTANG_PINJAMAN',
+    creditorName: 'Bank Mandiri (Kredit Modal Kerja Operasional)',
+    contactPerson: 'RM Korporasi Bpk. Daniel',
+    phone: '021-5299-8800',
+    invoiceNumber: 'KMK-MDR-2025-091',
+    issueDate: '2025-10-01',
+    dueDate: '2026-09-01',
+    totalAmount: 100000000,
+    paidAmount: 75000000,
+    remainingAmount: 25000000,
+    status: 'PARTIAL',
+    projectId: 'ALL',
+    projectName: 'Kantor Pusat HQ',
+    accountCode: '2210',
+    category: 'Pinjaman Modal Kerja KMK',
+    notes: 'Angsuran pokok pinjaman KMK Mandiri bulan ke-11 dari 12',
+    payments: [
+      {
+        id: 'dp-004-1',
+        date: '2026-07-01',
+        amount: 25000000,
+        paymentMethod: 'Bank Mandiri (987-654-3210)',
+        accountCode: '1121',
+        referenceNumber: 'AUTO-DEBIT-KMK-07',
+        notes: 'Angsuran bulan Juli',
+        recordedBy: 'Dewi Lestari, S.Ak'
+      }
+    ],
+    createdAt: '2025-10-01 09:00',
+    updatedAt: '2026-07-01 10:00'
+  }
+];
+
+// ---------------------------------------------------------------------------
+// INITIAL RECEIVABLES (PENCATATAN PIUTANG USAHA & KONTRAK KLIEN)
+// ---------------------------------------------------------------------------
+export const INITIAL_RECEIVABLES: ReceivableRecord[] = [
+  {
+    id: 'rec-001',
+    code: 'PIU-2026-08-001',
+    type: 'PIUTANG_KONTRAK_JASA',
+    customerName: 'PT Pakuwon Jati Tbk (Mall Gandaria City)',
+    contactPerson: 'Bpk. Ir. Ferry Subagio (Building Mgr)',
+    phone: '021-7299-1000',
+    invoiceNumber: 'INV/RC/2026/08/001',
+    issueDate: '2026-08-01',
+    dueDate: '2026-08-31',
+    termOfPayment: 'Net 30',
+    totalAmount: 145000000,
+    paidAmount: 0,
+    remainingAmount: 145000000,
+    status: 'UNPAID',
+    projectId: 'proj-1',
+    projectName: 'Mall Gandaria City',
+    accountCode: '1140',
+    notes: 'Tagihan jasa outsourcing kebersihan komprehensif periode Agustus 2026 (28 Manpower)',
+    payments: [],
+    createdAt: '2026-08-01 09:00'
+  },
+  {
+    id: 'rec-002',
+    code: 'PIU-2026-08-002',
+    type: 'PIUTANG_KONTRAK_JASA',
+    customerName: 'RS Medika Utama (PT Medika Sejahtera)',
+    contactPerson: 'dr. H. Rahmat Hidayat, MARS',
+    phone: '021-5690-3344',
+    invoiceNumber: 'INV/RC/2026/08/002',
+    issueDate: '2026-08-01',
+    dueDate: '2026-08-25',
+    termOfPayment: 'Net 25',
+    totalAmount: 110000000,
+    paidAmount: 60000000,
+    remainingAmount: 50000000,
+    status: 'OVERDUE',
+    projectId: 'proj-2',
+    projectName: 'RS Medika Utama',
+    accountCode: '1140',
+    notes: 'Tagihan jasa sanitasi medis & housekeeping RS periode Agustus 2026. Pembayaran termin 1 telah masuk.',
+    payments: [
+      {
+        id: 'rp-002-1',
+        date: '2026-08-20',
+        amount: 60000000,
+        paymentMethod: 'Bank BCA (123-456-7890)',
+        accountCode: '1120',
+        referenceNumber: 'TRF-RS-MEDIKA-08',
+        notes: 'Penerimaan Termin 1 melalui Giro BCA',
+        recordedBy: 'Dewi Lestari, S.Ak'
+      }
+    ],
+    createdAt: '2026-08-01 09:30',
+    updatedAt: '2026-08-20 15:00'
+  },
+  {
+    id: 'rec-003',
+    code: 'PIU-2026-08-003',
+    type: 'PIUTANG_PROJECT_KHUSUS',
+    customerName: 'Menara Bintang Tower (Building Management)',
+    contactPerson: 'Ibu Ratna Dewi, SE',
+    phone: '021-5790-2211',
+    invoiceNumber: 'INV/RC/2026/08/003',
+    issueDate: '2026-08-10',
+    dueDate: '2026-09-10',
+    termOfPayment: 'Net 30',
+    totalAmount: 35000000,
+    paidAmount: 0,
+    remainingAmount: 35000000,
+    status: 'UNPAID',
+    projectId: 'proj-3',
+    projectName: 'Menara Bintang Tower',
+    accountCode: '1140',
+    notes: 'Pekerjaan khusus Facade Kaca Luar & Gondola Cleaning 28 Lantai',
+    payments: [],
+    createdAt: '2026-08-10 11:00'
+  },
+  {
+    id: 'rec-004',
+    code: 'PIU-2026-07-010',
+    type: 'PIUTANG_KONTRAK_JASA',
+    customerName: 'Senopati Park Residence (P3SRS)',
+    contactPerson: 'Bpk. Dimas Prakoso',
+    phone: '0812-8877-6655',
+    invoiceNumber: 'INV/RC/2026/07/045',
+    issueDate: '2026-07-01',
+    dueDate: '2026-07-31',
+    termOfPayment: 'Net 30',
+    totalAmount: 65000000,
+    paidAmount: 65000000,
+    remainingAmount: 0,
+    status: 'PAID',
+    projectId: 'proj-4',
+    projectName: 'Senopati Park Residence',
+    accountCode: '1140',
+    notes: 'Jasa kebersihan & landscape taman Juli 2026 (LUNAS)',
+    payments: [
+      {
+        id: 'rp-004-1',
+        date: '2026-07-28',
+        amount: 65000000,
+        paymentMethod: 'Bank BCA (123-456-7890)',
+        accountCode: '1120',
+        referenceNumber: 'TRF-SENOPATI-LUNAS',
+        notes: 'Pelunasan invoice Juli via RTGS BCA',
+        recordedBy: 'Dewi Lestari, S.Ak'
+      }
+    ],
+    createdAt: '2026-07-01 09:00',
+    updatedAt: '2026-07-28 16:20'
+  }
+];
+
+// ---------------------------------------------------------------------------
+// HELPER FUNCTION: AUTOMATIC INVESTMENT SCHEDULE GENERATOR (12 BULAN / N-BULAN)
+// ---------------------------------------------------------------------------
+export function generateInvestmentSchedule(
+  startDate: string,
+  durationMonths: number,
+  capitalAmount: number,
+  profitSharingPercent: number,
+  profitSharingDay: number,
+  bankName: string,
+  bankAccountNumber: string,
+  bankAccountHolder: string
+): InvestmentScheduleRow[] {
+  const schedules: InvestmentScheduleRow[] = [];
+  const start = new Date(startDate || '2026-01-01');
+  const monthlyProfit = (capitalAmount * profitSharingPercent) / 100;
+
+  for (let i = 1; i <= durationMonths; i++) {
+    const dueDateObj = new Date(start.getFullYear(), start.getMonth() + i, profitSharingDay);
+    const yyyy = dueDateObj.getFullYear();
+    const mm = String(dueDateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(Math.min(profitSharingDay, 28)).padStart(2, '0');
+    const dueDateStr = `${yyyy}-${mm}-${dd}`;
+
+    const monthLabel = dueDateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+    const isPast = dueDateObj < new Date('2026-08-20');
+
+    schedules.push({
+      id: `sch-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+      monthIndex: i,
+      monthLabel: `Bulan ke-${i} (${monthLabel})`,
+      dueDate: dueDateStr,
+      profitAmount: monthlyProfit,
+      principalReturnAmount: i === durationMonths ? capitalAmount : 0,
+      totalPayout: monthlyProfit + (i === durationMonths ? capitalAmount : 0),
+      status: isPast ? ('DI Realisasikan' as ProfitSharingStatus) : ('Ditunda' as ProfitSharingStatus),
+      realizationDate: isPast ? dueDateStr : undefined,
+      bankNameSnapshot: bankName,
+      bankAccountNumberSnapshot: bankAccountNumber,
+      accountHolderSnapshot: bankAccountHolder,
+      transferProof: isPast ? `TRF-BGI-M${i}-${yyyy}${mm}` : undefined,
+      notes: isPast ? `Bagi hasil bulan ke-${i} telah direalisasikan` : `Menunggu jatuh tempo tanggal ${profitSharingDay}`
+    });
+  }
+
+  return schedules;
+}
+
+// ---------------------------------------------------------------------------
+// INITIAL INVESTMENTS (PENCATATAN INVESTASI & BAGI HASIL INVESTOR)
+// ---------------------------------------------------------------------------
+export const INITIAL_INVESTMENTS: InvestmentRecord[] = [
+  {
+    id: 'inv-001',
+    code: 'INV-2026-001',
+    investorName: 'H. Gunawan Prasetyo (Mitra Investama Utama)',
+    investorContact: '0811-2233-4455',
+    investorEmail: 'gunawan.prasetyo@investama.id',
+    investorIdNumber: '3174091802750001',
+    startDate: '2026-01-15',
+    endDate: '2027-01-15',
+    durationMonths: 12,
+    capitalAmount: 300000000, // Rp 300.000.000
+    allocation: 'Pengadaan Mesin Heavy Duty Ride-on Scrubber & Polisher Site Mall Paragon',
+    projectId: 'proj-1',
+    projectName: 'Mall Gandaria City',
+    profitSharingPercent: 1.5, // 1.5% per bulan = Rp 4.500.000 / bln
+    profitSharingDay: 25,
+    monthlyProfitAmount: 4500000,
+    totalProjectedProfit: 54000000,
+    bankName: 'Bank BCA',
+    bankAccountNumber: '088-291-8841',
+    bankAccountHolder: 'H. Gunawan Prasetyo',
+    status: 'ACTIVE',
+    notes: 'Perjanjian Akta Notaris No. 18/Notaris-JKT/2026 dengan klausul bagi hasil 1.5% per bulan selama 12 bulan.',
+    schedules: generateInvestmentSchedule(
+      '2026-01-15',
+      12,
+      300000000,
+      1.5,
+      25,
+      'Bank BCA',
+      '088-291-8841',
+      'H. Gunawan Prasetyo'
+    ),
+    createdAt: '2026-01-15 09:00',
+    updatedAt: '2026-08-25 10:00'
+  },
+  {
+    id: 'inv-002',
+    code: 'INV-2026-002',
+    investorName: 'PT Sinergi Ventura Nusantara',
+    investorContact: '021-5290-7788',
+    investorEmail: 'invest@sinergiventura.co.id',
+    investorIdNumber: '01.889.992.4-012.000',
+    startDate: '2026-03-01',
+    endDate: '2027-03-01',
+    durationMonths: 12,
+    capitalAmount: 200000000, // Rp 200.000.000
+    allocation: 'Modal Kerja Operasional & Penambahan Manpower RS Siloam & IGD Care',
+    projectId: 'proj-2',
+    projectName: 'RS Medika Utama',
+    profitSharingPercent: 1.75, // 1.75% per bulan = Rp 3.500.000 / bln
+    profitSharingDay: 28,
+    monthlyProfitAmount: 3500000,
+    totalProjectedProfit: 42000000,
+    bankName: 'Bank Mandiri',
+    bankAccountNumber: '137-00-1928374-1',
+    bankAccountHolder: 'PT Sinergi Ventura Nusantara',
+    status: 'ACTIVE',
+    notes: 'Penyertaan modal kerja penunjang penyerapan 20 personil tambahan RS Akreditasi KARS.',
+    schedules: generateInvestmentSchedule(
+      '2026-03-01',
+      12,
+      200000000,
+      1.75,
+      28,
+      'Bank Mandiri',
+      '137-00-1928374-1',
+      'PT Sinergi Ventura Nusantara'
+    ),
+    createdAt: '2026-03-01 10:00',
+    updatedAt: '2026-08-20 11:30'
+  },
+  {
+    id: 'inv-003',
+    code: 'INV-2026-003',
+    investorName: 'Ibu Dr. Maya Anggraini, Sp.A',
+    investorContact: '0812-9988-7711',
+    investorEmail: 'maya.anggraini@medika.org',
+    investorIdNumber: '3171055508820002',
+    startDate: '2026-06-10',
+    endDate: '2027-06-10',
+    durationMonths: 12,
+    capitalAmount: 150000000, // Rp 150.000.000
+    allocation: 'Ekspansi Perlengkapan Gondola Facade & K3 Ketinggian Gedung Wisma Rajawali',
+    projectId: 'proj-3',
+    projectName: 'Menara Bintang Tower',
+    profitSharingPercent: 2.0, // 2.0% per bulan = Rp 3.000.000 / bln
+    profitSharingDay: 10,
+    monthlyProfitAmount: 3000000,
+    totalProjectedProfit: 36000000,
+    bankName: 'Bank BNI',
+    bankAccountNumber: '098-765-4321',
+    bankAccountHolder: 'Dr. Maya Anggraini',
+    status: 'ACTIVE',
+    notes: 'Investasi unit perlengkapan safety rope access and gondola building facade.',
+    schedules: generateInvestmentSchedule(
+      '2026-06-10',
+      12,
+      150000000,
+      2.0,
+      10,
+      'Bank BNI',
+      '098-765-4321',
+      'Dr. Maya Anggraini'
+    ),
+    createdAt: '2026-06-10 14:00',
+    updatedAt: '2026-08-10 16:00'
+  }
+];
+

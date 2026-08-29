@@ -250,8 +250,12 @@ export type AppView =
   | 'reports'
   | 'finance'
   | 'finance_cash_journal'
-  | 'finance_bank_reconcile'
+  | 'finance_debts_receivables'
+  | 'finance_investments'
+  | 'finance_outflow_forecast'
+  | 'finance_profit_loss'
   | 'finance_statements'
+  | 'finance_bank_reconcile'
   | 'finance_analytics_audit'
   | 'access_control';
 
@@ -278,6 +282,7 @@ export interface UserAccount {
   status: 'Aktif' | 'Nonaktif';
   phone?: string;
   lastLogin?: string;
+  securityPin?: string; // 6-digit PIN untuk otorisasi penghapusan data & verifikasi audit
   canDeleteTasks?: boolean; // Izin Hapus Tugas di Rajawali Board
   canDeleteSops?: boolean; // Izin Hapus Dokumen SOP di Pusat SOP
 }

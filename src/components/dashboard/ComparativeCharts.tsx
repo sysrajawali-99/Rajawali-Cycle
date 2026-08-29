@@ -267,7 +267,7 @@ export const ComparativeCharts: React.FC<ComparativeChartsProps> = ({
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}>
                 {payrollComparisonData.diffPayroll >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                <span>{Math.abs(payrollComparisonData.percentChange).toFixed(1)}%</span>
+                <span>{Math.abs(payrollComparisonData.percentChange || 0).toFixed(1)}%</span>
               </span>
             </div>
             <div className="text-[11px] text-slate-500">
@@ -306,7 +306,7 @@ export const ComparativeCharts: React.FC<ComparativeChartsProps> = ({
                     <div className="flex items-center space-x-2 text-xs">
                       <span className="text-slate-400">Selisih:</span>
                       <span className={`font-bold ${item.diff >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                        {item.diff >= 0 ? '+' : ''}{formatCurrency(item.diff)} ({item.pct.toFixed(1)}%)
+                        {item.diff >= 0 ? '+' : ''}{formatCurrency(item.diff)} ({(item.pct ?? 0).toFixed(1)}%)
                       </span>
                     </div>
                   </div>
