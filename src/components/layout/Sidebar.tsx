@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Building2,
@@ -14,7 +14,11 @@ import {
   X,
   RotateCcw,
   Lock,
-  Cloud
+  Cloud,
+  ChevronDown,
+  ChevronRight,
+  Briefcase,
+  Layers
 } from 'lucide-react';
 import { AppView, UserAccount } from '../../types';
 
@@ -31,6 +35,15 @@ interface SidebarProps {
   onOpenDriveSync?: () => void;
 }
 
+interface MenuItemConfig {
+  id: AppView;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  badge?: number;
+  badgeColor?: string;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onSelectView,
@@ -43,86 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unreadBlastCount = 0,
   onOpenDriveSync
 }) => {
-  const allMenuItems: {
-    id: AppView;
-    label: string;
-    description: string;
-    icon: React.ReactNode;
-    badge?: number;
-    badgeColor?: string;
-  }[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard Utama',
-      description: 'Ringkasan & KPI Operasional',
-      icon: <LayoutDashboard className="w-5 h-5" />
-    },
-    {
-      id: 'project_settings',
-      label: 'Pengaturan Lokasi',
-      description: 'Spesifikasi Gedung & Lantai',
-      icon: <Building2 className="w-5 h-5 text-amber-400" />
-    },
-    {
-      id: 'timesheet',
-      label: 'Eagle Timesheet',
-      description: 'Matriks Kehadiran 1-31 Hari',
-      icon: <CalendarCheck2 className="w-5 h-5" />,
-      badge: 31,
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-    },
-    {
-      id: 'employees',
-      label: 'Data Karyawan & Lokasi',
-      description: 'Penempatan & Riwayat Mutasi',
-      icon: <Users className="w-5 h-5" />
-    },
-    {
-      id: 'inventory',
-      label: 'Smart Inventory',
-      description: 'Update Stok & Chemical Kritis',
-      icon: <Package className="w-5 h-5" />,
-      badge: lowStockCount > 0 ? lowStockCount : undefined,
-      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-    },
-    {
-      id: 'tasks',
-      label: 'Rajawali Boards',
-      description: 'Papan Monitoring Kebersihan',
-      icon: <KanbanSquare className="w-5 h-5" />,
-      badge: activeTasksCount > 0 ? activeTasksCount : undefined,
-      badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-    },
-    {
-      id: 'blast',
-      label: 'Eagle Blast',
-      description: 'Pengumuman Resmi Manajemen',
-      icon: <Megaphone className="w-5 h-5" />,
-      badge: unreadBlastCount > 0 ? unreadBlastCount : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-    },
-    {
-      id: 'sops',
-      label: 'SOP & Dokumen K3',
-      description: 'Standar Pembersihan & MSDS',
-      icon: <BookOpen className="w-5 h-5" />
-    },
-    {
-      id: 'reports',
-      label: 'Pusat Laporan & Payroll',
-      description: 'Ekspor Excel & Slip Gaji',
-      icon: <FileSpreadsheet className="w-5 h-5" />
-    },
-    {
-      id: 'access_control',
-      label: 'Hak Akses Pengguna',
-      description: 'Kelola Izin Menu & User',
-      icon: <ShieldCheck className="w-5 h-5 text-amber-400" />,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-    }
-  ];
-
-  // Filter menu items by user's authorized views
+  // Allowed views check
   const allowedViews = currentUser?.allowedViews || [
     'dashboard',
     'project_settings',
@@ -135,12 +69,126 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'reports'
   ];
 
-  const visibleMenuItems = allMenuItems.filter((item) => {
-    if (item.id === 'access_control') {
+  const isViewAllowed = (viewId: AppView) => {
+    if (viewId === 'access_control') {
       return currentUser?.role === 'Super Admin (HQ)' || allowedViews.includes('access_control');
     }
-    return allowedViews.includes(item.id) || (item.id === 'sops' && allowedViews.includes('sop' as any));
-  });
+    return allowedViews.includes(viewId) || (viewId === 'sops' && allowedViews.includes('sop' as any));
+  };
+
+  // HRM submenus
+  const hrmMenuItems: MenuItemConfig[] = [
+    {
+      id: 'timesheet',
+      label: 'Eagle Timesheet',
+      description: 'Matriks Kehadiran 1-31 Hari',
+      icon: <CalendarCheck2 className="w-4 h-4" />,
+      badge: 31,
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+    },
+    {
+      id: 'employees',
+      label: 'Data Karyawan & Lokasi',
+      description: 'Penempatan & Riwayat Mutasi',
+      icon: <Users className="w-4 h-4" />
+    },
+    {
+      id: 'sops',
+      label: 'SOP & Dokumen K3',
+      description: 'Standar Pembersihan & MSDS',
+      icon: <BookOpen className="w-4 h-4" />
+    },
+    {
+      id: 'reports',
+      label: 'Pusat Laporan & Payroll',
+      description: 'Ekspor Excel & Slip Gaji',
+      icon: <FileSpreadsheet className="w-4 h-4" />
+    }
+  ];
+
+  // OM submenus
+  const omMenuItems: MenuItemConfig[] = [
+    {
+      id: 'project_settings',
+      label: 'Pengaturan Lokasi',
+      description: 'Spesifikasi Gedung & Lantai',
+      icon: <Building2 className="w-4 h-4 text-amber-400" />
+    },
+    {
+      id: 'inventory',
+      label: 'Smart Inventory',
+      description: 'Update Stok & Chemical Kritis',
+      icon: <Package className="w-4 h-4" />,
+      badge: lowStockCount > 0 ? lowStockCount : undefined,
+      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+    },
+    {
+      id: 'tasks',
+      label: 'Rajawali Boards',
+      description: 'Papan Monitoring Kebersihan',
+      icon: <KanbanSquare className="w-4 h-4" />,
+      badge: activeTasksCount > 0 ? activeTasksCount : undefined,
+      badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+    }
+  ];
+
+  const visibleHrmItems = hrmMenuItems.filter((item) => isViewAllowed(item.id));
+  const visibleOmItems = omMenuItems.filter((item) => isViewAllowed(item.id));
+
+  const isCurrentInHrm = visibleHrmItems.some(
+    (item) => currentView === item.id || (item.id === 'sops' && currentView === 'sop')
+  );
+  const isCurrentInOm = visibleOmItems.some((item) => currentView === item.id);
+
+  // Accordion state
+  const [isHrmOpen, setIsHrmOpen] = useState<boolean>(true);
+  const [isOmOpen, setIsOmOpen] = useState<boolean>(true);
+
+  // Auto-expand group when user navigates to a submenu inside that group
+  useEffect(() => {
+    if (isCurrentInHrm) {
+      setIsHrmOpen(true);
+    }
+    if (isCurrentInOm) {
+      setIsOmOpen(true);
+    }
+  }, [currentView, isCurrentInHrm, isCurrentInOm]);
+
+  // Dashboard item
+  const dashboardItem: MenuItemConfig = {
+    id: 'dashboard',
+    label: 'Dashboard Utama',
+    description: 'Ringkasan & KPI Operasional',
+    icon: <LayoutDashboard className="w-5 h-5" />
+  };
+
+  // Other remaining items
+  const otherMenuItems: MenuItemConfig[] = [
+    {
+      id: 'blast',
+      label: 'Eagle Blast',
+      description: 'Pengumuman Resmi Manajemen',
+      icon: <Megaphone className="w-5 h-5" />,
+      badge: unreadBlastCount > 0 ? unreadBlastCount : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+    },
+    {
+      id: 'access_control',
+      label: 'Hak Akses Pengguna',
+      description: 'Kelola Izin Menu & User',
+      icon: <ShieldCheck className="w-5 h-5 text-amber-400" />,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+    }
+  ];
+
+  const visibleOtherItems = otherMenuItems.filter((item) => isViewAllowed(item.id));
+
+  // Count total accessible items
+  const totalAccessibleCount =
+    (isViewAllowed('dashboard') ? 1 : 0) +
+    visibleHrmItems.length +
+    visibleOmItems.length +
+    visibleOtherItems.length;
 
   return (
     <>
@@ -198,56 +246,297 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Navigation Items */}
-        <div className="p-3 space-y-1 flex-1">
-          <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-            <span>Menu yang Dapat Diakses</span>
-            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded">
-              {visibleMenuItems.length} Menu
+        <div className="p-3 space-y-1.5 flex-1">
+          <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>Menu Sistem</span>
+            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded font-semibold">
+              {totalAccessibleCount} Menu
             </span>
           </div>
 
-          {visibleMenuItems.map((item) => {
-            const isActive = currentView === item.id || (item.id === 'sops' && currentView === 'sop');
-            return (
+          {/* 1. Dashboard Utama */}
+          {isViewAllowed('dashboard') && (
+            <button
+              id="sidebar-nav-dashboard"
+              onClick={() => {
+                onSelectView('dashboard');
+                onCloseMobile();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] cursor-pointer ${
+                currentView === 'dashboard'
+                  ? 'bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/30 shadow-sm'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-3 min-w-0">
+                <div
+                  className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                    currentView === 'dashboard'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
+                      : 'text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  {dashboardItem.icon}
+                </div>
+                <div className="truncate">
+                  <div className="text-sm font-medium leading-tight truncate">{dashboardItem.label}</div>
+                  <div className="text-[11px] text-slate-500 truncate group-hover:text-slate-400">
+                    {dashboardItem.description}
+                  </div>
+                </div>
+              </div>
+            </button>
+          )}
+
+          {/* 2. Group: Human Resource Management (HRM) */}
+          {visibleHrmItems.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {/* Group Toggle Header */}
               <button
-                key={item.id}
-                id={`sidebar-nav-${item.id}`}
-                onClick={() => {
-                  onSelectView(item.id);
-                  onCloseMobile();
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] cursor-pointer ${
-                  isActive
-                    ? 'bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/30 shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                type="button"
+                id="sidebar-group-hrm"
+                onClick={() => setIsHrmOpen(!isHrmOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer group ${
+                  isCurrentInHrm
+                    ? 'bg-blue-950/40 text-blue-300 border border-blue-500/30'
+                    : 'bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-white border border-slate-800/60'
                 }`}
               >
-                <div className="flex items-center space-x-3 min-w-0">
+                <div className="flex items-center space-x-2.5 min-w-0">
                   <div
-                    className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
-                        : 'text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                    className={`p-1.5 rounded-lg shrink-0 transition-colors ${
+                      isCurrentInHrm
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : 'bg-slate-800 text-blue-400 group-hover:bg-blue-600/20'
                     }`}
                   >
-                    {item.icon}
+                    <Briefcase className="w-4 h-4" />
                   </div>
                   <div className="truncate">
-                    <div className="text-sm font-medium leading-tight truncate">{item.label}</div>
-                    <div className="text-[11px] text-slate-500 truncate group-hover:text-slate-400">
-                      {item.description}
+                    <div className="text-xs font-bold tracking-tight text-white flex items-center space-x-1.5">
+                      <span>Human Resource Management (HRM)</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      Timesheet, Karyawan, SOP & Payroll
                     </div>
                   </div>
                 </div>
 
-                {item.badge !== undefined && (
-                  <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.badgeColor}`}>
-                    {item.badge}
+                <div className="flex items-center space-x-1.5 shrink-0 ml-1">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    {visibleHrmItems.length}
                   </span>
-                )}
+                  {isHrmOpen ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  )}
+                </div>
               </button>
-            );
-          })}
+
+              {/* Sub-menu items for HRM */}
+              {isHrmOpen && (
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-blue-500/30 ml-3.5 space-y-0.5 animate-in fade-in duration-200">
+                  {visibleHrmItems.map((item) => {
+                    const isActive =
+                      currentView === item.id || (item.id === 'sops' && currentView === 'sop');
+                    return (
+                      <button
+                        key={item.id}
+                        id={`sidebar-nav-${item.id}`}
+                        onClick={() => {
+                          onSelectView(item.id);
+                          onCloseMobile();
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all group min-h-[38px] cursor-pointer ${
+                          isActive
+                            ? 'bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/40 shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div
+                            className={`p-1 rounded-md shrink-0 ${
+                              isActive
+                                ? 'bg-blue-500 text-white shadow-sm'
+                                : 'text-slate-400 group-hover:text-blue-400 group-hover:bg-slate-800'
+                            }`}
+                          >
+                            {item.icon}
+                          </div>
+                          <div className="truncate">
+                            <div className="text-xs font-medium leading-tight truncate">{item.label}</div>
+                            <div className="text-[10px] text-slate-500 truncate group-hover:text-slate-400">
+                              {item.description}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.badge !== undefined && (
+                          <span
+                            className={`ml-1.5 text-[9px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${item.badgeColor}`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 3. Group: Operations Management (OM) */}
+          {visibleOmItems.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {/* Group Toggle Header */}
+              <button
+                type="button"
+                id="sidebar-group-om"
+                onClick={() => setIsOmOpen(!isOmOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer group ${
+                  isCurrentInOm
+                    ? 'bg-amber-950/40 text-amber-300 border border-amber-500/30'
+                    : 'bg-slate-950/40 text-slate-300 hover:bg-slate-800/70 hover:text-white border border-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div
+                    className={`p-1.5 rounded-lg shrink-0 transition-colors ${
+                      isCurrentInOm
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
+                        : 'bg-slate-800 text-amber-400 group-hover:bg-amber-500/20'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div className="truncate">
+                    <div className="text-xs font-bold tracking-tight text-white flex items-center space-x-1.5">
+                      <span>Operations Management (OM)</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      Lokasi, Inventory & Monitoring Board
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-1.5 shrink-0 ml-1">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {visibleOmItems.length}
+                  </span>
+                  {isOmOpen ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  )}
+                </div>
+              </button>
+
+              {/* Sub-menu items for OM */}
+              {isOmOpen && (
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-amber-500/30 ml-3.5 space-y-0.5 animate-in fade-in duration-200">
+                  {visibleOmItems.map((item) => {
+                    const isActive = currentView === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        id={`sidebar-nav-${item.id}`}
+                        onClick={() => {
+                          onSelectView(item.id);
+                          onCloseMobile();
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all group min-h-[38px] cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40 shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div
+                            className={`p-1 rounded-md shrink-0 ${
+                              isActive
+                                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                            }`}
+                          >
+                            {item.icon}
+                          </div>
+                          <div className="truncate">
+                            <div className="text-xs font-medium leading-tight truncate">{item.label}</div>
+                            <div className="text-[10px] text-slate-500 truncate group-hover:text-slate-400">
+                              {item.description}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.badge !== undefined && (
+                          <span
+                            className={`ml-1.5 text-[9px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${item.badgeColor}`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4. Other Remaining Menus (Eagle Blast, Hak Akses Pengguna) */}
+          {visibleOtherItems.length > 0 && (
+            <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Lainnya & Administrasi
+              </div>
+              {visibleOtherItems.map((item) => {
+                const isActive = currentView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`sidebar-nav-${item.id}`}
+                    onClick={() => {
+                      onSelectView(item.id);
+                      onCloseMobile();
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/30 shadow-sm'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div
+                        className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                          isActive
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
+                            : 'text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                        }`}
+                      >
+                        {item.icon}
+                      </div>
+                      <div className="truncate">
+                        <div className="text-sm font-medium leading-tight truncate">{item.label}</div>
+                        <div className="text-[11px] text-slate-500 truncate group-hover:text-slate-400">
+                          {item.description}
+                        </div>
+                      </div>
+                    </div>
+
+                    {item.badge !== undefined && (
+                      <span
+                        className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.badgeColor}`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer Info Box */}
@@ -295,3 +584,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+

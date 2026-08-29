@@ -40,72 +40,72 @@ interface AccessControlProps {
 const AVAILABLE_MENUS: {
   id: AppView;
   label: string;
-  category: 'Utama' | 'Operasional' | 'Kepatuhan & Laporan';
+  category: 'Dashboard & Umum' | 'Human Resource Management (HRM)' | 'Operations Management (OM)' | 'Lainnya';
   description: string;
   icon: React.ReactNode;
 }[] = [
   {
     id: 'dashboard',
     label: 'Dashboard Utama',
-    category: 'Utama',
+    category: 'Dashboard & Umum',
     description: 'Ringkasan KPI, absensi harian, dan ringkasan stok',
     icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />
   },
   {
-    id: 'project_settings',
-    label: 'Pengaturan Lokasi Project',
-    category: 'Utama',
-    description: 'Spesifikasi gedung, manpower, lift, toilet & jenis lantai',
-    icon: <Building2 className="w-4 h-4 text-amber-400" />
-  },
-  {
     id: 'timesheet',
-    label: 'Eagle Timesheet Matrix',
-    category: 'Operasional',
+    label: 'Eagle Timesheet',
+    category: 'Human Resource Management (HRM)',
     description: 'Matriks kehadiran 1-31, lembur, dan potongan absen',
     icon: <CalendarCheck2 className="w-4 h-4 text-emerald-400" />
   },
   {
     id: 'employees',
-    label: 'Data Karyawan & Mutasi',
-    category: 'Operasional',
+    label: 'Data Karyawan & Lokasi',
+    category: 'Human Resource Management (HRM)',
     description: 'Database personil cleaner, shift, dan riwayat mutasi',
     icon: <UserCheck className="w-4 h-4 text-blue-400" />
   },
   {
-    id: 'inventory',
-    label: 'Smart Inventory & Chemical',
-    category: 'Operasional',
-    description: 'Monitoring stok chemical, log pemakaian harian & restock',
-    icon: <PackageCheck className="w-4 h-4 text-purple-400" />
-  },
-  {
-    id: 'tasks',
-    label: 'Rajawali Board & Tasks',
-    category: 'Operasional',
-    description: 'Kanban tugas harian, checklist area, dan inspeksi',
-    icon: <KanbanSquare className="w-4 h-4 text-teal-400" />
-  },
-  {
-    id: 'blast',
-    label: 'Eagle Blast Pengumuman',
-    category: 'Kepatuhan & Laporan',
-    description: 'Pemberitahuan resmi, memo K3, dan briefing operasional',
-    icon: <Megaphone className="w-4 h-4 text-rose-400" />
-  },
-  {
     id: 'sops',
-    label: 'Perpustakaan SOP & K3',
-    category: 'Kepatuhan & Laporan',
+    label: 'SOP & Dokumen K3',
+    category: 'Human Resource Management (HRM)',
     description: 'Standar Operasional Prosedur dan panduan MSDS',
     icon: <BookOpen className="w-4 h-4 text-indigo-400" />
   },
   {
     id: 'reports',
-    label: 'Laporan & Slip Gaji',
-    category: 'Kepatuhan & Laporan',
+    label: 'Pusat Laporan & Payroll',
+    category: 'Human Resource Management (HRM)',
     description: 'Rekapitulasi payroll bulanan dan cetak slip gaji',
     icon: <FileSpreadsheet className="w-4 h-4 text-amber-500" />
+  },
+  {
+    id: 'project_settings',
+    label: 'Pengaturan Lokasi',
+    category: 'Operations Management (OM)',
+    description: 'Spesifikasi gedung, manpower, lift, toilet & jenis lantai',
+    icon: <Building2 className="w-4 h-4 text-amber-400" />
+  },
+  {
+    id: 'inventory',
+    label: 'Smart Inventory',
+    category: 'Operations Management (OM)',
+    description: 'Monitoring stok chemical, log pemakaian harian & restock',
+    icon: <PackageCheck className="w-4 h-4 text-purple-400" />
+  },
+  {
+    id: 'tasks',
+    label: 'Rajawali Boards',
+    category: 'Operations Management (OM)',
+    description: 'Kanban tugas harian, checklist area, dan inspeksi',
+    icon: <KanbanSquare className="w-4 h-4 text-teal-400" />
+  },
+  {
+    id: 'blast',
+    label: 'Eagle Blast',
+    category: 'Lainnya',
+    description: 'Pemberitahuan resmi, memo K3, dan briefing operasional',
+    icon: <Megaphone className="w-4 h-4 text-rose-400" />
   }
 ];
 
