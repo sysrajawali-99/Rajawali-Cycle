@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   ShieldCheck, 
@@ -13,7 +13,8 @@ import {
   Sparkles,
   Cloud
 } from 'lucide-react';
-import { Project, UserAccount, AppView } from '../../types';
+import { Project, UserAccount, AppView, CompanyProfile } from '../../types';
+import { storageService } from '../../services/storageService';
 
 interface NavbarProps {
   projects?: Project[];
@@ -21,7 +22,6 @@ interface NavbarProps {
   onSelectProject?: (id: string) => void;
   currentUser?: UserAccount;
   users?: UserAccount[];
-  onSwitchUser?: (user: UserAccount) => void;
   onLogout?: () => void;
   onResetData?: () => void;
   lowStockCount?: number;
@@ -37,8 +37,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedProjectId = 'ALL',
   onSelectProject,
   currentUser,
-  users = [],
-  onSwitchUser,
   onLogout,
   onResetData,
   isSidebarOpen = false,
@@ -48,6 +46,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDriveSync
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setCompanyProfile(storageService.getCompanyProfile());
+    };
+    window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('storage', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('storage', handleProfileUpdate);
+    };
+  }, []);
+
   const currentProject = (projects || []).find((p) => p.id === selectedProjectId);
 
   const isLocationLocked = currentUser?.isLocationLocked || false;
@@ -73,20 +85,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center space-x-2 sm:space-x-3 min-w-0 text-left cursor-pointer group"
               title="Dashboard Utama"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40 shrink-0 group-hover:scale-105 transition-transform">
-                <span className="text-lg sm:text-xl font-black text-slate-950 tracking-tighter">🦅</span>
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40 shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                {companyProfile.logoUrl ? (
+                  <img src={companyProfile.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                ) : (
+                  <span className="text-lg sm:text-xl font-black text-slate-950 tracking-tighter">🦅</span>
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center space-x-1.5 sm:space-x-2">
                   <span className="text-sm sm:text-base md:text-lg font-extrabold tracking-tight text-white truncate group-hover:text-amber-400 transition-colors">
-                    RAJAWALI CYCLE
+                    {companyProfile.brandName || companyProfile.name || 'RAJAWALI CYCLE'}
                   </span>
                   <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-amber-500/30 hidden xs:inline-block">
-                    v2.4
+                    PRO
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 hidden lg:block truncate">
-                  Visionary Management for Sparkling Results • Outsourcing Suite
+                  {companyProfile.tagline || 'Visionary Management for Sparkling Results • Outsourcing Suite'}
                 </p>
               </div>
             </button>
@@ -201,16 +217,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
 
                       {isSuperAdmin && (
-                        <button
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            onSelectView?.('access_control');
-                          }}
-                          className="w-full text-left flex items-center space-x-2 p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-amber-500/20"
-                        >
-                          <ShieldCheck className="w-4 h-4 text-amber-400" />
-                          <span>Kelola Hak Akses Pengguna</span>
-                        </button>
+                        <div className="space-y-1 pt-1">
+                          <button
+                            id="navbar-company-settings-btn"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              onSelectView?.('company_settings');
+                            }}
+                            className="w-full text-left flex items-center space-x-2 p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-amber-500/20"
+                          >
+                            <Building2 className="w-4 h-4 text-amber-400" />
+                            <span>Pengaturan Perusahaan (HQ)</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              onSelectView?.('access_control');
+                            }}
+                            className="w-full text-left flex items-center space-x-2 p-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-slate-700"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-amber-400" />
+                            <span>Kelola Hak Akses Pengguna</span>
+                          </button>
+                        </div>
                       )}
 
                       {onOpenDriveSync && (
@@ -224,40 +254,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <Cloud className="w-4 h-4 text-blue-400" />
                           <span>Google Drive Sync & Cadangan</span>
                         </button>
-                      )}
-
-                      {/* Quick Tester Switcher */}
-                      {users.length > 1 && onSwitchUser && (
-                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
-                            <span>⚡ Ganti Akun Tester:</span>
-                            <span className="text-slate-500 font-normal">1-Klik</span>
-                          </div>
-                          <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
-                            {users.map((u) => (
-                              <button
-                                key={u.id}
-                                onClick={() => {
-                                  setIsUserMenuOpen(false);
-                                  onSwitchUser(u);
-                                }}
-                                className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                                  currentUser?.id === u.id
-                                    ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
-                                    : 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-white'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-2 truncate">
-                                  <span>{u.avatar || '👤'}</span>
-                                  <span className="truncate">{u.name.split(' ')[0]} ({u.role.split(' ')[0]})</span>
-                                </div>
-                                {currentUser?.id === u.id && (
-                                  <span className="text-[10px] text-amber-400 font-mono">Aktif</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
                       )}
 
                       <div className="pt-2 border-t border-slate-800">

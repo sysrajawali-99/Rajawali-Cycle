@@ -84,8 +84,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const isViewAllowed = (viewId: AppView) => {
-    if (viewId === 'access_control') {
-      return currentUser?.role === 'Super Admin (HQ)' || allowedViews.includes('access_control');
+    if (viewId === 'company_settings' || viewId === 'access_control') {
+      return currentUser?.role === 'Super Admin (HQ)' || allowedViews.includes(viewId as any);
     }
     return allowedViews.includes(viewId) || (viewId === 'sops' && allowedViews.includes('sop' as any));
   };
@@ -242,6 +242,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       description: 'Pengumuman Resmi Manajemen',
       icon: <Megaphone className="w-5 h-5" />,
       badge: unreadBlastCount > 0 ? unreadBlastCount : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+    },
+    {
+      id: 'company_settings',
+      label: 'Pengaturan Perusahaan',
+      description: 'Logo, Kop Surat & Profil HQ',
+      icon: <Building2 className="w-5 h-5 text-amber-400" />,
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
     },
     {

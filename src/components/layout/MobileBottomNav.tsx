@@ -78,8 +78,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   ];
 
   const isViewAllowed = (viewId: AppView) => {
-    if (viewId === 'access_control') {
-      return currentUser?.role === 'Super Admin (HQ)' || allowedViews.includes('access_control');
+    if (viewId === 'company_settings' || viewId === 'access_control') {
+      return currentUser?.role === 'Super Admin (HQ)' || allowedViews.includes(viewId as any);
     }
     return allowedViews.includes(viewId) || (viewId === 'sops' && allowedViews.includes('sop' as any));
   };
@@ -237,6 +237,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       description: 'Memo resmi manajemen & pengumuman K3',
       icon: <Megaphone className="w-4 h-4 text-amber-400" />,
       badge: unreadBlastCount > 0 ? unreadBlastCount : undefined
+    },
+    {
+      id: 'company_settings' as AppView,
+      label: 'Pengaturan Perusahaan',
+      description: 'Logo, Kop Surat & Profil HQ',
+      icon: <Building2 className="w-4 h-4 text-amber-400" />
     },
     {
       id: 'access_control' as AppView,

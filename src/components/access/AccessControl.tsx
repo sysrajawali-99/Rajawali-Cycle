@@ -134,6 +134,20 @@ const AVAILABLE_MENUS: {
     category: 'Lainnya',
     description: 'Pemberitahuan resmi, memo K3, dan briefing operasional',
     icon: <Megaphone className="w-4 h-4 text-rose-400" />
+  },
+  {
+    id: 'company_settings',
+    label: 'Pengaturan Perusahaan',
+    category: 'Lainnya',
+    description: 'Identitas HQ, logo, legalitas NIB/NPWP, rekening bank & kop surat',
+    icon: <Building2 className="w-4 h-4 text-amber-400" />
+  },
+  {
+    id: 'access_control',
+    label: 'Hak Akses Pengguna',
+    category: 'Lainnya',
+    description: 'Kelola peran pengguna, PIN keamanan, dan matriks izin menu',
+    icon: <ShieldCheck className="w-4 h-4 text-amber-400" />
   }
 ];
 

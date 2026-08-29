@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Users,
   CalendarCheck2,
@@ -13,7 +13,8 @@ import {
   Sparkles,
   ShieldCheck,
   Megaphone,
-  CreditCard
+  CreditCard,
+  Building
 } from 'lucide-react';
 import {
   Project,
@@ -24,10 +25,12 @@ import {
   CleaningTask,
   BlastAnnouncement,
   AppView,
-  UserRole
+  UserRole,
+  CompanyProfile
 } from '../../types';
 import { formatCurrency, formatNumber, getMonthName } from '../../utils/formatters';
 import { ComparativeCharts } from './ComparativeCharts';
+import { storageService } from '../../services/storageService';
 
 interface DashboardOverviewProps {
   projects: Project[];
@@ -57,6 +60,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const currentMonth = 8; // August 2026
   const currentYear = 2026;
   const todayDateNumber = 25; // August 25
+
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setCompanyProfile(storageService.getCompanyProfile());
+    };
+    window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('storage', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('storage', handleProfileUpdate);
+    };
+  }, []);
 
   // Filtered employees
   const filteredEmployees = useMemo(() => {
@@ -149,29 +166,42 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   return (
     <div className="space-y-5">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">
-              <Sparkles className="w-4 h-4" />
-              <span>Command Center Outsourcing Cleaning Service</span>
+          <div className="flex items-start sm:items-center space-x-3.5 min-w-0">
+            {companyProfile.logoUrl ? (
+              <img
+                src={companyProfile.logoUrl}
+                alt={companyProfile.name}
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-contain bg-slate-950 p-1.5 border border-amber-500/30 shadow-md shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-slate-950 font-black text-xl shadow-md shrink-0">
+                {companyProfile.name?.charAt(0) || 'R'}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 text-amber-400 text-[11px] sm:text-xs font-bold uppercase tracking-wider mb-0.5">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{companyProfile.tagline || 'Command Center Outsourcing Cleaning Service'}</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight truncate">
+                {companyProfile.name} Dashboard
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl truncate">
+                {selectedProjectId === 'ALL'
+                  ? `Pengawasan terpusat ${projects.length} Lokasi Proyek • ${filteredEmployees.length} Petugas Kebersihan Aktif • Cut-off ${getMonthName(currentMonth)} ${currentYear}`
+                  : `Lokasi: ${activeProjectObj?.name} (${activeProjectObj?.address}) • Spv: ${activeProjectObj?.siteSupervisor}`}
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Rajawali Cycle Dashboard
-            </h1>
-            <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-              {selectedProjectId === 'ALL'
-                ? `Pengawasan terpusat 5 Lokasi Proyek • ${filteredEmployees.length} Petugas Kebersihan Aktif • Cut-off ${getMonthName(currentMonth)} ${currentYear}`
-                : `Lokasi: ${activeProjectObj?.name} (${activeProjectObj?.address}) • Spv: ${activeProjectObj?.siteSupervisor}`}
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 md:pt-0">
             <button
               id="dash-quick-project-settings-btn"
               onClick={() => onNavigate('project_settings')}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="flex items-center space-x-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
             >
               <Building2 className="w-4 h-4 text-amber-400" />
               <span>Spesifikasi Lokasi</span>
@@ -180,7 +210,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <button
               id="dash-quick-timesheet-btn"
               onClick={() => onNavigate('timesheet')}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              className="flex items-center space-x-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
             >
               <CalendarCheck2 className="w-4 h-4" />
               <span>Buka Timesheet</span>

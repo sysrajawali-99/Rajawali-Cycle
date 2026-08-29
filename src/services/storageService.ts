@@ -10,6 +10,7 @@ import {
   BlastAnnouncement,
   SopDocument,
   UserAccount,
+  CompanyProfile,
   ChartOfAccount,
   FinanceTransaction,
   BankStatementImport,
@@ -31,7 +32,8 @@ import {
   INITIAL_TASKS,
   INITIAL_BLASTS,
   INITIAL_SOPS,
-  INITIAL_USERS
+  INITIAL_USERS,
+  INITIAL_COMPANY_PROFILE
 } from '../data/initialData';
 import {
   INITIAL_CHART_OF_ACCOUNTS,
@@ -46,6 +48,7 @@ import {
 } from '../data/initialFinanceData';
 
 const STORAGE_KEYS = {
+  COMPANY_PROFILE: 'rajawali_company_profile',
   PROJECTS: 'rajawali_projects',
   EMPLOYEES: 'rajawali_employees',
   TIMESHEETS: 'rajawali_timesheets',
@@ -72,6 +75,29 @@ const STORAGE_KEYS = {
 };
 
 export const storageService = {
+  getCompanyProfile(): CompanyProfile {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMPANY_PROFILE);
+    if (!raw) {
+      this.saveCompanyProfile(INITIAL_COMPANY_PROFILE);
+      return INITIAL_COMPANY_PROFILE;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? { ...INITIAL_COMPANY_PROFILE, ...parsed } : INITIAL_COMPANY_PROFILE;
+    } catch {
+      return INITIAL_COMPANY_PROFILE;
+    }
+  },
+
+  saveCompanyProfile(data: CompanyProfile) {
+    localStorage.setItem(STORAGE_KEYS.COMPANY_PROFILE, JSON.stringify(data));
+    try {
+      window.dispatchEvent(new Event('company_profile_updated'));
+    } catch {
+      // ignore
+    }
+  },
+
   getProjects(): Project[] {
     const raw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
     if (!raw) {
@@ -346,6 +372,9 @@ export const storageService = {
     localStorage.removeItem(STORAGE_KEYS.PERIOD_CLOSINGS);
     localStorage.removeItem(STORAGE_KEYS.AUDIT_TRAILS);
     localStorage.removeItem(STORAGE_KEYS.CURRENCY_RATES);
+    localStorage.removeItem(STORAGE_KEYS.DEBTS);
+    localStorage.removeItem(STORAGE_KEYS.RECEIVABLES);
+    localStorage.removeItem(STORAGE_KEYS.INVESTMENTS);
   },
 
   // Finance Storage Handlers

@@ -32,6 +32,7 @@ import {
   generateTimesheetPDF,
   generateIndividualPayslipPDF
 } from '../../utils/pdfExport';
+import { storageService } from '../../services/storageService';
 
 interface ReportingCenterProps {
   projects: Project[];
@@ -452,21 +453,37 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
                 className="bg-white text-slate-950 w-full p-6 rounded-2xl shadow-xl space-y-4 border border-slate-200 text-xs font-sans"
               >
                 {/* Kop Slip */}
-                <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
-                  <div>
-                    <h3 className="font-black text-base text-slate-900 tracking-wider">PT RAJAWALI PRIMA SERVICE</h3>
-                    <p className="text-[10px] text-slate-600 font-medium">Facility Management & Cleaning Services</p>
-                    <p className="text-[9px] text-slate-500">Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-2 py-0.5 rounded border border-amber-300 uppercase block">
-                      SLIP GAJI RESMI
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-800 font-mono mt-1 block">
-                      {getMonthName(reportMonth).toUpperCase()} {reportYear}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const comp = storageService.getCompanyProfile();
+                  return (
+                    <>
+                      <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
+                        <div className="flex items-start space-x-3">
+                          {comp.logoUrl && (
+                            <img
+                              src={comp.logoUrl}
+                              alt={comp.name}
+                              className="w-10 h-10 object-contain rounded p-0.5 border border-slate-300"
+                            />
+                          )}
+                          <div>
+                            <h3 className="font-black text-base text-slate-900 tracking-wider uppercase">{comp.name}</h3>
+                            <p className="text-[10px] text-slate-600 font-medium">{comp.tagline || 'Facility Management & Cleaning Services'}</p>
+                            <p className="text-[9px] text-slate-500">{comp.address} {comp.phone ? `• Telp: ${comp.phone}` : ''}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-2 py-0.5 rounded border border-amber-300 uppercase block">
+                            SLIP GAJI RESMI
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-800 font-mono mt-1 block">
+                            {getMonthName(reportMonth).toUpperCase()} {reportYear}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Employee Info Header */}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 gap-2 text-xs">
@@ -581,7 +598,7 @@ export const ReportingCenter: React.FC<ReportingCenterProps> = ({
                   <div className="space-y-8">
                     <div>
                       <p>Petugas Payroll / HRD,</p>
-                      <p className="font-bold text-slate-900">PT Rajawali Prima Service</p>
+                      <p className="font-bold text-slate-900">{storageService.getCompanyProfile().name}</p>
                     </div>
                     <div className="border-b border-slate-400 w-28 mx-auto"></div>
                     <p>( Finance & HR Dept )</p>

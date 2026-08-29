@@ -13,6 +13,7 @@ import {
   StatementAccountItem
 } from '../types/finance';
 import { Project } from '../types';
+import { storageService } from './storageService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -286,13 +287,17 @@ export const financeService = {
       grossProfitMargin: grossMarginPct,
       opexAccounts,
       operationalExpenses: opexAccounts,
+      expenses: opexAccounts,
       totalOpex,
       totalExpenses: totalOpex,
       operatingIncome,
+      operatingProfit: operatingIncome,
       operatingMarginPct,
       otherIncomeAccounts,
+      otherIncomes: otherIncomeAccounts,
       totalOtherIncome,
       otherExpenseAccounts,
+      otherExpenses: otherExpenseAccounts,
       totalOtherExpense,
       netProfit,
       netMarginPct,

@@ -223,13 +223,17 @@ export interface ProfitLossStatement {
   grossProfitMargin: number;
   opexAccounts: StatementAccountItem[];
   operationalExpenses: StatementAccountItem[];
+  expenses?: StatementAccountItem[];
   totalOpex: number;
   totalExpenses: number;
   operatingIncome: number;
+  operatingProfit?: number;
   operatingMarginPct: number;
   otherIncomeAccounts: StatementAccountItem[];
+  otherIncomes?: StatementAccountItem[];
   totalOtherIncome: number;
   otherExpenseAccounts: StatementAccountItem[];
+  otherExpenses?: StatementAccountItem[];
   totalOtherExpense: number;
   netProfit: number;
   netMarginPct: number;

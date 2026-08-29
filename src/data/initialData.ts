@@ -9,7 +9,8 @@ import {
   CleaningTask,
   BlastAnnouncement,
   SopDocument,
-  UserAccount
+  UserAccount,
+  CompanyProfile
 } from '../types';
 
 export const INITIAL_PROJECTS: Project[] = [
@@ -1081,7 +1082,8 @@ export const INITIAL_USERS: UserAccount[] = [
       'finance_statements',
       'finance_bank_reconcile',
       'finance_analytics_audit',
-      'access_control'
+      'access_control',
+      'company_settings'
     ],
     status: 'Aktif',
     phone: '0811-9988-7766',
@@ -1252,3 +1254,28 @@ export const INITIAL_USERS: UserAccount[] = [
     securityPin: '123456'
   }
 ];
+
+export const INITIAL_COMPANY_PROFILE: CompanyProfile = {
+  name: 'PT RAJAWALI CYCLE INDONESIA',
+  brandName: 'RAJAWALI CYCLE',
+  tagline: 'Integrated Facility Services & Enterprise Management',
+  address: 'Menara Rajawali Lt. 12, Jl. DR. Ide Anak Agung Gde Agung Lot 5.1, Kawasan Mega Kuningan',
+  city: 'Jakarta Selatan 12950, DKI Jakarta',
+  phone: '(021) 5299-8800',
+  whatsapp: '0812-9988-7766',
+  email: 'corporate@rajawalicycle.co.id',
+  website: 'www.rajawalicycle.co.id',
+  taxId: '01.890.123.4-012.000',
+  businessPermitNo: '9120008819231 (NIB)',
+  directorName: 'Wanda I. Zeng, S.E.',
+  directorTitle: 'Direktur Utama',
+  financeManagerName: 'Dewi Lestari, S.Ak',
+  financeManagerTitle: 'Finance & Accounting Lead',
+  logoUrl: '',
+  bankName: 'Bank Central Asia (BCA)',
+  bankAccountNo: '541-0988-771',
+  bankAccountHolder: 'PT RAJAWALI CYCLE INDONESIA',
+  letterheadFooterNote: 'Dokumen ini sah dan diterbitkan secara digital oleh Sistem ERP PT Rajawali Cycle Indonesia. Berlaku secara resmi untuk keperluan operasional dan audit.',
+  updatedAt: '2026-08-29 10:00',
+  updatedBy: 'Super Admin (HQ)'
+};

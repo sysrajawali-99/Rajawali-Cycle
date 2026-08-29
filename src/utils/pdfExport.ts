@@ -2,6 +2,29 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Employee, Project, TimesheetMonthRecord, InventoryItem, InventoryLog, CleaningTask, SopItem, SopDocument } from '../types';
 import { formatCurrency, getMonthName, formatDateDDMMYYYY, formatDateTimeStamp } from './formatters';
+import { storageService } from '../services/storageService';
+
+const getCompany = () => {
+  try {
+    return storageService.getCompanyProfile();
+  } catch (e) {
+    return {
+      name: 'PT RAJAWALI PRIMA SERVICE',
+      brandName: 'Rajawali Cycle',
+      tagline: 'Commercial Cleaning, Facility Management, High Rise & Hospitality Support Services',
+      address: 'Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan',
+      city: 'Jakarta Selatan',
+      phone: '(021) 5299-8800',
+      email: 'hq@rajawaliservice.co.id',
+      website: 'www.rajawaliservice.co.id',
+      directorName: 'Bambang Soedarmono',
+      directorTitle: 'Direktur Utama',
+      financeManagerName: 'Hendra Gunawan',
+      financeManagerTitle: 'Finance & HRD Lead',
+      letterheadFooterNote: 'Dokumen ini sah dan diterbitkan secara elektronik oleh Sistem Terpadu Rajawali Cycle.'
+    };
+  }
+};
 
 interface ExportTimesheetPDFParams {
   projects: Project[];
@@ -20,6 +43,7 @@ export const generateTimesheetPDF = ({
   month,
   year
 }: ExportTimesheetPDFParams) => {
+  const comp = getCompany();
   // Filter active employees
   const targetEmployees = employees.filter((emp) => {
     if (emp.status === 'Resign') return false;
@@ -62,14 +86,14 @@ export const generateTimesheetPDF = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(255, 255, 255);
-  doc.text('PT RAJAWALI PRIMA SERVICE', 14, 9);
+  doc.text(comp.name, 14, 9);
 
   // Subtitle
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(203, 213, 225); // Slate 300
-  doc.text('Commercial Cleaning, Facility Management, High Rise & Hospitality Support Services', 14, 14);
-  doc.text('Head Office: Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', 14, 18);
+  doc.text(comp.tagline, 14, 14);
+  doc.text(`Head Office: ${comp.address} • Telp: ${comp.phone}`, 14, 18);
 
   // Right Header Tag
   doc.setFillColor(217, 119, 6);
@@ -436,6 +460,7 @@ export const generateIndividualPayslipPDF = ({
   month: number;
   year: number;
 }) => {
+  const comp = getCompany();
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -471,13 +496,13 @@ export const generateIndividualPayslipPDF = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(255, 255, 255);
-  doc.text('PT RAJAWALI PRIMA SERVICE', 10, 9);
+  doc.text(comp.name, 10, 9);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(203, 213, 225);
-  doc.text('Commercial Cleaning & Facility Management Services', 10, 14);
-  doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan', 10, 18);
+  doc.text(comp.tagline, 10, 14);
+  doc.text(`${comp.address} • Telp: ${comp.phone}`, 10, 18);
 
   // Slip Gaji Tag
   doc.setFillColor(217, 119, 6);
@@ -597,10 +622,10 @@ export const generateIndividualPayslipPDF = ({
   doc.text('Petugas Payroll / HRD,', 10 + halfW + halfW / 2, sigY, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('PT Rajawali Prima Service', 10 + halfW + halfW / 2, sigY + 4, { align: 'center' });
+  doc.text(comp.name, 10 + halfW + halfW / 2, sigY + 4, { align: 'center' });
   doc.line(10 + halfW + halfW / 2 - 20, sigY + 18, 10 + halfW + halfW / 2 + 20, sigY + 18);
   doc.setFont('helvetica', 'normal');
-  doc.text('( Finance & HR Dept )', 10 + halfW + halfW / 2, sigY + 21.5, { align: 'center' });
+  doc.text(`( ${comp.financeManagerName || 'Finance & HR Dept'} )`, 10 + halfW + halfW / 2, sigY + 21.5, { align: 'center' });
 
   // Footer
   doc.setFontSize(5.5);
@@ -632,6 +657,7 @@ export const generateInventoryUsagePDF = ({
   endDate,
   categoryFilter = 'ALL'
 }: ExportInventoryUsagePDFParams) => {
+  const comp = getCompany();
   // Filter OUT logs (Pemakaian Harian)
   const usageLogs = inventoryLogs.filter((log) => {
     if (log.type !== 'OUT') return false;
@@ -677,14 +703,14 @@ export const generateInventoryUsagePDF = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(255, 255, 255);
-  doc.text('PT RAJAWALI PRIMA SERVICE', 14, 9);
+  doc.text(comp.name, 14, 9);
 
   // Subtitle
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(203, 213, 225); // Slate 300
-  doc.text('Facility Management, Smart Chemical & Consumable Logistic Control System', 14, 14);
-  doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', 14, 18);
+  doc.text(comp.tagline, 14, 14);
+  doc.text(`Head Office: ${comp.address} • Telp: ${comp.phone}`, 14, 18);
 
   // Right Header Tag
   doc.setFillColor(217, 119, 6);
@@ -989,6 +1015,7 @@ export const generateCompletedTasksPDF = ({
 
   // Helper: Draw Header on Page
   const drawHeader = () => {
+    const comp = getCompany();
     doc.setFillColor(15, 39, 68); // Dark Navy
     doc.rect(0, 0, pageWidth, 20, 'F');
 
@@ -999,13 +1026,13 @@ export const generateCompletedTasksPDF = ({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(255, 255, 255);
-    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8);
+    doc.text(comp.name, margin, 8);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(203, 213, 225);
-    doc.text('Area Cleaning Management & Quality Control System (Rajawali Boards)', margin, 12);
-    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 16);
+    doc.text(comp.tagline, margin, 12);
+    doc.text(`${comp.address} • Telp: ${comp.phone}`, margin, 16);
 
     // Right Tag
     doc.setFillColor(217, 119, 6);
@@ -1382,6 +1409,7 @@ export const generateSingleSopPDF = (sop: SopItem) => {
   const printTimestampStr = formatDateTimeStamp(currentTimestamp);
 
   const drawHeader = () => {
+    const comp = getCompany();
     // 1. Dark Navy Top Banner
     doc.setFillColor(15, 39, 68); // #0f2744 Dark Navy
     doc.rect(0, 0, pageWidth, 21, 'F');
@@ -1394,14 +1422,14 @@ export const generateSingleSopPDF = (sop: SopItem) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8.5);
+    doc.text(comp.name, margin, 8.5);
 
     // Subtitles
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.8);
     doc.setTextColor(203, 213, 225);
     doc.text('Pusat Standar Operasional Prosedur (SOP) & Jaminan Mutu Kebersihan', margin, 13);
-    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 17);
+    doc.text(`${comp.address} • Telp: ${comp.phone}`, margin, 17);
 
     // Right Header Tag
     doc.setFillColor(217, 119, 6);
@@ -1782,6 +1810,7 @@ export const generateSopsCatalogPDF = (sops: SopItem[], categoryFilter: string =
   const printTimestampStr = formatDateTimeStamp(currentTimestamp);
 
   const drawHeader = () => {
+    const comp = getCompany();
     doc.setFillColor(15, 39, 68);
     doc.rect(0, 0, pageWidth, 21, 'F');
     doc.setFillColor(217, 119, 6);
@@ -1790,13 +1819,13 @@ export const generateSopsCatalogPDF = (sops: SopItem[], categoryFilter: string =
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text('PT RAJAWALI PRIMA SERVICE', margin, 8.5);
+    doc.text(comp.name, margin, 8.5);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.8);
     doc.setTextColor(203, 213, 225);
     doc.text('Kompilasi Buku Pedoman Standar Operasional Prosedur (SOP) & Mutu', margin, 13);
-    doc.text('Menara Rajawali Lt. 12, Mega Kuningan, Jakarta Selatan • Telp: (021) 5299-8800', margin, 17);
+    doc.text(`${comp.address} • Telp: ${comp.phone}`, margin, 17);
 
     doc.setFillColor(217, 119, 6);
     doc.roundedRect(pageWidth - margin - 52, 4, 52, 5.5, 1, 1, 'F');

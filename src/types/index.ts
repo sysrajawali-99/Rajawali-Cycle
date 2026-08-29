@@ -257,7 +257,33 @@ export type AppView =
   | 'finance_statements'
   | 'finance_bank_reconcile'
   | 'finance_analytics_audit'
-  | 'access_control';
+  | 'access_control'
+  | 'company_settings';
+
+export interface CompanyProfile {
+  name: string;                // e.g. "PT RAJAWALI CYCLE INDONESIA"
+  brandName: string;           // e.g. "RAJAWALI CYCLE"
+  tagline: string;             // e.g. "Integrated Facility Services & Enterprise Management"
+  address: string;             // e.g. "Menara Rajawali Lt. 12, Jl. DR. Ide Anak Agung Gde Agung Lot 5.1, Mega Kuningan"
+  city: string;                // e.g. "Jakarta Selatan 12950"
+  phone: string;               // e.g. "(021) 5299-8800"
+  whatsapp: string;            // e.g. "0812-9988-7766"
+  email: string;               // e.g. "corporate@rajawalicycle.co.id"
+  website: string;             // e.g. "www.rajawalicycle.co.id"
+  taxId: string;               // NPWP e.g. "01.890.123.4-012.000"
+  businessPermitNo: string;    // NIB e.g. "9120008819231"
+  directorName: string;        // e.g. "Wanda I. Zeng, S.E."
+  directorTitle: string;       // e.g. "Direktur Utama"
+  financeManagerName: string;  // e.g. "Budi Santoso, M.Ak."
+  financeManagerTitle: string; // e.g. "Finance & Accounting Lead"
+  logoUrl?: string;            // custom base64 or logo URL
+  bankName: string;            // e.g. "Bank Central Asia (BCA)"
+  bankAccountNo: string;       // e.g. "541-0988-771"
+  bankAccountHolder: string;   // e.g. "PT RAJAWALI CYCLE INDONESIA"
+  letterheadFooterNote: string;// e.g. "Dokumen resmi dan sah diterbitkan secara digital oleh Sistem ERP Terpadu."
+  updatedAt?: string;
+  updatedBy?: string;
+}
 
 export type UserRole = 
   | 'Super Admin (HQ)' 

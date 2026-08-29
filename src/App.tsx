@@ -22,7 +22,8 @@ import {
   FinanceTransaction,
   BankStatementImport,
   PeriodClosing,
-  AuditTrailItem
+  AuditTrailItem,
+  CompanyProfile
 } from './types';
 import {
   DebtRecord,
@@ -42,6 +43,7 @@ import { EagleBlast } from './components/blast/EagleBlast';
 import { SopLibrary } from './components/sop/SopLibrary';
 import { ReportingCenter } from './components/reports/ReportingCenter';
 import { AccessControl } from './components/access/AccessControl';
+import { CompanySettings } from './components/company/CompanySettings';
 import { ProjectLocationSettings } from './components/projects/ProjectLocationSettings';
 import { GoogleDriveSyncModal } from './components/drive/GoogleDriveSyncModal';
 import { LoginPage } from './components/auth/LoginPage';
@@ -88,6 +90,9 @@ export default function App() {
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
   const [investments, setInvestments] = useState<InvestmentRecord[]>([]);
 
+  // Company Profile Master State
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
+
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Load all state from storage
@@ -107,6 +112,7 @@ export default function App() {
     setMutations(storageService.getMutations());
     setBlasts(storageService.getBlasts());
     setSops(storageService.getSops());
+    setCompanyProfile(storageService.getCompanyProfile());
 
     // Finance Data Load
     setAccounts(storageService.getChartOfAccounts());
@@ -141,6 +147,11 @@ export default function App() {
   const handleUpdateProjects = (updated: Project[]) => {
     setProjects(updated);
     storageService.saveProjects(updated);
+  };
+
+  const handleUpdateCompanyProfile = (updated: CompanyProfile) => {
+    setCompanyProfile(updated);
+    storageService.saveCompanyProfile(updated);
   };
 
   const handleUpdateEmployees = (updated: Employee[]) => {
@@ -389,17 +400,24 @@ export default function App() {
     }
 
     // Access control view is restricted to Super Admin or users with access_control
-    if (view === 'access_control' && currentUser.role !== 'Super Admin (HQ)' && !currentUser.allowedViews.includes('access_control')) {
+    if (view === 'access_control' && currentUser.role !== 'Super Admin (HQ)' && !currentUser.allowedViews?.includes('access_control')) {
       alert('Akses Ditolak: Modul Hak Akses Pengguna hanya dapat diakses oleh Super Admin HQ.');
+      return;
+    }
+
+    // Company settings is restricted to Super Admin or users with company_settings
+    if (view === 'company_settings' && currentUser.role !== 'Super Admin (HQ)' && !currentUser.allowedViews?.includes('company_settings')) {
+      alert('Akses Ditolak: Modul Pengaturan Perusahaan hanya dapat diakses oleh Super Admin HQ.');
       return;
     }
 
     // Check if view is allowed
     const isAllowed =
-      currentUser.allowedViews.includes(view) ||
-      (view === 'sop' && currentUser.allowedViews.includes('sops')) ||
-      (view === 'sops' && currentUser.allowedViews.includes('sop' as any)) ||
-      (view === 'access_control' && currentUser.role === 'Super Admin (HQ)');
+      (currentUser.allowedViews && currentUser.allowedViews.includes(view)) ||
+      (view === 'sop' && currentUser.allowedViews?.includes('sops')) ||
+      (view === 'sops' && currentUser.allowedViews?.includes('sop' as any)) ||
+      (view === 'access_control' && currentUser.role === 'Super Admin (HQ)') ||
+      (view === 'company_settings' && currentUser.role === 'Super Admin (HQ)');
 
     if (!isAllowed) {
       alert(`Akses Ditolak: Anda tidak memiliki izin untuk membuka menu ${view}. Hubungi Super Admin.`);
@@ -736,6 +754,15 @@ export default function App() {
                 currentUser={currentUser}
                 onUpdateUsers={handleUpdateUsers}
                 onResetUsersToDefault={handleResetUsersToDefault}
+              />
+            )}
+
+            {/* Master Pengaturan Perusahaan (Logo, Profil, Legalitas, Kop Surat & Rekening HQ) */}
+            {currentView === 'company_settings' && (
+              <CompanySettings
+                companyProfile={companyProfile}
+                onUpdateCompanyProfile={handleUpdateCompanyProfile}
+                currentUser={currentUser}
               />
             )}
           </div>

@@ -136,7 +136,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
 
     // Revenue
     rows.push({ 'KATEGORI / AKUN': '1. PENDAPATAN USAHA (REVENUE)', 'KODE AKUN': '', 'NOMINAL (RP)': '', 'PORSI (% REV)': '' });
-    plStatement.revenues.forEach((r) => {
+    (plStatement.revenues || plStatement.revenueAccounts || []).forEach((r) => {
       rows.push({
         'KATEGORI / AKUN': `  ${r.accountName}`,
         'KODE AKUN': r.accountCode,
@@ -148,7 +148,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
 
     // COGS
     rows.push({ 'KATEGORI / AKUN': '2. BEBAN POKOK PENDAPATAN (HPP / DIRECT COSTS)', 'KODE AKUN': '', 'NOMINAL (RP)': '', 'PORSI (% REV)': '' });
-    plStatement.cogs.forEach((c) => {
+    (plStatement.cogs || plStatement.cogsAccounts || []).forEach((c) => {
       rows.push({
         'KATEGORI / AKUN': `  ${c.accountName}`,
         'KODE AKUN': c.accountCode,
@@ -163,7 +163,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
 
     // OPEX
     rows.push({ 'KATEGORI / AKUN': '3. BEBAN OPERASIONAL & ADMINISTRASI (OPEX)', 'KODE AKUN': '', 'NOMINAL (RP)': '', 'PORSI (% REV)': '' });
-    plStatement.expenses.forEach((e) => {
+    (plStatement.expenses || plStatement.operationalExpenses || plStatement.opexAccounts || []).forEach((e) => {
       rows.push({
         'KATEGORI / AKUN': `  ${e.accountName}`,
         'KODE AKUN': e.accountCode,
@@ -174,14 +174,14 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
     rows.push({ 'KATEGORI / AKUN': 'TOTAL BEBAN OPERASIONAL (OPEX)', 'KODE AKUN': '', 'NOMINAL (RP)': plStatement.totalExpenses, 'PORSI (% REV)': `${((plStatement.totalExpenses / (plStatement.totalRevenue || 1)) * 100).toFixed(1)}%` });
 
     // Operating Profit
-    rows.push({ 'KATEGORI / AKUN': 'LABA OPERASIONAL (OPERATING INCOME / EBITDA)', 'KODE AKUN': '', 'NOMINAL (RP)': plStatement.operatingProfit, 'PORSI (% REV)': `${margins.operatingMargin.toFixed(1)}%` });
+    rows.push({ 'KATEGORI / AKUN': 'LABA OPERASIONAL (OPERATING INCOME / EBITDA)', 'KODE AKUN': '', 'NOMINAL (RP)': plStatement.operatingProfit || plStatement.operatingIncome || 0, 'PORSI (% REV)': `${margins.operatingMargin.toFixed(1)}%` });
 
     // Other Income / Expense
     rows.push({ 'KATEGORI / AKUN': '4. PENDAPATAN / (BEBAN) NON-OPERASIONAL', 'KODE AKUN': '', 'NOMINAL (RP)': '', 'PORSI (% REV)': '' });
-    plStatement.otherIncomes.forEach((oi) => {
+    (plStatement.otherIncomes || plStatement.otherIncomeAccounts || []).forEach((oi) => {
       rows.push({ 'KATEGORI / AKUN': `  ${oi.accountName}`, 'KODE AKUN': oi.accountCode, 'NOMINAL (RP)': oi.amount, 'PORSI (% REV)': '' });
     });
-    plStatement.otherExpenses.forEach((oe) => {
+    (plStatement.otherExpenses || plStatement.otherExpenseAccounts || []).forEach((oe) => {
       rows.push({ 'KATEGORI / AKUN': `  (${oe.accountName})`, 'KODE AKUN': oe.accountCode, 'NOMINAL (RP)': -oe.amount, 'PORSI (% REV)': '' });
     });
 
@@ -387,7 +387,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                   1. PENDAPATAN USAHA (REVENUE)
                 </td>
               </tr>
-              {plStatement.revenues.map((item, i) => (
+              {(plStatement.revenues || plStatement.revenueAccounts || []).map((item, i) => (
                 <tr key={`rev-${i}`} className="hover:bg-slate-800/30">
                   <td className="py-2 px-6 text-slate-300 font-medium">{item.accountName}</td>
                   <td className="py-2 px-3 font-mono text-slate-400 text-center">{item.accountCode}</td>
@@ -414,7 +414,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                   2. BEBAN POKOK PENDAPATAN / BIAYA LANGSUNG (HPP / COGS)
                 </td>
               </tr>
-              {plStatement.cogs.map((item, i) => (
+              {(plStatement.cogs || plStatement.cogsAccounts || []).map((item, i) => (
                 <tr key={`cogs-${i}`} className="hover:bg-slate-800/30">
                   <td className="py-2 px-6 text-slate-300 font-medium">{item.accountName}</td>
                   <td className="py-2 px-3 font-mono text-slate-400 text-center">{item.accountCode}</td>
@@ -455,7 +455,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                   3. BEBAN OPERASIONAL & ADMINISTRASI KANTOR (OPEX)
                 </td>
               </tr>
-              {plStatement.expenses.map((item, i) => (
+              {(plStatement.expenses || plStatement.operationalExpenses || plStatement.opexAccounts || []).map((item, i) => (
                 <tr key={`exp-${i}`} className="hover:bg-slate-800/30">
                   <td className="py-2 px-6 text-slate-300 font-medium">{item.accountName}</td>
                   <td className="py-2 px-3 font-mono text-slate-400 text-center">{item.accountCode}</td>
@@ -485,7 +485,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                 </td>
                 <td className="py-2.5 px-3 text-center">-</td>
                 <td className="py-2.5 px-4 text-right font-black text-white text-sm">
-                  {formatCurrency(plStatement.operatingProfit)}
+                  {formatCurrency(plStatement.operatingProfit || plStatement.operatingIncome || 0)}
                 </td>
                 <td className="py-2.5 px-4 text-right font-mono text-slate-300 font-bold">
                   {margins.operatingMargin.toFixed(1)}%
@@ -498,7 +498,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                   4. PENDAPATAN & (BEBAN) NON-OPERASIONAL
                 </td>
               </tr>
-              {plStatement.otherIncomes.map((item, i) => (
+              {(plStatement.otherIncomes || plStatement.otherIncomeAccounts || []).map((item, i) => (
                 <tr key={`oi-${i}`} className="hover:bg-slate-800/30">
                   <td className="py-2 px-6 text-slate-300 font-medium">{item.accountName}</td>
                   <td className="py-2 px-3 font-mono text-slate-400 text-center">{item.accountCode}</td>
@@ -508,7 +508,7 @@ export const FinanceProfitLoss: React.FC<FinanceProfitLossProps> = ({
                   <td className="py-2 px-4 text-right font-mono text-slate-400">-</td>
                 </tr>
               ))}
-              {plStatement.otherExpenses.map((item, i) => (
+              {(plStatement.otherExpenses || plStatement.otherExpenseAccounts || []).map((item, i) => (
                 <tr key={`oe-${i}`} className="hover:bg-slate-800/30">
                   <td className="py-2 px-6 text-slate-300 font-medium">({item.accountName})</td>
                   <td className="py-2 px-3 font-mono text-slate-400 text-center">{item.accountCode}</td>
