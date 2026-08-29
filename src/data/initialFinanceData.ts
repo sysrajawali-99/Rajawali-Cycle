@@ -46,6 +46,18 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     isSystem: true
   },
   {
+    code: '1122',
+    name: 'Bank BNI - Rek Giro Operasional (1177888008)',
+    type: 'Asset',
+    category: 'Kas & Bank',
+    normalBalance: 'Debit',
+    initialBalance: 401316130,
+    currentBalance: 398009630,
+    description: 'Rekening e-Statement BNI Direct PT Joeriz Talenta Indonesia / Rajawali',
+    isActive: true,
+    isSystem: true
+  },
+  {
     code: '1130',
     name: 'Kas Kecil (Petty Cash Operasional Site)',
     type: 'Asset',
@@ -566,6 +578,102 @@ export const INITIAL_FINANCE_TRANSACTIONS: FinanceTransaction[] = [
 ];
 
 export const INITIAL_BANK_STATEMENTS: BankStatementImport[] = [
+  {
+    id: 'import-bni-001',
+    bankName: 'Bank BNI',
+    accountNumber: '1177888008',
+    accountHolder: 'JOERIZ TALENTA INDONESIA PT',
+    periodMonth: '2026-08',
+    fileName: '11778880081084_2_BNI_Statement.pdf',
+    uploadDate: '2026-08-29 08:30',
+    totalTransactions: 6,
+    totalCredit: 145840000,
+    totalDebit: 106956500,
+    matchedCount: 2,
+    unmatchedCount: 4,
+    items: [
+      {
+        id: 'bni-stmt-001',
+        date: '2026-08-27',
+        description: 'BY TRX ATM PRIMA (Journal: 765822)',
+        type: 'DB',
+        amount: 6500,
+        balance: 401309630,
+        referenceNumber: '765822',
+        matchStatus: 'UNMATCHED',
+        suggestedAccountCode: '6170',
+        confidenceScore: 90,
+        notes: 'Biaya transaksi ATM Prima / Administrasi'
+      },
+      {
+        id: 'bni-stmt-002',
+        date: '2026-08-27',
+        description: 'TRF/PAY/TOP-UP ECHANNEL | PEMINDAHAN KE 33501099551504 | 6010047890374683 | BNI DIRECT (Journal: 779356)',
+        type: 'DB',
+        amount: 3300000,
+        balance: 398009630,
+        referenceNumber: '779356',
+        matchStatus: 'UNMATCHED',
+        suggestedAccountCode: '5120',
+        confidenceScore: 85,
+        notes: 'Transfer operasional via BNI Direct'
+      },
+      {
+        id: 'bni-stmt-003',
+        date: '2026-08-28',
+        description: 'TRF CR DIRECT PEMINDAHAN DARI 0881920019 | PT GRAND INDONESIA - KONTRAK CLEANING AGUSTUS (Journal: 812901)',
+        type: 'CR',
+        amount: 145000000,
+        balance: 543009630,
+        referenceNumber: '812901',
+        matchStatus: 'MATCHED',
+        matchedTransactionId: 'trx-001',
+        matchedTransactionCode: 'BKM-2026-08-001',
+        confidenceScore: 95,
+        notes: 'Penerimaan invoice kontrak jasa kebersihan'
+      },
+      {
+        id: 'bni-stmt-004',
+        date: '2026-08-28',
+        description: 'PAYROLL BNI DIRECT | BATCH GAJI CLEANERS TOWER AGUSTUS 2026 (Journal: 819204)',
+        type: 'DB',
+        amount: 85200000,
+        balance: 457809630,
+        referenceNumber: '819204',
+        matchStatus: 'UNMATCHED',
+        suggestedAccountCode: '5110',
+        confidenceScore: 95,
+        notes: 'Pembayaran payroll tenaga kebersihan'
+      },
+      {
+        id: 'bni-stmt-005',
+        date: '2026-08-29',
+        description: 'TRF DB PEMINDAHAN KE 0451299102 | PT KLINDO PERKASA - CHEMICAL FLOOR STRIPPER (Journal: 820115)',
+        type: 'DB',
+        amount: 18450000,
+        balance: 439359630,
+        referenceNumber: '820115',
+        matchStatus: 'MATCHED',
+        matchedTransactionId: 'trx-005',
+        matchedTransactionCode: 'BKK-2026-08-002',
+        confidenceScore: 90,
+        notes: 'Pembelian chemical & disinfektan'
+      },
+      {
+        id: 'bni-stmt-006',
+        date: '2026-08-29',
+        description: 'BUNGA JASA GIRO BNI AGUSTUS 2026 (Journal: 830002)',
+        type: 'CR',
+        amount: 840000,
+        balance: 440199630,
+        referenceNumber: '830002',
+        matchStatus: 'UNMATCHED',
+        suggestedAccountCode: '4210',
+        confidenceScore: 90,
+        notes: 'Pendapatan bunga giro bank'
+      }
+    ]
+  },
   {
     id: 'import-bca-001',
     bankName: 'BCA (Bank Central Asia)',

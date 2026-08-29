@@ -70,7 +70,8 @@ export const storageService = {
       return INITIAL_PROJECTS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_PROJECTS;
     } catch {
       return INITIAL_PROJECTS;
     }
@@ -87,7 +88,8 @@ export const storageService = {
       return INITIAL_EMPLOYEES;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_EMPLOYEES;
     } catch {
       return INITIAL_EMPLOYEES;
     }
@@ -106,7 +108,8 @@ export const storageService = {
       return initialTS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -123,7 +126,8 @@ export const storageService = {
       return INITIAL_MUTATIONS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_MUTATIONS;
     } catch {
       return INITIAL_MUTATIONS;
     }
@@ -140,7 +144,8 @@ export const storageService = {
       return INITIAL_INVENTORY_ITEMS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_INVENTORY_ITEMS;
     } catch {
       return INITIAL_INVENTORY_ITEMS;
     }
@@ -157,7 +162,8 @@ export const storageService = {
       return INITIAL_PROJECT_STOCKS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_PROJECT_STOCKS;
     } catch {
       return INITIAL_PROJECT_STOCKS;
     }
@@ -174,7 +180,8 @@ export const storageService = {
       return INITIAL_INVENTORY_LOGS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_INVENTORY_LOGS;
     } catch {
       return INITIAL_INVENTORY_LOGS;
     }
@@ -220,7 +227,8 @@ export const storageService = {
       return INITIAL_BLASTS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_BLASTS;
     } catch {
       return INITIAL_BLASTS;
     }
@@ -339,7 +347,8 @@ export const storageService = {
       return INITIAL_CHART_OF_ACCOUNTS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_CHART_OF_ACCOUNTS;
     } catch {
       return INITIAL_CHART_OF_ACCOUNTS;
     }
@@ -356,7 +365,8 @@ export const storageService = {
       return INITIAL_FINANCE_TRANSACTIONS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_FINANCE_TRANSACTIONS;
     } catch {
       return INITIAL_FINANCE_TRANSACTIONS;
     }
@@ -373,7 +383,8 @@ export const storageService = {
       return INITIAL_BANK_STATEMENTS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_BANK_STATEMENTS;
     } catch {
       return INITIAL_BANK_STATEMENTS;
     }
@@ -390,7 +401,8 @@ export const storageService = {
       return INITIAL_PERIOD_CLOSINGS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_PERIOD_CLOSINGS;
     } catch {
       return INITIAL_PERIOD_CLOSINGS;
     }
@@ -407,7 +419,8 @@ export const storageService = {
       return INITIAL_AUDIT_TRAILS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_AUDIT_TRAILS;
     } catch {
       return INITIAL_AUDIT_TRAILS;
     }
@@ -424,7 +437,8 @@ export const storageService = {
       return INITIAL_CURRENCY_RATES;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_CURRENCY_RATES;
     } catch {
       return INITIAL_CURRENCY_RATES;
     }

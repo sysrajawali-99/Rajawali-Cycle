@@ -130,12 +130,16 @@ export const financeService = {
   // 1. GENERATE BUKU BESAR (GENERAL LEDGER)
   generateGeneralLedger(
     accounts: ChartOfAccount[],
-    transactions: FinanceTransaction[],
+    transactions: FinanceTransaction[] = [],
     startDate?: string,
     endDate?: string,
     projectId?: string
   ): GeneralLedgerAccount[] {
-    const filteredTrx = transactions.filter((t) => {
+    const safeTransactions = Array.isArray(transactions) ? transactions : [];
+    const safeAccounts = Array.isArray(accounts) ? accounts : [];
+
+    const filteredTrx = safeTransactions.filter((t) => {
+      if (!t) return false;
       if (startDate && t.date < startDate) return false;
       if (endDate && t.date > endDate) return false;
       if (projectId && projectId !== 'ALL' && t.projectId !== projectId && t.projectId !== 'ALL') {
@@ -144,7 +148,7 @@ export const financeService = {
       return true;
     });
 
-    return accounts.map((acc) => {
+    return safeAccounts.map((acc) => {
       const entries: GeneralLedgerEntry[] = [];
       let runningBalance = acc.initialBalance || 0;
       let totalDebit = 0;
@@ -152,7 +156,7 @@ export const financeService = {
 
       filteredTrx.forEach((t) => {
         // Look for matching journal lines
-        const lines = t.journalEntries.filter((j) => j.accountCode === acc.code);
+        const lines = (t.journalEntries || []).filter((j) => j.accountCode === acc.code);
         lines.forEach((l) => {
           totalDebit += l.debit;
           totalCredit += l.credit;
@@ -191,7 +195,7 @@ export const financeService = {
   // 2. GENERATE NERACA SALDO (TRIAL BALANCE)
   generateTrialBalance(
     accounts: ChartOfAccount[],
-    transactions: FinanceTransaction[],
+    transactions: FinanceTransaction[] = [],
     asOfDate?: string
   ): { rows: TrialBalanceRow[]; totalDebit: number; totalCredit: number; isBalanced: boolean } {
     const ledgers = this.generateGeneralLedger(

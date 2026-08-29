@@ -32,6 +32,7 @@ import {
 } from '../../types/finance';
 import { Project, UserAccount } from '../../types';
 import { financeService } from '../../services/financeService';
+import { BankStatementUploadModal } from './BankStatementUploadModal';
 
 interface FinanceBankReconcileProps {
   bankStatements: BankStatementImport[];
@@ -64,12 +65,6 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [manualMatchItem, setManualMatchItem] = useState<BankStatementItem | null>(null);
   const [quickConvertItem, setQuickConvertItem] = useState<BankStatementItem | null>(null);
-
-  // Upload Form State
-  const [uploadBankName, setUploadBankName] = useState('BCA (Bank Central Asia)');
-  const [uploadAccountNo, setUploadAccountNo] = useState('123-456-7890');
-  const [uploadMonth, setUploadMonth] = useState('2026-08');
-  const [rawPastedText, setRawPastedText] = useState('');
 
   // Selected Active Statement
   const activeStatement = useMemo(() => {
@@ -115,13 +110,27 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
   // Bank vs Book Ledger Balance comparison
   const bankBookComparison = useMemo(() => {
-    const primaryAccount = accounts.find((a) => a.code === '1120'); // Bank BCA
-    const bookBalance = primaryAccount?.currentBalance || 485000000;
+    let matchedAcc = accounts.find((a) => 
+      activeStatement?.accountNumber && a.name.includes(activeStatement.accountNumber)
+    );
+    if (!matchedAcc && activeStatement?.bankName) {
+      const bName = activeStatement.bankName.toUpperCase();
+      if (bName.includes('BNI')) {
+        matchedAcc = accounts.find((a) => a.code === '1122' || a.name.includes('BNI'));
+      } else if (bName.includes('MANDIRI')) {
+        matchedAcc = accounts.find((a) => a.code === '1121' || a.name.includes('Mandiri'));
+      } else if (bName.includes('BCA')) {
+        matchedAcc = accounts.find((a) => a.code === '1120' || a.name.includes('BCA'));
+      }
+    }
+    const primaryAccount = matchedAcc || accounts.find((a) => a.code === '1120') || accounts[0];
+    const bookBalance = primaryAccount?.currentBalance || 0;
     const lastBankItem = activeStatement?.items[activeStatement.items.length - 1];
-    const bankEndingBalance = lastBankItem?.balance || 476800000;
+    const bankEndingBalance = lastBankItem?.balance || 0;
     const variance = Math.abs(bankEndingBalance - bookBalance);
 
     return {
+      accountName: primaryAccount?.name || 'Rekening Buku Kas',
       bankEndingBalance,
       bookBalance,
       variance,
@@ -344,70 +353,11 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     onUpdateStatements(updatedStatements);
   };
 
-  // Handle Upload Raw Statement
-  const handleProcessImport = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rawPastedText.trim()) {
-      alert('Mohon masukkan teks mutasi rekening koran atau pilih template contoh.');
-      return;
-    }
-
-    const parsedItems = financeService.parseStatementRawText(rawPastedText, uploadBankName);
-    if (parsedItems.length === 0) {
-      alert('Format teks tidak dikenali. Pastikan terdapat tanggal, deskripsi, dan nominal.');
-      return;
-    }
-
-    // Auto-match initially
-    const matched = financeService.autoMatchBankStatements(parsedItems, transactions);
-
-    const totalCredit = parsedItems
-      .filter((i) => i.type === 'CR')
-      .reduce((s, i) => s + i.amount, 0);
-    const totalDebit = parsedItems
-      .filter((i) => i.type === 'DB')
-      .reduce((s, i) => s + i.amount, 0);
-
-    const newImport: BankStatementImport = {
-      id: `import-${Date.now()}`,
-      bankName: uploadBankName,
-      accountNumber: uploadAccountNo,
-      accountHolder: 'PT RAJAWALI SUKSES MANDIRI',
-      periodMonth: uploadMonth,
-      fileName: `Rekening_Koran_${uploadBankName.split(' ')[0]}_${uploadMonth}.csv`,
-      uploadDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      totalTransactions: parsedItems.length,
-      totalCredit,
-      totalDebit,
-      matchedCount: matched.filter((i) => i.matchStatus === 'MATCHED').length,
-      unmatchedCount: matched.filter((i) => i.matchStatus === 'UNMATCHED').length,
-      items: matched
-    };
-
+  // Handle Upload Statement Success from BankStatementUploadModal
+  const handleImportSuccess = (newImport: BankStatementImport) => {
     const nextStatements = [newImport, ...bankStatements];
     onUpdateStatements(nextStatements);
     setSelectedStatementId(newImport.id);
-    setIsUploadModalOpen(false);
-    setRawPastedText('');
-
-    alert(`Berhasil mengimpor ${parsedItems.length} transaksi dari Rekening Koran ${uploadBankName}!`);
-  };
-
-  // Load Preset Samples for Easy Demo
-  const loadPresetStatement = (bank: 'BCA' | 'MANDIRI') => {
-    if (bank === 'BCA') {
-      setUploadBankName('BCA (Bank Central Asia)');
-      setUploadAccountNo('123-456-7890');
-      setRawPastedText(
-        `2026-08-05,TRSF CR DR PT PAKUWON JATI - INV MGC AGUSTUS,115000000,CR\n2026-08-12,TRSF CR MENARA SUDIRMAN - WO POLISH MARMER,35000000,CR\n2026-08-18,TRSF DB KE PT CHEMCO PRIMA INDUSTRI PO-8842,24500000,DB\n2026-08-25,BIAYA ADM REK & PAJAK BUNGA BCA,250000,DB\n2026-08-26,TRSF CR DR APARTEMEN EMERALD TOWER - DP POLES KACA,12500000,CR\n2026-08-27,TARIK TUNAI ATM OPERASIONAL SPV,10950000,DB`
-      );
-    } else {
-      setUploadBankName('Bank Mandiri (Persero)');
-      setUploadAccountNo('987-654-3210');
-      setRawPastedText(
-        `2026-08-08,TRSF CR RS MEDIKA UTAMA TERMIN 1,148000000,CR\n2026-08-15,BATCH PAYROLL DISBURSEMENT CLEANERS AUG,92500000,DB\n2026-08-20,BIAYA KARTU KREDIT CORPORATE OPERASIONAL,3200000,DB\n2026-08-22,BUNGA GIRO BULAN AGUSTUS,1450000,CR`
-      );
-    }
   };
 
   return (
@@ -785,121 +735,16 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* MODAL: UPLOAD REKENING KORAN */}
+      {/* MODAL: UPLOAD REKENING KORAN & PARSER */}
       {/* ------------------------------------------------------------- */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-xl w-full space-y-4 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  <UploadCloud className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-base">Import & Parsing Rekening Koran</h3>
-                  <p className="text-xs text-slate-400">
-                    Upload file CSV / Excel atau tempel teks mutasi e-Banking
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsUploadModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg bg-slate-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleProcessImport} className="space-y-3.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Nama Bank *</label>
-                  <select
-                    value={uploadBankName}
-                    onChange={(e) => setUploadBankName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="BCA (Bank Central Asia)">BCA (Bank Central Asia)</option>
-                    <option value="Bank Mandiri (Persero)">Bank Mandiri (Persero)</option>
-                    <option value="Bank BNI">Bank BNI</option>
-                    <option value="Bank BRI">Bank BRI</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                    No Rekening Bank *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={uploadAccountNo}
-                    onChange={(e) => setUploadAccountNo(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[11px] font-bold text-slate-300">
-                    Format Data Mutasi (CSV / TXT / Paste Text) *
-                  </label>
-                  <div className="space-x-1.5">
-                    <button
-                      type="button"
-                      onClick={() => loadPresetStatement('BCA')}
-                      className="text-[10px] text-blue-400 hover:underline"
-                    >
-                      Contoh BCA
-                    </button>
-                    <span className="text-slate-600">|</span>
-                    <button
-                      type="button"
-                      onClick={() => loadPresetStatement('MANDIRI')}
-                      className="text-[10px] text-blue-400 hover:underline"
-                    >
-                      Contoh Mandiri
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  rows={6}
-                  required
-                  placeholder={`Contoh format (Tanggal, Keterangan, Nominal, DB/CR):\n2026-08-05, TRSF CR DR PT PAKUWON JATI - INV MGC, 115000000, CR\n2026-08-18, TRSF DB KE PT CHEMCO PRIMA, 24500000, DB`}
-                  value={rawPastedText}
-                  onChange={(e) => setRawPastedText(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-blue-500 leading-relaxed"
-                />
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
-                <div className="font-bold text-slate-300">💡 Fitur Pembaca Cerdas:</div>
-                <p>
-                  Sistem akan otomatis mendeteksi kolom tanggal, nama mutasi, nominal angka, dan arah uang
-                  (Debit/Kredit) lalu mencocokkannya ke database transaksi.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsUploadModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-900/40 cursor-pointer"
-                >
-                  Proses & Parsing Rekening Koran
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <BankStatementUploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        transactions={transactions}
+        currentUser={currentUser}
+        onImportSuccess={handleImportSuccess}
+        onLogAudit={onLogAudit}
+      />
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL: QUICK CONVERT UNMATCHED ITEM TO NEW TRANSACTION */}

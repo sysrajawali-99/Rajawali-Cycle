@@ -34,8 +34,6 @@ export const TaskDownloadReportModal: React.FC<TaskDownloadReportModalProps> = (
   initialProjectId = 'ALL',
   initialTask = null
 }) => {
-  if (!isOpen) return null;
-
   // Filter States
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId);
   const [selectedShift, setSelectedShift] = useState<string>('ALL');
@@ -88,6 +86,8 @@ export const TaskDownloadReportModal: React.FC<TaskDownloadReportModalProps> = (
   const handlePrint = () => {
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
