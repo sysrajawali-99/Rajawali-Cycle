@@ -19,7 +19,9 @@ import {
   Lock,
   LogOut,
   Briefcase,
-  Layers
+  Layers,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { AppView, Project, UserAccount } from '../../types';
 
@@ -35,6 +37,8 @@ interface MobileBottomNavProps {
   lowStockCount?: number;
   activeTasksCount?: number;
   unreadBlastCount?: number;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -48,7 +52,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onResetData,
   lowStockCount = 0,
   activeTasksCount = 0,
-  unreadBlastCount = 0
+  unreadBlastCount = 0,
+  theme = 'dark',
+  onToggleTheme
 }) => {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isHrmSheetOpen, setIsHrmSheetOpen] = useState(true);
@@ -616,6 +622,28 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Logout and Reset Action */}
             <div className="pt-2 border-t border-slate-800 space-y-2">
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleTheme();
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-xs rounded-xl border border-slate-800 cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    {theme === 'dark' ? (
+                      <Sun className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-amber-700" />
+                    )}
+                    <span>Pilihan Tema: {theme === 'dark' ? 'Mode Gelap' : 'Mode Terang'}</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-amber-400 font-mono">
+                    {theme === 'dark' ? '☀️ Ganti Terang' : '🌙 Ganti Gelap'}
+                  </span>
+                </button>
+              )}
+
               {onLogout && (
                 <button
                   id="mobile-sheet-logout-btn"

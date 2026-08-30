@@ -9,7 +9,9 @@ import {
   ArrowRight,
   KeyRound,
   Building2,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { UserAccount, CompanyProfile } from '../../types';
 
@@ -17,12 +19,16 @@ interface LoginPageProps {
   users: UserAccount[];
   onLoginSuccess: (user: UserAccount) => void;
   companyProfile?: CompanyProfile;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   users,
   onLoginSuccess,
-  companyProfile
+  companyProfile,
+  theme = 'dark',
+  onToggleTheme
 }) => {
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
@@ -79,6 +85,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden selection:bg-amber-500 selection:text-slate-950">
+      {/* Theme Toggle Button top right */}
+      {onToggleTheme && (
+        <div className="absolute top-4 right-4 z-20">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center space-x-2 text-xs font-semibold ${
+              theme === 'dark'
+                ? 'bg-slate-900 hover:bg-slate-800 text-amber-400 border-slate-700'
+                : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
+            }`}
+            title={theme === 'dark' ? 'Ganti ke Tema Terang' : 'Ganti ke Tema Gelap'}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline">Mode Terang</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-amber-700" />
+                <span className="hidden sm:inline">Mode Gelap</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Subtle architectural ambient lights */}
       <div className="absolute top-1/4 -left-32 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
