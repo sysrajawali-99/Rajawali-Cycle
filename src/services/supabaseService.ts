@@ -1,5 +1,5 @@
 import { supabase, testSupabaseConnection } from '../utils/supabase';
-import { storageService } from './storageService';
+import { storageService, registerStorageMiddleware, StorageActionType } from './storageService';
 import {
   Project,
   Employee,
@@ -196,14 +196,372 @@ CREATE POLICY "Allow all public finance_transactions" ON public.finance_transact
 CREATE POLICY "Allow all public app_sync_store" ON public.app_sync_store FOR ALL USING (true) WITH CHECK (true);
 `;
 
+export type SupabaseSyncState = 'idle' | 'syncing' | 'synced' | 'error';
+
+export interface SupabaseSyncEventDetail {
+  state: SupabaseSyncState;
+  moduleKey?: string;
+  message?: string;
+  timestamp: string;
+}
+
+const AUTO_SYNC_KEY = 'rajawali_supabase_auto_sync_enabled';
+const LAST_SYNC_KEY = 'rajawali_supabase_last_synced_at';
+
+let currentSyncState: SupabaseSyncState = 'idle';
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSyncKeys = new Set<string>();
+
 export const supabaseService = {
   testConnection: testSupabaseConnection,
+
+  isAutoSyncEnabled(): boolean {
+    const raw = localStorage.getItem(AUTO_SYNC_KEY);
+    // Default to true for seamless real-time cloud backup on every post
+    return raw === null ? true : raw === 'true';
+  },
+
+  setAutoSyncEnabled(enabled: boolean) {
+    localStorage.setItem(AUTO_SYNC_KEY, enabled ? 'true' : 'false');
+    this.broadcastSyncStatus(currentSyncState, 'Semua Modul', enabled ? 'Auto-sync Supabase diaktifkan' : 'Auto-sync Supabase dinonaktifkan');
+  },
+
+  getLastSyncTime(): string | null {
+    return localStorage.getItem(LAST_SYNC_KEY);
+  },
+
+  getSyncState(): SupabaseSyncState {
+    return currentSyncState;
+  },
+
+  broadcastSyncStatus(state: SupabaseSyncState, moduleKey?: string, message?: string) {
+    currentSyncState = state;
+    const now = new Date().toLocaleTimeString('id-ID');
+    if (state === 'synced') {
+      localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+    }
+    try {
+      const event = new CustomEvent<SupabaseSyncEventDetail>('supabase_sync_status', {
+        detail: {
+          state,
+          moduleKey,
+          message,
+          timestamp: now
+        }
+      });
+      window.dispatchEvent(event);
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * Automatically triggered when any data is modified / posted.
+   * Batches modifications with a 500ms debounce to prevent request spamming.
+   */
+  notifyDataChanged(moduleKey: string, data?: any) {
+    if (!this.isAutoSyncEnabled()) return;
+
+    pendingSyncKeys.add(moduleKey);
+    this.broadcastSyncStatus('syncing', moduleKey, `Menyinkronkan posting ${moduleKey} ke Supabase...`);
+
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    debounceTimer = setTimeout(async () => {
+      const keysToSync = Array.from(pendingSyncKeys);
+      pendingSyncKeys.clear();
+      await this.syncSpecificModules(keysToSync);
+    }, 600);
+  },
+
+  /**
+   * Sync specific modules to Supabase JSON store and relational tables
+   */
+  async syncSpecificModules(moduleKeys: string[]): Promise<boolean> {
+    try {
+      this.broadcastSyncStatus('syncing', moduleKeys.join(', '), 'Mengunggah update data ke Supabase Cloud...');
+
+      const syncItems: { key: string; data: any; updated_at: string }[] = [];
+
+      for (const key of moduleKeys) {
+        let moduleData: any = null;
+        switch (key) {
+          case 'projects':
+            moduleData = storageService.getProjects();
+            break;
+          case 'employees':
+            moduleData = storageService.getEmployees();
+            break;
+          case 'tasks':
+            moduleData = storageService.getTasks();
+            break;
+          case 'inventory_items':
+            moduleData = storageService.getInventoryItems();
+            break;
+          case 'project_stocks':
+            moduleData = storageService.getProjectStocks();
+            break;
+          case 'inventory_logs':
+            moduleData = storageService.getInventoryLogs();
+            break;
+          case 'debts':
+            moduleData = storageService.getDebts();
+            break;
+          case 'receivables':
+            moduleData = storageService.getReceivables();
+            break;
+          case 'finance_transactions':
+            moduleData = storageService.getFinanceTransactions();
+            break;
+          case 'timesheets':
+            moduleData = storageService.getTimesheets();
+            break;
+          case 'company_profile':
+            moduleData = storageService.getCompanyProfile();
+            break;
+          case 'users':
+            moduleData = storageService.getUsers();
+            break;
+          case 'chart_of_accounts':
+            moduleData = storageService.getChartOfAccounts();
+            break;
+          case 'bank_statements':
+            moduleData = storageService.getBankStatements();
+            break;
+          case 'period_closings':
+            moduleData = storageService.getPeriodClosings();
+            break;
+          case 'audit_trails':
+            moduleData = storageService.getAuditTrails();
+            break;
+          case 'investments':
+            moduleData = storageService.getInvestments();
+            break;
+        }
+
+        if (moduleData !== null) {
+          syncItems.push({
+            key,
+            data: moduleData,
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+
+      if (syncItems.length === 0) {
+        this.broadcastSyncStatus('synced', undefined, 'Data sudah up-to-date');
+        return true;
+      }
+
+      // 1. Upsert into universal app_sync_store JSON document repository
+      const { error: storeError } = await supabase.from('app_sync_store').upsert(syncItems, { onConflict: 'key' });
+
+      if (storeError) {
+        console.warn('Supabase app_sync_store sync warning:', storeError.message);
+        this.broadcastSyncStatus('error', moduleKeys.join(', '), `Gagal auto-backup: ${storeError.message}`);
+        return false;
+      }
+
+      // 2. Parallel Relational Table Upserts for structured queries
+      for (const key of moduleKeys) {
+        try {
+          if (key === 'projects') {
+            const projects = storageService.getProjects();
+            if (projects.length > 0) {
+              const rows = projects.map((p) => ({
+                id: p.id,
+                code: p.code,
+                name: p.name,
+                location: p.address,
+                client_name: p.clientName || '',
+                target_work_hours: p.operationalHours ? 8 : 8,
+                budget: 0,
+                created_at: p.updatedAt || new Date().toISOString()
+              }));
+              await supabase.from('projects').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'debts') {
+            const debts = storageService.getDebts();
+            if (debts.length > 0) {
+              const rows = debts.map((d) => ({
+                id: d.id,
+                code: d.code,
+                creditor_name: d.creditorName,
+                contact_person: d.contactPerson || '',
+                phone: d.phone || '',
+                invoice_number: d.invoiceNumber || '',
+                issue_date: d.issueDate,
+                due_date: d.dueDate,
+                total_amount: d.totalAmount,
+                paid_amount: d.paidAmount,
+                remaining_amount: d.remainingAmount,
+                status: d.status,
+                project_id: d.projectId || '',
+                project_name: d.projectName || '',
+                account_code: d.accountCode || '',
+                category: d.category || '',
+                notes: d.notes || '',
+                created_at: d.createdAt || new Date().toISOString()
+              }));
+              await supabase.from('debts').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'receivables') {
+            const receivables = storageService.getReceivables();
+            if (receivables.length > 0) {
+              const rows = receivables.map((r) => ({
+                id: r.id,
+                code: r.code,
+                customer_name: r.customerName,
+                contact_person: r.contactPerson || '',
+                phone: r.phone || '',
+                invoice_number: r.invoiceNumber || '',
+                issue_date: r.issueDate,
+                due_date: r.dueDate,
+                term_of_payment: r.termOfPayment || '',
+                total_amount: r.totalAmount,
+                paid_amount: r.paidAmount,
+                remaining_amount: r.remainingAmount,
+                status: r.status,
+                project_id: r.projectId || '',
+                project_name: r.projectName || '',
+                account_code: r.accountCode || '',
+                notes: r.notes || '',
+                created_at: r.createdAt || new Date().toISOString()
+              }));
+              await supabase.from('receivables').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'finance_transactions') {
+            const txs = storageService.getFinanceTransactions();
+            if (txs.length > 0) {
+              const rows = txs.map((t) => ({
+                id: t.id,
+                code: t.code,
+                date: t.date,
+                type: t.type,
+                title: t.title,
+                description: t.description || '',
+                amount: t.amount,
+                payment_method: t.paymentMethod,
+                primary_account_code: t.primaryAccountCode,
+                contra_account_code: t.contraAccountCode,
+                project_id: t.projectId || '',
+                project_name: t.projectName || '',
+                division: t.division || '',
+                payee_or_payer: t.payeeOrPayer || '',
+                reference_number: t.referenceNumber || '',
+                created_by: t.createdBy || '',
+                created_at: t.createdAt || new Date().toISOString()
+              }));
+              await supabase.from('finance_transactions').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'employees') {
+            const emps = storageService.getEmployees();
+            if (emps.length > 0) {
+              const rows = emps.map((e) => ({
+                id: e.id,
+                nik: e.nik,
+                name: e.name,
+                role: e.position,
+                division: 'Operasional',
+                project_id: e.projectId,
+                status: e.status,
+                phone: e.phone,
+                join_date: e.joinDate,
+                bank_name: e.bankName,
+                bank_account: e.bankAccount,
+                basic_salary: e.dailyRate * 25,
+                created_at: new Date().toISOString()
+              }));
+              await supabase.from('employees').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'tasks') {
+            const tasks = storageService.getTasks();
+            if (tasks.length > 0) {
+              const rows = tasks.map((t) => ({
+                id: t.id,
+                code: t.id,
+                title: t.areaName,
+                description: t.notes || '',
+                project_id: t.projectId,
+                area: t.areaName,
+                priority: t.priority,
+                status: t.status,
+                assignee_id: t.assignedEmployees?.[0] || '',
+                assignee_name: t.assignedLeaderName || '',
+                due_date: t.targetCompletionTime || '',
+                created_at: t.createdAt || new Date().toISOString()
+              }));
+              await supabase.from('tasks').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'inventory_items') {
+            const items = storageService.getInventoryItems();
+            if (items.length > 0) {
+              const rows = items.map((i) => ({
+                id: i.id,
+                code: i.code,
+                name: i.name,
+                category: i.category,
+                unit: i.unit,
+                min_stock: i.minStock,
+                unit_price: i.unitPrice,
+                created_at: new Date().toISOString()
+              }));
+              await supabase.from('inventory_items').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'project_stocks') {
+            const stocks = storageService.getProjectStocks();
+            if (stocks.length > 0) {
+              const rows = stocks.map((s) => ({
+                id: s.id,
+                item_id: s.itemId,
+                project_id: s.projectId,
+                current_stock: s.currentStock,
+                min_stock: 0,
+                created_at: s.lastUpdated || new Date().toISOString()
+              }));
+              await supabase.from('project_stocks').upsert(rows, { onConflict: 'id' });
+            }
+          } else if (key === 'inventory_logs') {
+            const logs = storageService.getInventoryLogs();
+            if (logs.length > 0) {
+              const rows = logs.map((l) => ({
+                id: l.id,
+                item_id: l.itemId,
+                item_name: '',
+                project_id: l.projectId,
+                project_name: '',
+                type: l.type,
+                quantity: l.quantity,
+                pic: l.pic,
+                notes: l.notes,
+                timestamp: l.date || new Date().toISOString()
+              }));
+              await supabase.from('inventory_logs').upsert(rows, { onConflict: 'id' });
+            }
+          }
+        } catch (relError) {
+          // Relational upsert is secondary to app_sync_store, log warning if table structure not yet initialized
+          console.debug(`Relational upsert notice for ${key}:`, relError);
+        }
+      }
+
+      this.broadcastSyncStatus('synced', moduleKeys.join(', '), 'Posting berhasil diperbarui & di-upsert ke Supabase Cloud!');
+      return true;
+    } catch (err: any) {
+      console.error('Supabase auto-sync error:', err);
+      this.broadcastSyncStatus('error', moduleKeys.join(', '), err?.message || 'Koneksi Supabase terputus');
+      return false;
+    }
+  },
 
   /**
    * Push all current data to Supabase (Universal JSON & Table store)
    */
   async pushAllDataToSupabase(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
+      this.broadcastSyncStatus('syncing', 'Semua Data', 'Mengunggah seluruh data ke Supabase Cloud...');
       const projects = storageService.getProjects();
       const employees = storageService.getEmployees();
       const tasks = storageService.getTasks();
@@ -215,6 +573,12 @@ export const supabaseService = {
       const financeTransactions = storageService.getFinanceTransactions();
       const timesheets = storageService.getTimesheets();
       const companyProfile = storageService.getCompanyProfile();
+      const users = storageService.getUsers();
+      const chartOfAccounts = storageService.getChartOfAccounts();
+      const bankStatements = storageService.getBankStatements();
+      const periodClosings = storageService.getPeriodClosings();
+      const auditTrails = storageService.getAuditTrails();
+      const investments = storageService.getInvestments();
 
       // 1. Simpan ke snapshot JSON di app_sync_store
       const syncItems = [
@@ -228,17 +592,23 @@ export const supabaseService = {
         { key: 'receivables', data: receivables, updated_at: new Date().toISOString() },
         { key: 'finance_transactions', data: financeTransactions, updated_at: new Date().toISOString() },
         { key: 'timesheets', data: timesheets, updated_at: new Date().toISOString() },
-        { key: 'company_profile', data: companyProfile, updated_at: new Date().toISOString() }
+        { key: 'company_profile', data: companyProfile, updated_at: new Date().toISOString() },
+        { key: 'users', data: users, updated_at: new Date().toISOString() },
+        { key: 'chart_of_accounts', data: chartOfAccounts, updated_at: new Date().toISOString() },
+        { key: 'bank_statements', data: bankStatements, updated_at: new Date().toISOString() },
+        { key: 'period_closings', data: periodClosings, updated_at: new Date().toISOString() },
+        { key: 'audit_trails', data: auditTrails, updated_at: new Date().toISOString() },
+        { key: 'investments', data: investments, updated_at: new Date().toISOString() }
       ];
 
       const { error: storeError } = await supabase.from('app_sync_store').upsert(syncItems, { onConflict: 'key' });
 
       if (storeError) {
-        // If app_sync_store doesn't exist yet, guide user
+        this.broadcastSyncStatus('error', 'Semua Data', storeError.message);
         if (storeError.code === '42P01') {
           return {
             success: false,
-            message: 'Tabel Supabase belum dibuat. Silakan salin skema SQL dan jalankan di Supabase SQL Editor.',
+            message: 'Tabel Supabase belum dibuat. Silakan salin skema SQL di tab "Skema Database SQL" dan jalankan di Supabase SQL Editor.',
             details: storeError
           };
         }
@@ -249,11 +619,13 @@ export const supabaseService = {
         };
       }
 
+      this.broadcastSyncStatus('synced', 'Semua Data', 'Sinkronisasi selesai');
       return {
         success: true,
-        message: `Berhasil sinkronisasi seluruh data (${projects.length} Proyek, ${employees.length} Karyawan, ${debts.length} Hutang, ${receivables.length} Piutang, ${financeTransactions.length} Transaksi) ke Supabase!`
+        message: `Berhasil sinkronisasi seluruh data (${projects.length} Proyek, ${employees.length} Karyawan, ${debts.length} Hutang, ${receivables.length} Piutang, ${financeTransactions.length} Transaksi) ke Supabase Cloud!`
       };
     } catch (err: any) {
+      this.broadcastSyncStatus('error', 'Semua Data', err?.message);
       return {
         success: false,
         message: `Error saat menghubungkan ke Supabase: ${err?.message || 'Koneksi terputus'}`,
@@ -330,6 +702,30 @@ export const supabaseService = {
             storageService.saveCompanyProfile(item.data);
             restoredCount++;
             break;
+          case 'users':
+            storageService.saveUsers(item.data);
+            restoredCount++;
+            break;
+          case 'chart_of_accounts':
+            storageService.saveChartOfAccounts(item.data);
+            restoredCount++;
+            break;
+          case 'bank_statements':
+            storageService.saveBankStatements(item.data);
+            restoredCount++;
+            break;
+          case 'period_closings':
+            storageService.savePeriodClosings(item.data);
+            restoredCount++;
+            break;
+          case 'audit_trails':
+            storageService.saveAuditTrails(item.data);
+            restoredCount++;
+            break;
+          case 'investments':
+            storageService.saveInvestments(item.data);
+            restoredCount++;
+            break;
         }
       });
 
@@ -346,3 +742,13 @@ export const supabaseService = {
     }
   }
 };
+
+// =============================================================================
+// STORAGE MIDDLEWARE REGISTRATION
+// =============================================================================
+// Intercepts every data modification across the app and automatically triggers
+// real-time cloud upserts to Supabase without manual intervention.
+registerStorageMiddleware(async (context) => {
+  supabaseService.notifyDataChanged(context.key, context.data);
+});
+

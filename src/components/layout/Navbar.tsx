@@ -50,16 +50,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
+  const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<{ state: string; moduleKey?: string }>({
+    state: 'idle'
+  });
 
   useEffect(() => {
     const handleProfileUpdate = () => {
       setCompanyProfile(storageService.getCompanyProfile());
     };
+    const handleSyncStatus = (e: any) => {
+      if (e.detail) {
+        setSupabaseSyncStatus({
+          state: e.detail.state,
+          moduleKey: e.detail.moduleKey
+        });
+      }
+    };
+
     window.addEventListener('company_profile_updated', handleProfileUpdate);
     window.addEventListener('storage', handleProfileUpdate);
+    window.addEventListener('supabase_sync_status', handleSyncStatus as EventListener);
     return () => {
       window.removeEventListener('company_profile_updated', handleProfileUpdate);
       window.removeEventListener('storage', handleProfileUpdate);
+      window.removeEventListener('supabase_sync_status', handleSyncStatus as EventListener);
     };
   }, []);
 
@@ -171,11 +185,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="navbar-supabase-sync-btn"
                 type="button"
                 onClick={onOpenSupabaseSync}
-                className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/40 shadow-sm transition-all cursor-pointer group"
-                title="Integrasi & Sinkronkan Database Supabase"
+                className="relative flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/40 shadow-sm transition-all cursor-pointer group"
+                title={
+                  supabaseSyncStatus.state === 'syncing'
+                    ? `Sedang Auto-Backup ${supabaseSyncStatus.moduleKey || 'Data'} ke Supabase...`
+                    : 'Supabase Cloud DB (Auto-Backup Real-time Aktif)'
+                }
               >
-                <Database className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                <div className="relative">
+                  <Database className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span
+                    className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${
+                      supabaseSyncStatus.state === 'syncing'
+                        ? 'bg-cyan-400 animate-ping'
+                        : supabaseSyncStatus.state === 'error'
+                        ? 'bg-rose-500'
+                        : 'bg-emerald-400'
+                    }`}
+                  />
+                </div>
                 <span className="hidden md:inline">Supabase DB</span>
+                {supabaseSyncStatus.state === 'syncing' && (
+                  <span className="hidden lg:inline text-[10px] text-cyan-300 animate-pulse font-mono font-normal">
+                    Syncing...
+                  </span>
+                )}
               </button>
             )}
 

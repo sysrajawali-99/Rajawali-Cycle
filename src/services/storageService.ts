@@ -74,6 +74,98 @@ const STORAGE_KEYS = {
   INVESTMENTS: 'rajawali_finance_investments'
 };
 
+// =============================================================================
+// STORAGE MIDDLEWARE & CLOUD AUTO-SYNC PIPELINE
+// =============================================================================
+export type StorageActionType =
+  | 'projects'
+  | 'debts'
+  | 'receivables'
+  | 'finance_transactions'
+  | 'employees'
+  | 'timesheets'
+  | 'mutations'
+  | 'inventory_items'
+  | 'project_stocks'
+  | 'inventory_logs'
+  | 'tasks'
+  | 'blasts'
+  | 'sops'
+  | 'users'
+  | 'company_profile'
+  | 'chart_of_accounts'
+  | 'bank_statements'
+  | 'period_closings'
+  | 'audit_trails'
+  | 'currency_rates'
+  | 'investments';
+
+export interface StorageMiddlewareContext<T = any> {
+  key: StorageActionType;
+  storageKey: string;
+  data: T;
+  timestamp: string;
+  source?: 'user_action' | 'system_sync' | 'reset';
+}
+
+export type StorageMiddleware = (context: StorageMiddlewareContext) => void | Promise<void>;
+
+const storageMiddlewares: StorageMiddleware[] = [];
+
+/**
+ * Register a storage middleware that intercepts and acts on every state update
+ * (e.g. Supabase Real-time Cloud Upsert, Activity Logging, Google Drive Backup).
+ */
+export function registerStorageMiddleware(middleware: StorageMiddleware) {
+  storageMiddlewares.push(middleware);
+}
+
+// Backward compatibility alias
+export function registerDataChangeListener(listener: (key: string, data: any) => void) {
+  registerStorageMiddleware((ctx) => listener(ctx.key, ctx.data));
+}
+
+/**
+ * Core update wrapper: Persists to local storage instantly with zero latency,
+ * dispatches optional DOM events, and runs all registered storage middlewares
+ * (such as automatic Supabase upsert) without requiring manual sync triggers.
+ */
+function applyStorageUpdate<T>(
+  actionKey: StorageActionType,
+  storageKey: string,
+  data: T,
+  customEventName?: string
+): void {
+  // 1. Instant local persistence
+  localStorage.setItem(storageKey, JSON.stringify(data));
+
+  // 2. Dispatch custom DOM event if requested
+  if (customEventName) {
+    try {
+      window.dispatchEvent(new Event(customEventName));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Execute middleware pipeline (Supabase Auto Upsert, Audit, etc.)
+  const context: StorageMiddlewareContext<T> = {
+    key: actionKey,
+    storageKey,
+    data,
+    timestamp: new Date().toISOString(),
+    source: 'user_action'
+  };
+
+  storageMiddlewares.forEach((middleware) => {
+    try {
+      middleware(context);
+    } catch (err) {
+      console.warn(`[StorageMiddleware Error] on ${actionKey}:`, err);
+    }
+  });
+}
+
 export const storageService = {
   getCompanyProfile(): CompanyProfile {
     const raw = localStorage.getItem(STORAGE_KEYS.COMPANY_PROFILE);
@@ -90,12 +182,7 @@ export const storageService = {
   },
 
   saveCompanyProfile(data: CompanyProfile) {
-    localStorage.setItem(STORAGE_KEYS.COMPANY_PROFILE, JSON.stringify(data));
-    try {
-      window.dispatchEvent(new Event('company_profile_updated'));
-    } catch {
-      // ignore
-    }
+    applyStorageUpdate('company_profile', STORAGE_KEYS.COMPANY_PROFILE, data, 'company_profile_updated');
   },
 
   getProjects(): Project[] {
@@ -113,7 +200,7 @@ export const storageService = {
   },
 
   saveProjects(data: Project[]) {
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(data));
+    applyStorageUpdate('projects', STORAGE_KEYS.PROJECTS, data);
   },
 
   getEmployees(): Employee[] {
@@ -131,7 +218,7 @@ export const storageService = {
   },
 
   saveEmployees(data: Employee[]) {
-    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(data));
+    applyStorageUpdate('employees', STORAGE_KEYS.EMPLOYEES, data);
   },
 
   getTimesheets(): TimesheetMonthRecord[] {
@@ -151,7 +238,7 @@ export const storageService = {
   },
 
   saveTimesheets(data: TimesheetMonthRecord[]) {
-    localStorage.setItem(STORAGE_KEYS.TIMESHEETS, JSON.stringify(data));
+    applyStorageUpdate('timesheets', STORAGE_KEYS.TIMESHEETS, data);
   },
 
   getMutations(): MutationHistory[] {
@@ -169,7 +256,7 @@ export const storageService = {
   },
 
   saveMutations(data: MutationHistory[]) {
-    localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(data));
+    applyStorageUpdate('mutations', STORAGE_KEYS.MUTATIONS, data);
   },
 
   getInventoryItems(): InventoryItem[] {
@@ -187,7 +274,7 @@ export const storageService = {
   },
 
   saveInventoryItems(data: InventoryItem[]) {
-    localStorage.setItem(STORAGE_KEYS.INVENTORY_ITEMS, JSON.stringify(data));
+    applyStorageUpdate('inventory_items', STORAGE_KEYS.INVENTORY_ITEMS, data);
   },
 
   getProjectStocks(): ProjectStock[] {
@@ -205,7 +292,7 @@ export const storageService = {
   },
 
   saveProjectStocks(data: ProjectStock[]) {
-    localStorage.setItem(STORAGE_KEYS.PROJECT_STOCKS, JSON.stringify(data));
+    applyStorageUpdate('project_stocks', STORAGE_KEYS.PROJECT_STOCKS, data);
   },
 
   getInventoryLogs(): InventoryLog[] {
@@ -223,7 +310,7 @@ export const storageService = {
   },
 
   saveInventoryLogs(data: InventoryLog[]) {
-    localStorage.setItem(STORAGE_KEYS.INVENTORY_LOGS, JSON.stringify(data));
+    applyStorageUpdate('inventory_logs', STORAGE_KEYS.INVENTORY_LOGS, data);
   },
 
   getTasks(): CleaningTask[] {
@@ -241,7 +328,7 @@ export const storageService = {
   },
 
   saveTasks(data: CleaningTask[]) {
-    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(data));
+    applyStorageUpdate('tasks', STORAGE_KEYS.TASKS, data);
   },
 
   getBlasts(): BlastAnnouncement[] {
@@ -259,7 +346,7 @@ export const storageService = {
   },
 
   saveBlasts(data: BlastAnnouncement[]) {
-    localStorage.setItem(STORAGE_KEYS.BLASTS, JSON.stringify(data));
+    applyStorageUpdate('blasts', STORAGE_KEYS.BLASTS, data);
   },
 
   getSops(): SopDocument[] {
@@ -277,7 +364,7 @@ export const storageService = {
   },
 
   saveSops(data: SopDocument[]) {
-    localStorage.setItem(STORAGE_KEYS.SOPS, JSON.stringify(data));
+    applyStorageUpdate('sops', STORAGE_KEYS.SOPS, data);
   },
 
   getUsers(): UserAccount[] {
@@ -298,7 +385,7 @@ export const storageService = {
   },
 
   saveUsers(data: UserAccount[]) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data));
+    applyStorageUpdate('users', STORAGE_KEYS.USERS, data);
   },
 
   getActiveUser(): UserAccount | null {
@@ -343,7 +430,7 @@ export const storageService = {
   },
 
   saveChartOfAccounts(data: ChartOfAccount[]) {
-    localStorage.setItem(STORAGE_KEYS.CHART_OF_ACCOUNTS, JSON.stringify(data));
+    applyStorageUpdate('chart_of_accounts', STORAGE_KEYS.CHART_OF_ACCOUNTS, data);
   },
 
   getFinanceTransactions(): FinanceTransaction[] {
@@ -361,7 +448,7 @@ export const storageService = {
   },
 
   saveFinanceTransactions(data: FinanceTransaction[]) {
-    localStorage.setItem(STORAGE_KEYS.FINANCE_TRANSACTIONS, JSON.stringify(data));
+    applyStorageUpdate('finance_transactions', STORAGE_KEYS.FINANCE_TRANSACTIONS, data);
   },
 
   getBankStatements(): BankStatementImport[] {
@@ -379,7 +466,7 @@ export const storageService = {
   },
 
   saveBankStatements(data: BankStatementImport[]) {
-    localStorage.setItem(STORAGE_KEYS.BANK_STATEMENTS, JSON.stringify(data));
+    applyStorageUpdate('bank_statements', STORAGE_KEYS.BANK_STATEMENTS, data);
   },
 
   getPeriodClosings(): PeriodClosing[] {
@@ -397,7 +484,7 @@ export const storageService = {
   },
 
   savePeriodClosings(data: PeriodClosing[]) {
-    localStorage.setItem(STORAGE_KEYS.PERIOD_CLOSINGS, JSON.stringify(data));
+    applyStorageUpdate('period_closings', STORAGE_KEYS.PERIOD_CLOSINGS, data);
   },
 
   getAuditTrails(): AuditTrailItem[] {
@@ -415,7 +502,7 @@ export const storageService = {
   },
 
   saveAuditTrails(data: AuditTrailItem[]) {
-    localStorage.setItem(STORAGE_KEYS.AUDIT_TRAILS, JSON.stringify(data));
+    applyStorageUpdate('audit_trails', STORAGE_KEYS.AUDIT_TRAILS, data);
   },
 
   getCurrencyRates(): CurrencyRate[] {
@@ -433,7 +520,7 @@ export const storageService = {
   },
 
   saveCurrencyRates(data: CurrencyRate[]) {
-    localStorage.setItem(STORAGE_KEYS.CURRENCY_RATES, JSON.stringify(data));
+    applyStorageUpdate('currency_rates', STORAGE_KEYS.CURRENCY_RATES, data);
   },
 
   // -------------------------------------------------------------------------
@@ -454,7 +541,7 @@ export const storageService = {
   },
 
   saveDebts(data: DebtRecord[]) {
-    localStorage.setItem(STORAGE_KEYS.DEBTS, JSON.stringify(data));
+    applyStorageUpdate('debts', STORAGE_KEYS.DEBTS, data);
   },
 
   // -------------------------------------------------------------------------
@@ -475,7 +562,7 @@ export const storageService = {
   },
 
   saveReceivables(data: ReceivableRecord[]) {
-    localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify(data));
+    applyStorageUpdate('receivables', STORAGE_KEYS.RECEIVABLES, data);
   },
 
   // -------------------------------------------------------------------------
@@ -496,7 +583,7 @@ export const storageService = {
   },
 
   saveInvestments(data: InvestmentRecord[]) {
-    localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(data));
+    applyStorageUpdate('investments', STORAGE_KEYS.INVESTMENTS, data);
   },
 
   // -------------------------------------------------------------------------

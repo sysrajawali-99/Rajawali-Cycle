@@ -33,6 +33,10 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   const [isTesting, setIsTesting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [isAutoSync, setIsAutoSync] = useState(supabaseService.isAutoSyncEnabled());
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(supabaseService.getLastSyncTime());
+  const [liveSyncState, setLiveSyncState] = useState<string>(supabaseService.getSyncState());
+  const [lastSyncedModule, setLastSyncedModule] = useState<string>('');
   const [connectionStatus, setConnectionStatus] = useState<{
     tested: boolean;
     ok: boolean;
@@ -49,8 +53,39 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       handleTestConnection();
+      setIsAutoSync(supabaseService.isAutoSyncEnabled());
+      setLastSyncTime(supabaseService.getLastSyncTime());
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleSyncStatus = (e: any) => {
+      if (e.detail) {
+        setLiveSyncState(e.detail.state);
+        if (e.detail.moduleKey) {
+          setLastSyncedModule(e.detail.moduleKey);
+        }
+        if (e.detail.state === 'synced') {
+          setLastSyncTime(new Date().toISOString());
+        }
+      }
+    };
+
+    window.addEventListener('supabase_sync_status', handleSyncStatus as EventListener);
+    return () => window.removeEventListener('supabase_sync_status', handleSyncStatus as EventListener);
+  }, []);
+
+  const toggleAutoSync = () => {
+    const nextState = !isAutoSync;
+    supabaseService.setAutoSyncEnabled(nextState);
+    setIsAutoSync(nextState);
+    setStatusMessage({
+      type: 'success',
+      text: nextState
+        ? '⚡ Auto-Backup Realtime DIAKTIFKAN: Setiap penambahan atau perubahan data akan langsung terupdate ke database Supabase.'
+        : 'Auto-Backup Realtime DINONAKTIFKAN: Anda dapat melakukan sinkronisasi secara manual.'
+    });
+  };
 
   const handleTestConnection = async () => {
     setIsTesting(true);
@@ -262,6 +297,83 @@ supabase
 
           {activeTab === 'STATUS' && (
             <div className="space-y-6">
+              {/* Real-time Auto Backup Toggle Card */}
+              <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-cyan-950/30 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5 max-w-xl">
+                    <div className="flex items-center space-x-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-black text-white">Auto-Backup Cloud Realtime (Setiap Posting)</h4>
+                      <span
+                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          isAutoSync
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {isAutoSync ? '● Aktif' : '○ Nonaktif'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {isAutoSync
+                        ? 'Setiap kali Anda menambah, mengubah, atau memposting data proyek, karyawan, transaksi kas, hutang, piutang, task QC, atau inventori, sistem langsung mengunggah perubahannya secara instan ke cloud Supabase di latar belakang.'
+                        : 'Auto-sync dimatikan. Data hanya disimpan di memori lokal browser Anda sampai Anda menekan tombol sinkronisasi manual.'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={toggleAutoSync}
+                      className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg active:scale-95 ${
+                        isAutoSync
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40 border border-emerald-400/50'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${isAutoSync ? 'text-amber-300 fill-amber-300' : 'text-slate-400'}`} />
+                      <span>{isAutoSync ? 'Auto-Backup Aktif' : 'Aktifkan Auto-Backup'}</span>
+                    </button>
+                    {lastSyncTime && (
+                      <span className="text-[11px] text-emerald-400/80 font-mono">
+                        Sinkronisasi Terakhir: {new Date(lastSyncTime).toLocaleTimeString('id-ID')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Sync Status Bar */}
+                <div className="mt-4 pt-3 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-400">Status Sync Realtime:</span>
+                    {liveSyncState === 'syncing' ? (
+                      <span className="flex items-center space-x-1.5 text-cyan-400 font-bold">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyimpan ke Cloud ({lastSyncedModule || 'Posting'})...</span>
+                      </span>
+                    ) : liveSyncState === 'synced' ? (
+                      <span className="flex items-center space-x-1.5 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Database Supabase Cloud Up-to-Date ✓</span>
+                      </span>
+                    ) : liveSyncState === 'error' ? (
+                      <span className="flex items-center space-x-1.5 text-rose-400 font-bold">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Gagal Sinkronisasi (Periksa Skema SQL)</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 font-medium">Standby & Siap Mendeteksi Posting Baru</span>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 font-medium">
+                    ⚡ Mode Sinkronisasi Terpusat (Proyek, Keuangan, HRD, QC, Logistik)
+                  </div>
+                </div>
+              </div>
+
               {/* Connection Status Card */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
