@@ -100,15 +100,15 @@ export const storageService = {
 
   getProjects(): Project[] {
     const raw = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveProjects(INITIAL_PROJECTS);
       return INITIAL_PROJECTS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_PROJECTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_PROJECTS;
+      return [];
     }
   },
 
@@ -118,15 +118,15 @@ export const storageService = {
 
   getEmployees(): Employee[] {
     const raw = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
-    if (!raw) {
+    if (raw === null) {
       this.saveEmployees(INITIAL_EMPLOYEES);
       return INITIAL_EMPLOYEES;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_EMPLOYEES;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_EMPLOYEES;
+      return [];
     }
   },
 
@@ -136,7 +136,7 @@ export const storageService = {
 
   getTimesheets(): TimesheetMonthRecord[] {
     const raw = localStorage.getItem(STORAGE_KEYS.TIMESHEETS);
-    if (!raw) {
+    if (raw === null) {
       const emps = this.getEmployees();
       const initialTS = generateSeedTimesheets(emps);
       this.saveTimesheets(initialTS);
@@ -156,15 +156,15 @@ export const storageService = {
 
   getMutations(): MutationHistory[] {
     const raw = localStorage.getItem(STORAGE_KEYS.MUTATIONS);
-    if (!raw) {
+    if (raw === null) {
       this.saveMutations(INITIAL_MUTATIONS);
       return INITIAL_MUTATIONS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_MUTATIONS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_MUTATIONS;
+      return [];
     }
   },
 
@@ -174,15 +174,15 @@ export const storageService = {
 
   getInventoryItems(): InventoryItem[] {
     const raw = localStorage.getItem(STORAGE_KEYS.INVENTORY_ITEMS);
-    if (!raw) {
+    if (raw === null) {
       this.saveInventoryItems(INITIAL_INVENTORY_ITEMS);
       return INITIAL_INVENTORY_ITEMS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_INVENTORY_ITEMS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_INVENTORY_ITEMS;
+      return [];
     }
   },
 
@@ -192,15 +192,15 @@ export const storageService = {
 
   getProjectStocks(): ProjectStock[] {
     const raw = localStorage.getItem(STORAGE_KEYS.PROJECT_STOCKS);
-    if (!raw) {
+    if (raw === null) {
       this.saveProjectStocks(INITIAL_PROJECT_STOCKS);
       return INITIAL_PROJECT_STOCKS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_PROJECT_STOCKS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_PROJECT_STOCKS;
+      return [];
     }
   },
 
@@ -210,15 +210,15 @@ export const storageService = {
 
   getInventoryLogs(): InventoryLog[] {
     const raw = localStorage.getItem(STORAGE_KEYS.INVENTORY_LOGS);
-    if (!raw) {
+    if (raw === null) {
       this.saveInventoryLogs(INITIAL_INVENTORY_LOGS);
       return INITIAL_INVENTORY_LOGS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_INVENTORY_LOGS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_INVENTORY_LOGS;
+      return [];
     }
   },
 
@@ -228,26 +228,15 @@ export const storageService = {
 
   getTasks(): CleaningTask[] {
     const raw = localStorage.getItem(STORAGE_KEYS.TASKS);
-    if (!raw) {
+    if (raw === null) {
       this.saveTasks(INITIAL_TASKS);
       return INITIAL_TASKS;
     }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        // Filter out legacy demo tasks (tsk-1 through tsk-7)
-        const demoTaskIds = ['tsk-1', 'tsk-2', 'tsk-3', 'tsk-3b', 'tsk-3c', 'tsk-3d', 'tsk-3e', 'tsk-4', 'tsk-5', 'tsk-6', 'tsk-7'];
-        const hasDemoTasks = parsed.some((t: CleaningTask) => demoTaskIds.includes(t.id));
-        if (hasDemoTasks) {
-          const cleaned = parsed.filter((t: CleaningTask) => !demoTaskIds.includes(t.id));
-          this.saveTasks(cleaned);
-          return cleaned;
-        }
-        return parsed;
-      }
-      return INITIAL_TASKS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_TASKS;
+      return [];
     }
   },
 
@@ -257,15 +246,15 @@ export const storageService = {
 
   getBlasts(): BlastAnnouncement[] {
     const raw = localStorage.getItem(STORAGE_KEYS.BLASTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveBlasts(INITIAL_BLASTS);
       return INITIAL_BLASTS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_BLASTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_BLASTS;
+      return [];
     }
   },
 
@@ -275,33 +264,15 @@ export const storageService = {
 
   getSops(): SopDocument[] {
     const raw = localStorage.getItem(STORAGE_KEYS.SOPS);
-    if (!raw) {
+    if (raw === null) {
       this.saveSops(INITIAL_SOPS);
       return INITIAL_SOPS;
     }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const enriched = parsed.map((item: SopDocument) => {
-          const matchedInitial = INITIAL_SOPS.find((init) => init.id === item.id);
-          if (matchedInitial) {
-            return {
-              ...matchedInitial,
-              ...item,
-              objective: item.objective || matchedInitial.objective,
-              equipmentList: item.equipmentList && item.equipmentList.length > 0 ? item.equipmentList : matchedInitial.equipmentList,
-              chemicalList: item.chemicalList && item.chemicalList.length > 0 ? item.chemicalList : matchedInitial.chemicalList,
-              equipmentMaintenance: item.equipmentMaintenance && item.equipmentMaintenance.length > 0 ? item.equipmentMaintenance : matchedInitial.equipmentMaintenance,
-              requiredPPE: item.requiredPPE && item.requiredPPE.length > 0 ? item.requiredPPE : matchedInitial.requiredPPE,
-            };
-          }
-          return item;
-        });
-        return enriched;
-      }
-      return INITIAL_SOPS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_SOPS;
+      return [];
     }
   },
 
@@ -353,34 +324,13 @@ export const storageService = {
   },
 
   resetToDefault() {
-    localStorage.removeItem(STORAGE_KEYS.PROJECTS);
-    localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
-    localStorage.removeItem(STORAGE_KEYS.TIMESHEETS);
-    localStorage.removeItem(STORAGE_KEYS.MUTATIONS);
-    localStorage.removeItem(STORAGE_KEYS.INVENTORY_ITEMS);
-    localStorage.removeItem(STORAGE_KEYS.PROJECT_STOCKS);
-    localStorage.removeItem(STORAGE_KEYS.INVENTORY_LOGS);
-    localStorage.removeItem(STORAGE_KEYS.TASKS);
-    localStorage.removeItem(STORAGE_KEYS.BLASTS);
-    localStorage.removeItem(STORAGE_KEYS.SOPS);
-    localStorage.removeItem(STORAGE_KEYS.USERS);
-    // Don't necessarily clear active user if user just wants data reset, or reset users to default
-    this.saveUsers(INITIAL_USERS);
-    localStorage.removeItem(STORAGE_KEYS.CHART_OF_ACCOUNTS);
-    localStorage.removeItem(STORAGE_KEYS.FINANCE_TRANSACTIONS);
-    localStorage.removeItem(STORAGE_KEYS.BANK_STATEMENTS);
-    localStorage.removeItem(STORAGE_KEYS.PERIOD_CLOSINGS);
-    localStorage.removeItem(STORAGE_KEYS.AUDIT_TRAILS);
-    localStorage.removeItem(STORAGE_KEYS.CURRENCY_RATES);
-    localStorage.removeItem(STORAGE_KEYS.DEBTS);
-    localStorage.removeItem(STORAGE_KEYS.RECEIVABLES);
-    localStorage.removeItem(STORAGE_KEYS.INVESTMENTS);
+    this.clearAllDataToEmpty();
   },
 
   // Finance Storage Handlers
   getChartOfAccounts(): ChartOfAccount[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CHART_OF_ACCOUNTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveChartOfAccounts(INITIAL_CHART_OF_ACCOUNTS);
       return INITIAL_CHART_OF_ACCOUNTS;
     }
@@ -398,15 +348,15 @@ export const storageService = {
 
   getFinanceTransactions(): FinanceTransaction[] {
     const raw = localStorage.getItem(STORAGE_KEYS.FINANCE_TRANSACTIONS);
-    if (!raw) {
+    if (raw === null) {
       this.saveFinanceTransactions(INITIAL_FINANCE_TRANSACTIONS);
       return INITIAL_FINANCE_TRANSACTIONS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_FINANCE_TRANSACTIONS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_FINANCE_TRANSACTIONS;
+      return [];
     }
   },
 
@@ -416,15 +366,15 @@ export const storageService = {
 
   getBankStatements(): BankStatementImport[] {
     const raw = localStorage.getItem(STORAGE_KEYS.BANK_STATEMENTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveBankStatements(INITIAL_BANK_STATEMENTS);
       return INITIAL_BANK_STATEMENTS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_BANK_STATEMENTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_BANK_STATEMENTS;
+      return [];
     }
   },
 
@@ -434,15 +384,15 @@ export const storageService = {
 
   getPeriodClosings(): PeriodClosing[] {
     const raw = localStorage.getItem(STORAGE_KEYS.PERIOD_CLOSINGS);
-    if (!raw) {
+    if (raw === null) {
       this.savePeriodClosings(INITIAL_PERIOD_CLOSINGS);
       return INITIAL_PERIOD_CLOSINGS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_PERIOD_CLOSINGS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_PERIOD_CLOSINGS;
+      return [];
     }
   },
 
@@ -452,15 +402,15 @@ export const storageService = {
 
   getAuditTrails(): AuditTrailItem[] {
     const raw = localStorage.getItem(STORAGE_KEYS.AUDIT_TRAILS);
-    if (!raw) {
+    if (raw === null) {
       this.saveAuditTrails(INITIAL_AUDIT_TRAILS);
       return INITIAL_AUDIT_TRAILS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_AUDIT_TRAILS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_AUDIT_TRAILS;
+      return [];
     }
   },
 
@@ -470,7 +420,7 @@ export const storageService = {
 
   getCurrencyRates(): CurrencyRate[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CURRENCY_RATES);
-    if (!raw) {
+    if (raw === null) {
       this.saveCurrencyRates(INITIAL_CURRENCY_RATES);
       return INITIAL_CURRENCY_RATES;
     }
@@ -491,15 +441,15 @@ export const storageService = {
   // -------------------------------------------------------------------------
   getDebts(): DebtRecord[] {
     const raw = localStorage.getItem(STORAGE_KEYS.DEBTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveDebts(INITIAL_DEBTS);
       return INITIAL_DEBTS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_DEBTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_DEBTS;
+      return [];
     }
   },
 
@@ -512,15 +462,15 @@ export const storageService = {
   // -------------------------------------------------------------------------
   getReceivables(): ReceivableRecord[] {
     const raw = localStorage.getItem(STORAGE_KEYS.RECEIVABLES);
-    if (!raw) {
+    if (raw === null) {
       this.saveReceivables(INITIAL_RECEIVABLES);
       return INITIAL_RECEIVABLES;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_RECEIVABLES;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_RECEIVABLES;
+      return [];
     }
   },
 
@@ -533,19 +483,91 @@ export const storageService = {
   // -------------------------------------------------------------------------
   getInvestments(): InvestmentRecord[] {
     const raw = localStorage.getItem(STORAGE_KEYS.INVESTMENTS);
-    if (!raw) {
+    if (raw === null) {
       this.saveInvestments(INITIAL_INVESTMENTS);
       return INITIAL_INVESTMENTS;
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : INITIAL_INVESTMENTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_INVESTMENTS;
+      return [];
     }
   },
 
   saveInvestments(data: InvestmentRecord[]) {
     localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(data));
+  },
+
+  // -------------------------------------------------------------------------
+  // SYSTEM RESET (KHUSUS SUPER ADMIN)
+  // -------------------------------------------------------------------------
+  // KOSONGKAN SELURUH DATA SISTEM (0 DATA / BERSIH TOTAL UNTUK MULAI DARI NOL)
+  clearAllDataToEmpty() {
+    this.saveProjects([]);
+    this.saveEmployees([]);
+    this.saveTimesheets([]);
+    this.saveMutations([]);
+    this.saveInventoryItems([]);
+    this.saveProjectStocks([]);
+    this.saveInventoryLogs([]);
+    this.saveTasks([]);
+    this.saveBlasts([]);
+    this.saveSops([]);
+    this.saveFinanceTransactions([]);
+    this.saveBankStatements([]);
+    this.savePeriodClosings([]);
+    this.saveAuditTrails([]);
+    this.saveDebts([]);
+    this.saveReceivables([]);
+    this.saveInvestments([]);
+
+    // Pertahankan struktur Chart of Accounts baku agar modul akuntansi siap pakai
+    this.saveChartOfAccounts(INITIAL_CHART_OF_ACCOUNTS);
+    this.saveCurrencyRates(INITIAL_CURRENCY_RATES);
+
+    // Pertahankan sesi akun Super Admin agar tidak ter-logout
+    const active = this.getActiveUser();
+    const adminUser: UserAccount = active || INITIAL_USERS[0];
+    this.saveUsers([adminUser]);
+    this.saveActiveUser(adminUser);
+
+    try {
+      window.dispatchEvent(new Event('app_data_reset'));
+    } catch {
+      // ignore
+    }
+  },
+
+  // ISI ULANG DENGAN DATA CONTOH / DEMO
+  resetAllDataToDefault() {
+    this.saveProjects(INITIAL_PROJECTS);
+    this.saveEmployees(INITIAL_EMPLOYEES);
+    this.saveTimesheets(generateSeedTimesheets(INITIAL_EMPLOYEES));
+    this.saveMutations(INITIAL_MUTATIONS);
+    this.saveInventoryItems(INITIAL_INVENTORY_ITEMS);
+    this.saveProjectStocks(INITIAL_PROJECT_STOCKS);
+    this.saveInventoryLogs(INITIAL_INVENTORY_LOGS);
+    this.saveTasks(INITIAL_TASKS);
+    this.saveBlasts(INITIAL_BLASTS);
+    this.saveSops(INITIAL_SOPS);
+    this.saveCompanyProfile(INITIAL_COMPANY_PROFILE);
+    this.saveUsers(INITIAL_USERS);
+    this.saveChartOfAccounts(INITIAL_CHART_OF_ACCOUNTS);
+    this.saveFinanceTransactions(INITIAL_FINANCE_TRANSACTIONS);
+    this.saveBankStatements(INITIAL_BANK_STATEMENTS);
+    this.savePeriodClosings(INITIAL_PERIOD_CLOSINGS);
+    this.saveAuditTrails(INITIAL_AUDIT_TRAILS);
+    this.saveCurrencyRates(INITIAL_CURRENCY_RATES);
+    this.saveDebts(INITIAL_DEBTS);
+    this.saveReceivables(INITIAL_RECEIVABLES);
+    this.saveInvestments(INITIAL_INVESTMENTS);
+
+    // Keep active user or reset to superadmin
+    try {
+      window.dispatchEvent(new Event('app_data_reset'));
+    } catch {
+      // ignore
+    }
   }
 };

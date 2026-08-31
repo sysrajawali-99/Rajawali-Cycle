@@ -29,6 +29,7 @@ import {
   Building
 } from 'lucide-react';
 import { Project, FloorType, UserRole } from '../../types';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface ProjectLocationSettingsProps {
   projects: Project[];
@@ -94,6 +95,7 @@ export const ProjectLocationSettings: React.FC<ProjectLocationSettingsProps> = (
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [printProject, setPrintProject] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   // Form State for Add / Edit
   const [formData, setFormData] = useState<{
@@ -357,15 +359,23 @@ export const ProjectLocationSettings: React.FC<ProjectLocationSettingsProps> = (
     setEditingProject(null);
   };
 
-  // Delete Project
+  // Delete Project Handlers
   const handleDeleteProject = (proj: Project) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus data lokasi project "${proj.name}"? Data timesheet dan personil terkait mungkin terpengaruh.`)) {
-      const updated = projects.filter((p) => p.id !== proj.id);
-      onUpdateProjects(updated);
-      if (selectedProjectForDetail?.id === proj.id) {
-        setSelectedProjectForDetail(null);
-      }
+    setProjectToDelete(proj);
+  };
+
+  const confirmExecuteDeleteProject = () => {
+    if (!projectToDelete) return;
+    const updated = projects.filter((p) => p.id !== projectToDelete.id);
+    onUpdateProjects(updated);
+    if (selectedProjectForDetail?.id === projectToDelete.id) {
+      setSelectedProjectForDetail(null);
     }
+    if (editingProject?.id === projectToDelete.id) {
+      setIsModalOpen(false);
+      setEditingProject(null);
+    }
+    setProjectToDelete(null);
   };
 
   // Print / Export
@@ -615,16 +625,14 @@ export const ProjectLocationSettings: React.FC<ProjectLocationSettingsProps> = (
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    {userRole === 'Super Admin (HQ)' && projects.length > 1 && (
-                      <button
-                        id={`delete-project-${project.id}-btn`}
-                        onClick={() => handleDeleteProject(project)}
-                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition cursor-pointer"
-                        title="Hapus Lokasi Project"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      id={`delete-project-${project.id}-btn`}
+                      onClick={() => handleDeleteProject(project)}
+                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition cursor-pointer"
+                      title={`Hapus Lokasi Project ${project.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -1239,22 +1247,38 @@ export const ProjectLocationSettings: React.FC<ProjectLocationSettingsProps> = (
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  id="cancel-project-form-btn"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  id="submit-project-form-btn"
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
-                >
-                  {editingProject ? 'Simpan Perubahan Spesifikasi' : 'Tambah Lokasi Baru'}
-                </button>
+              <div className="flex items-center justify-between space-x-3 pt-3 border-t border-slate-800">
+                {editingProject ? (
+                  <button
+                    type="button"
+                    id="delete-current-project-btn"
+                    onClick={() => handleDeleteProject(editingProject)}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 font-semibold text-xs rounded-xl cursor-pointer transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Lokasi Ini</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    id="cancel-project-form-btn"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    id="submit-project-form-btn"
+                    className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
+                  >
+                    {editingProject ? 'Simpan Perubahan Spesifikasi' : 'Tambah Lokasi Baru'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1685,6 +1709,18 @@ export const ProjectLocationSettings: React.FC<ProjectLocationSettingsProps> = (
           </div>
         </div>
       )}
+
+      {/* MODAL KONFIRMASI HAPUS LOKASI PROJECT */}
+      <ConfirmModal
+        isOpen={Boolean(projectToDelete)}
+        title="Hapus Lokasi Project"
+        message={`Apakah Anda yakin ingin menghapus data lokasi project "${projectToDelete?.name}" (${projectToDelete?.code})? Lokasi ini akan dihapus dari daftar operasional.`}
+        confirmText="Ya, Hapus Lokasi"
+        cancelText="Batal"
+        confirmVariant="danger"
+        onConfirm={confirmExecuteDeleteProject}
+        onCancel={() => setProjectToDelete(null)}
+      />
     </div>
   );
 };

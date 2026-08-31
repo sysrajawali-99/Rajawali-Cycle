@@ -37,6 +37,7 @@ import {
   ReceivableStatus,
   ChartOfAccount,
   PaymentMethod,
+  FinanceTransaction,
   AuditTrailItem
 } from '../../types/finance';
 import { Project, UserAccount } from '../../types';
@@ -49,12 +50,15 @@ interface FinanceDebtsReceivablesProps {
   accounts: ChartOfAccount[];
   projects: Project[];
   currentUser?: UserAccount | null;
-  onAddDebt: (debt: DebtRecord) => void;
-  onUpdateDebt: (debt: DebtRecord) => void;
-  onDeleteDebt: (id: string, reason: string, pin: string) => void;
-  onAddReceivable: (rec: ReceivableRecord) => void;
-  onUpdateReceivable: (rec: ReceivableRecord) => void;
-  onDeleteReceivable: (id: string, reason: string, pin: string) => void;
+  onAddDebt?: (debt: DebtRecord) => void;
+  onUpdateDebt?: (debt: DebtRecord) => void;
+  onDeleteDebt?: (id: string, reason: string, pin: string) => void;
+  onAddReceivable?: (rec: ReceivableRecord) => void;
+  onUpdateReceivable?: (rec: ReceivableRecord) => void;
+  onDeleteReceivable?: (id: string, reason: string, pin: string) => void;
+  onUpdateDebts?: (debts: DebtRecord[]) => void;
+  onUpdateReceivables?: (receivables: ReceivableRecord[]) => void;
+  onAddTransaction?: (transaction: FinanceTransaction) => void;
   onLogAudit?: (audit: AuditTrailItem) => void;
 }
 
@@ -72,12 +76,23 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
   onAddReceivable,
   onUpdateReceivable,
   onDeleteReceivable,
+  onUpdateDebts,
+  onUpdateReceivables,
+  onAddTransaction,
   onLogAudit
 }) => {
   const [activeTab, setActiveTab] = useState<ActiveViewTab>('DEBTS');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastMessage({ type, text });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
 
   // Modal States
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
@@ -193,7 +208,8 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
     const overdueRec = receivables.filter((r) => r.status === 'OVERDUE').reduce((sum, r) => sum + r.remainingAmount, 0);
 
     // Aging Matrix for Receivables
-    const now = new Date('2026-08-29').getTime();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date(todayStr).getTime();
     let rec0_30 = 0;
     let rec31_60 = 0;
     let rec61_90 = 0;
@@ -201,7 +217,7 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
 
     receivables.forEach((r) => {
       if (r.remainingAmount <= 0) return;
-      const dueTime = new Date(r.dueDate).getTime();
+      const dueTime = new Date(r.dueDate || todayStr).getTime();
       const diffDays = Math.floor((now - dueTime) / (1000 * 60 * 60 * 24));
       if (diffDays <= 0) {
         rec0_30 += r.remainingAmount; // Belum jatuh tempo / < 30 hari
@@ -244,11 +260,12 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
       daysRemaining: number;
     }> = [];
 
-    const today = new Date('2026-08-29');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
 
     debts.forEach((d) => {
       if (d.remainingAmount > 0) {
-        const due = new Date(d.dueDate);
+        const due = new Date(d.dueDate || todayStr);
         const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays <= 7) {
           list.push({
@@ -266,7 +283,7 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
 
     receivables.forEach((r) => {
       if (r.remainingAmount > 0) {
-        const due = new Date(r.dueDate);
+        const due = new Date(r.dueDate || todayStr);
         const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays <= 7) {
           list.push({
@@ -313,35 +330,44 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
 
   const handleSaveDebt = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!debtFormData.creditorName || !debtFormData.totalAmount || debtFormData.totalAmount <= 0) {
-      alert('Mohon lengkapi Nama Vendor / Kreditor dan Nominal Hutang.');
+    const amount = Number(debtFormData.totalAmount);
+    if (!debtFormData.creditorName?.trim() || !amount || amount <= 0) {
+      alert('Mohon lengkapi Nama Vendor / Kreditor dan Nominal Hutang yang valid.');
       return;
     }
 
     const prj = projects.find((p) => p.id === debtFormData.projectId);
     const projectName = debtFormData.projectId === 'ALL' ? 'Konsolidasi Seluruh Site' : prj?.name || 'Proyek';
+    const todayStr = new Date().toISOString().split('T')[0];
 
     if (editingDebt) {
-      const remaining = Number(debtFormData.totalAmount) - editingDebt.paidAmount;
+      const remaining = amount - (editingDebt.paidAmount || 0);
+      const isDuePast = (debtFormData.dueDate || '') < todayStr;
       const status: DebtStatus =
         remaining <= 0
           ? 'PAID'
-          : editingDebt.paidAmount > 0
+          : (editingDebt.paidAmount || 0) > 0
           ? 'PARTIAL'
-          : new Date(debtFormData.dueDate || '') < new Date('2026-08-29')
+          : isDuePast
           ? 'OVERDUE'
           : 'UNPAID';
 
       const updated: DebtRecord = {
         ...editingDebt,
         ...(debtFormData as DebtRecord),
+        totalAmount: amount,
         projectName,
         remainingAmount: Math.max(0, remaining),
         status,
         updatedAt: new Date().toISOString()
       };
 
-      onUpdateDebt(updated);
+      if (onUpdateDebt) {
+        onUpdateDebt(updated);
+      } else if (onUpdateDebts) {
+        onUpdateDebts(debts.map((d) => (d.id === updated.id ? updated : d)));
+      }
+
       onLogAudit?.({
         id: `aud-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
@@ -354,22 +380,25 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         description: `Memperbarui data hutang vendor ${updated.creditorName} (${updated.code})`,
         amount: updated.totalAmount
       });
+
+      showToast(`Data hutang ${updated.creditorName} (${updated.code}) berhasil diperbarui!`, 'success');
     } else {
       const newCode = `HUT-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(debts.length + 1).padStart(3, '0')}`;
+      const isDuePast = (debtFormData.dueDate || '') < todayStr;
       const newDebt: DebtRecord = {
         id: `debt-${Date.now()}`,
         code: newCode,
         type: debtFormData.type || 'HUTANG_VENDOR',
-        creditorName: debtFormData.creditorName || '',
+        creditorName: debtFormData.creditorName.trim(),
         contactPerson: debtFormData.contactPerson || '',
         phone: debtFormData.phone || '',
         invoiceNumber: debtFormData.invoiceNumber || `INV-${Date.now()}`,
-        issueDate: debtFormData.issueDate || new Date().toISOString().split('T')[0],
-        dueDate: debtFormData.dueDate || new Date().toISOString().split('T')[0],
-        totalAmount: Number(debtFormData.totalAmount),
+        issueDate: debtFormData.issueDate || todayStr,
+        dueDate: debtFormData.dueDate || todayStr,
+        totalAmount: amount,
         paidAmount: 0,
-        remainingAmount: Number(debtFormData.totalAmount),
-        status: new Date(debtFormData.dueDate || '') < new Date('2026-08-29') ? 'OVERDUE' : 'UNPAID',
+        remainingAmount: amount,
+        status: isDuePast ? 'OVERDUE' : 'UNPAID',
         projectId: debtFormData.projectId || 'ALL',
         projectName,
         accountCode: debtFormData.accountCode || '2110',
@@ -379,7 +408,12 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         createdAt: new Date().toLocaleString('id-ID')
       };
 
-      onAddDebt(newDebt);
+      if (onAddDebt) {
+        onAddDebt(newDebt);
+      } else if (onUpdateDebts) {
+        onUpdateDebts([newDebt, ...debts]);
+      }
+
       onLogAudit?.({
         id: `aud-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
@@ -392,6 +426,8 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         description: `Mencatat kewajiban hutang baru ke ${newDebt.creditorName} (${formatCurrency(newDebt.totalAmount)})`,
         amount: newDebt.totalAmount
       });
+
+      showToast(`Hutang baru ke ${newDebt.creditorName} senilai ${formatCurrency(newDebt.totalAmount)} berhasil dicatat!`, 'success');
     }
 
     setIsDebtModalOpen(false);
@@ -443,7 +479,67 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
       updatedAt: new Date().toLocaleString('id-ID')
     };
 
-    onUpdateDebt(updated);
+    if (onUpdateDebt) {
+      onUpdateDebt(updated);
+    } else if (onUpdateDebts) {
+      onUpdateDebts(debts.map((d) => (d.id === updated.id ? updated : d)));
+    }
+
+    // Automatically sync with Cash Journal (BKK)
+    if (onAddTransaction) {
+      const nowStr = new Date().toISOString().split('T')[0];
+      const contraAcc = accounts.find((a) => a.code === selectedDebtForPayment.accountCode) || {
+        code: selectedDebtForPayment.accountCode || '2110',
+        name: 'Utang Usaha / Supplier'
+      };
+      const primaryAcc = accounts.find((a) => a.code === payAccountCode) || {
+        code: payAccountCode || '1120',
+        name: payMethod
+      };
+
+      onAddTransaction({
+        id: `trx-bkk-debt-${Date.now()}`,
+        code: `BKK-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${Date.now().toString().slice(-4)}`,
+        date: payDate || nowStr,
+        type: 'OUT',
+        title: `Pembayaran Hutang Vendor: ${selectedDebtForPayment.creditorName}`,
+        description: `Pelunasan/cicilan faktur ${selectedDebtForPayment.invoiceNumber} (${selectedDebtForPayment.category || 'Operasional'}) via ${payMethod}. Ref: ${payRef || '-'}`,
+        amount: payAmount,
+        paymentMethod: payMethod as PaymentMethod,
+        primaryAccountCode: payAccountCode || '1120',
+        contraAccountCode: selectedDebtForPayment.accountCode || '2110',
+        journalEntries: [
+          {
+            id: `je-d-${Date.now()}`,
+            accountCode: selectedDebtForPayment.accountCode || '2110',
+            accountName: contraAcc.name,
+            debit: payAmount,
+            credit: 0,
+            notes: `Debit Utang: ${selectedDebtForPayment.creditorName}`
+          },
+          {
+            id: `je-c-${Date.now()}`,
+            accountCode: payAccountCode || '1120',
+            accountName: primaryAcc.name,
+            debit: 0,
+            credit: payAmount,
+            notes: `Kredit Kas/Bank: ${payMethod}`
+          }
+        ],
+        projectId: selectedDebtForPayment.projectId || 'ALL',
+        projectName: selectedDebtForPayment.projectName,
+        division: 'HQ Management & Operasional',
+        currency: 'IDR',
+        exchangeRate: 1,
+        referenceNumber: payRef || selectedDebtForPayment.invoiceNumber,
+        payeeOrPayer: selectedDebtForPayment.creditorName,
+        isReconciled: false,
+        isAdjusting: false,
+        createdAt: new Date().toLocaleString('id-ID'),
+        createdBy: currentUser?.name || 'Finance Lead'
+      });
+    }
+
     onLogAudit?.({
       id: `aud-${Date.now()}`,
       timestamp: new Date().toLocaleString('id-ID'),
@@ -457,6 +553,7 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
       amount: payAmount
     });
 
+    showToast(`Pembayaran hutang ke ${updated.creditorName} sebesar ${formatCurrency(payAmount)} berhasil dicatat & dibukukan!`, 'success');
     setIsPayDebtModalOpen(false);
   };
 
@@ -488,35 +585,44 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
 
   const handleSaveReceivable = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recFormData.customerName || !recFormData.totalAmount || recFormData.totalAmount <= 0) {
-      alert('Mohon lengkapi Nama Customer / Klien dan Nilai Invoice Tagihan.');
+    const amount = Number(recFormData.totalAmount);
+    if (!recFormData.customerName?.trim() || !amount || amount <= 0) {
+      alert('Mohon lengkapi Nama Customer / Klien dan Nilai Invoice Tagihan yang valid.');
       return;
     }
 
     const prj = projects.find((p) => p.id === recFormData.projectId);
     const projectName = prj?.name || 'Proyek';
+    const todayStr = new Date().toISOString().split('T')[0];
 
     if (editingReceivable) {
-      const remaining = Number(recFormData.totalAmount) - editingReceivable.paidAmount;
+      const remaining = amount - (editingReceivable.paidAmount || 0);
+      const isDuePast = (recFormData.dueDate || '') < todayStr;
       const status: ReceivableStatus =
         remaining <= 0
           ? 'PAID'
-          : editingReceivable.paidAmount > 0
+          : (editingReceivable.paidAmount || 0) > 0
           ? 'PARTIAL'
-          : new Date(recFormData.dueDate || '') < new Date('2026-08-29')
+          : isDuePast
           ? 'OVERDUE'
           : 'UNPAID';
 
       const updated: ReceivableRecord = {
         ...editingReceivable,
         ...(recFormData as ReceivableRecord),
+        totalAmount: amount,
         projectName,
         remainingAmount: Math.max(0, remaining),
         status,
         updatedAt: new Date().toISOString()
       };
 
-      onUpdateReceivable(updated);
+      if (onUpdateReceivable) {
+        onUpdateReceivable(updated);
+      } else if (onUpdateReceivables) {
+        onUpdateReceivables(receivables.map((r) => (r.id === updated.id ? updated : r)));
+      }
+
       onLogAudit?.({
         id: `aud-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
@@ -529,23 +635,26 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         description: `Memperbarui tagihan piutang invoice ${updated.invoiceNumber} (${updated.customerName})`,
         amount: updated.totalAmount
       });
+
+      showToast(`Piutang tagihan ${updated.invoiceNumber} (${updated.customerName}) berhasil diperbarui!`, 'success');
     } else {
       const newCode = `PIU-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(receivables.length + 1).padStart(3, '0')}`;
+      const isDuePast = (recFormData.dueDate || '') < todayStr;
       const newRec: ReceivableRecord = {
         id: `rec-${Date.now()}`,
         code: newCode,
         type: recFormData.type || 'PIUTANG_KONTRAK_JASA',
-        customerName: recFormData.customerName || '',
+        customerName: recFormData.customerName.trim(),
         contactPerson: recFormData.contactPerson || '',
         phone: recFormData.phone || '',
         invoiceNumber: recFormData.invoiceNumber || `INV-${Date.now()}`,
-        issueDate: recFormData.issueDate || new Date().toISOString().split('T')[0],
-        dueDate: recFormData.dueDate || new Date().toISOString().split('T')[0],
+        issueDate: recFormData.issueDate || todayStr,
+        dueDate: recFormData.dueDate || todayStr,
         termOfPayment: recFormData.termOfPayment || 'Net 30',
-        totalAmount: Number(recFormData.totalAmount),
+        totalAmount: amount,
         paidAmount: 0,
-        remainingAmount: Number(recFormData.totalAmount),
-        status: new Date(recFormData.dueDate || '') < new Date('2026-08-29') ? 'OVERDUE' : 'UNPAID',
+        remainingAmount: amount,
+        status: isDuePast ? 'OVERDUE' : 'UNPAID',
         projectId: recFormData.projectId || projects[0]?.id || 'proj-1',
         projectName,
         accountCode: recFormData.accountCode || '1140',
@@ -554,7 +663,12 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         createdAt: new Date().toLocaleString('id-ID')
       };
 
-      onAddReceivable(newRec);
+      if (onAddReceivable) {
+        onAddReceivable(newRec);
+      } else if (onUpdateReceivables) {
+        onUpdateReceivables([newRec, ...receivables]);
+      }
+
       onLogAudit?.({
         id: `aud-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
@@ -567,6 +681,8 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
         description: `Menerbitkan tagihan piutang invoice ${newRec.invoiceNumber} ke ${newRec.customerName} (${formatCurrency(newRec.totalAmount)})`,
         amount: newRec.totalAmount
       });
+
+      showToast(`Piutang invoice ${newRec.invoiceNumber} ke ${newRec.customerName} sebesar ${formatCurrency(newRec.totalAmount)} berhasil diterbitkan!`, 'success');
     }
 
     setIsReceivableModalOpen(false);
@@ -618,7 +734,67 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
       updatedAt: new Date().toLocaleString('id-ID')
     };
 
-    onUpdateReceivable(updated);
+    if (onUpdateReceivable) {
+      onUpdateReceivable(updated);
+    } else if (onUpdateReceivables) {
+      onUpdateReceivables(receivables.map((r) => (r.id === updated.id ? updated : r)));
+    }
+
+    // Automatically sync with Cash Journal (BKM)
+    if (onAddTransaction) {
+      const nowStr = new Date().toISOString().split('T')[0];
+      const contraAcc = accounts.find((a) => a.code === selectedReceivableForPayment.accountCode) || {
+        code: selectedReceivableForPayment.accountCode || '1140',
+        name: 'Piutang Usaha / Klien'
+      };
+      const primaryAcc = accounts.find((a) => a.code === receiveAccountCode) || {
+        code: receiveAccountCode || '1120',
+        name: receiveMethod
+      };
+
+      onAddTransaction({
+        id: `trx-bkm-rec-${Date.now()}`,
+        code: `BKM-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${Date.now().toString().slice(-4)}`,
+        date: receiveDate || nowStr,
+        type: 'IN',
+        title: `Penerimaan Pembayaran Piutang: ${selectedReceivableForPayment.customerName}`,
+        description: `Penerimaan pelunasan/termin invoice ${selectedReceivableForPayment.invoiceNumber} (${selectedReceivableForPayment.projectName || 'Proyek'}) via ${receiveMethod}. Ref: ${receiveRef || '-'}`,
+        amount: receiveAmount,
+        paymentMethod: receiveMethod as PaymentMethod,
+        primaryAccountCode: receiveAccountCode || '1120',
+        contraAccountCode: selectedReceivableForPayment.accountCode || '1140',
+        journalEntries: [
+          {
+            id: `je-d-${Date.now()}`,
+            accountCode: receiveAccountCode || '1120',
+            accountName: primaryAcc.name,
+            debit: receiveAmount,
+            credit: 0,
+            notes: `Debit Kas/Bank: ${receiveMethod}`
+          },
+          {
+            id: `je-c-${Date.now()}`,
+            accountCode: selectedReceivableForPayment.accountCode || '1140',
+            accountName: contraAcc.name,
+            debit: 0,
+            credit: receiveAmount,
+            notes: `Kredit Piutang: ${selectedReceivableForPayment.customerName}`
+          }
+        ],
+        projectId: selectedReceivableForPayment.projectId || 'ALL',
+        projectName: selectedReceivableForPayment.projectName,
+        division: 'Cleaning Service',
+        currency: 'IDR',
+        exchangeRate: 1,
+        referenceNumber: receiveRef || selectedReceivableForPayment.invoiceNumber,
+        payeeOrPayer: selectedReceivableForPayment.customerName,
+        isReconciled: false,
+        isAdjusting: false,
+        createdAt: new Date().toLocaleString('id-ID'),
+        createdBy: currentUser?.name || 'Finance Lead'
+      });
+    }
+
     onLogAudit?.({
       id: `aud-${Date.now()}`,
       timestamp: new Date().toLocaleString('id-ID'),
@@ -632,6 +808,7 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
       amount: receiveAmount
     });
 
+    showToast(`Penerimaan pembayaran dari ${updated.customerName} sebesar ${formatCurrency(receiveAmount)} berhasil dicatat & masuk kas!`, 'success');
     setIsReceivePaymentModalOpen(false);
   };
 
@@ -650,9 +827,19 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
     }
 
     if (deleteTarget.type === 'DEBT') {
-      onDeleteDebt(deleteTarget.id, deleteReason, deletePin);
+      if (onDeleteDebt) {
+        onDeleteDebt(deleteTarget.id, deleteReason, deletePin);
+      } else if (onUpdateDebts) {
+        onUpdateDebts(debts.filter((d) => d.id !== deleteTarget.id));
+      }
+      showToast(`Data hutang ${deleteTarget.title} (${deleteTarget.code}) berhasil dihapus.`, 'info');
     } else {
-      onDeleteReceivable(deleteTarget.id, deleteReason, deletePin);
+      if (onDeleteReceivable) {
+        onDeleteReceivable(deleteTarget.id, deleteReason, deletePin);
+      } else if (onUpdateReceivables) {
+        onUpdateReceivables(receivables.filter((r) => r.id !== deleteTarget.id));
+      }
+      showToast(`Data piutang invoice ${deleteTarget.title} (${deleteTarget.code}) berhasil dihapus.`, 'info');
     }
 
     setDeleteTarget(null);
@@ -700,6 +887,36 @@ export const FinanceDebtsReceivables: React.FC<FinanceDebtsReceivablesProps> = (
 
   return (
     <div className="space-y-6 pb-16 max-w-7xl mx-auto px-2 sm:px-4">
+      {/* Toast Alert Notification */}
+      {toastMessage && (
+        <div
+          className={`p-4 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-fadeIn ${
+            toastMessage.type === 'success'
+              ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-200'
+              : toastMessage.type === 'error'
+              ? 'bg-rose-950/80 border-rose-500/40 text-rose-200'
+              : 'bg-blue-950/80 border-blue-500/40 text-blue-200'
+          }`}
+        >
+          <div className="flex items-center space-x-3">
+            {toastMessage.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            ) : toastMessage.type === 'error' ? (
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            ) : (
+              <HelpCircle className="w-5 h-5 text-blue-400 shrink-0" />
+            )}
+            <span className="text-sm font-medium">{toastMessage.text}</span>
+          </div>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

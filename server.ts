@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,6 +11,21 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '15mb' }));
+
+// Lazy initialize Supabase Server Client
+let supabaseServerClient: SupabaseClient | null = null;
+function getSupabaseServerClient(): SupabaseClient {
+  if (!supabaseServerClient) {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://trytwqpigfswkumpbfrp.supabase.co';
+    const supabaseKey =
+      process.env.SUPABASE_SECRET_KEY ||
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      'sb_publishable_WsYAe5vdbfBKWlKtfbqUgQ_Lls3tbbF';
+    supabaseServerClient = createSupabaseClient(supabaseUrl, supabaseKey);
+  }
+  return supabaseServerClient;
+}
 
 // Lazy initialize GoogleGenAI client
 let aiClient: GoogleGenAI | null = null;
@@ -28,6 +44,33 @@ function getGeminiClient(): GoogleGenAI | null {
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/supabase/status', async (_req, res) => {
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase.from('projects').select('count', { count: 'exact', head: true });
+    if (error) {
+      return res.json({
+        success: false,
+        status: 'reachable_with_schema_pending',
+        message: `Supabase server reachable, response: ${error.message} (${error.code || 'CODE'})`,
+        details: error
+      });
+    }
+    return res.json({
+      success: true,
+      status: 'connected',
+      message: 'Supabase Server Client connected successfully.',
+      count: data
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      status: 'error',
+      message: err?.message || 'Failed to connect to Supabase from server backend'
+    });
+  }
 });
 
 /**

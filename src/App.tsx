@@ -46,6 +46,7 @@ import { AccessControl } from './components/access/AccessControl';
 import { CompanySettings } from './components/company/CompanySettings';
 import { ProjectLocationSettings } from './components/projects/ProjectLocationSettings';
 import { GoogleDriveSyncModal } from './components/drive/GoogleDriveSyncModal';
+import { SupabaseSyncModal } from './components/database/SupabaseSyncModal';
 import { LoginPage } from './components/auth/LoginPage';
 import { FinanceCashJournal } from './components/finance/FinanceCashJournal';
 import { FinanceDebtsReceivables } from './components/finance/FinanceDebtsReceivables';
@@ -67,6 +68,7 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isDriveModalOpen, setIsDriveModalOpen] = useState<boolean>(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(false);
 
   // Core Data States
   const [projects, setProjects] = useState<Project[]>([]);
@@ -138,9 +140,21 @@ export default function App() {
     setIsLoaded(true);
   };
 
-  // Initial Load from storage
+  // Safely fallback selectedProjectId to ALL if selected project no longer exists
+  useEffect(() => {
+    if (selectedProjectId !== 'ALL' && !projects.some((p) => p.id === selectedProjectId)) {
+      setSelectedProjectId('ALL');
+    }
+  }, [projects, selectedProjectId]);
+
+  // Initial Load from storage & listen to reset events
   useEffect(() => {
     loadAllData();
+    const handleReset = () => {
+      loadAllData();
+    };
+    window.addEventListener('app_data_reset', handleReset);
+    return () => window.removeEventListener('app_data_reset', handleReset);
   }, []);
 
   // Update handlers with persistent storage
@@ -262,9 +276,77 @@ export default function App() {
   };
 
   // Debts, Receivables & Investment Handlers
+  const handleAddDebt = (debt: DebtRecord) => {
+    const updated = [debt, ...debts];
+    setDebts(updated);
+    storageService.saveDebts(updated);
+  };
+
+  const handleUpdateDebt = (debt: DebtRecord) => {
+    const updated = debts.map((d) => (d.id === debt.id ? debt : d));
+    setDebts(updated);
+    storageService.saveDebts(updated);
+  };
+
+  const handleDeleteDebt = (id: string, reason: string, pin: string) => {
+    const target = debts.find((d) => d.id === id);
+    const updated = debts.filter((d) => d.id !== id);
+    setDebts(updated);
+    storageService.saveDebts(updated);
+
+    if (target) {
+      handleAddAuditLog({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toLocaleString('id-ID'),
+        userName: currentUser?.name || 'Finance Lead',
+        userRole: currentUser?.role || 'Finance',
+        actionType: 'DELETE',
+        module: 'Hutang Usaha',
+        recordId: target.id,
+        recordCode: target.code,
+        description: `Menghapus kewajiban hutang vendor ${target.creditorName} (${target.code}) - Alasan: ${reason}`,
+        amount: target.totalAmount
+      });
+    }
+  };
+
   const handleUpdateDebts = (updatedDebts: DebtRecord[]) => {
     setDebts(updatedDebts);
     storageService.saveDebts(updatedDebts);
+  };
+
+  const handleAddReceivable = (rec: ReceivableRecord) => {
+    const updated = [rec, ...receivables];
+    setReceivables(updated);
+    storageService.saveReceivables(updated);
+  };
+
+  const handleUpdateReceivable = (rec: ReceivableRecord) => {
+    const updated = receivables.map((r) => (r.id === rec.id ? rec : r));
+    setReceivables(updated);
+    storageService.saveReceivables(updated);
+  };
+
+  const handleDeleteReceivable = (id: string, reason: string, pin: string) => {
+    const target = receivables.find((r) => r.id === id);
+    const updated = receivables.filter((r) => r.id !== id);
+    setReceivables(updated);
+    storageService.saveReceivables(updated);
+
+    if (target) {
+      handleAddAuditLog({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toLocaleString('id-ID'),
+        userName: currentUser?.name || 'Finance Lead',
+        userRole: currentUser?.role || 'Finance',
+        actionType: 'DELETE',
+        module: 'Piutang Usaha',
+        recordId: target.id,
+        recordCode: target.code,
+        description: `Menghapus piutang tagihan invoice ${target.invoiceNumber} (${target.customerName}) - Alasan: ${reason}`,
+        amount: target.totalAmount
+      });
+    }
   };
 
   const handleUpdateReceivables = (updatedRecs: ReceivableRecord[]) => {
@@ -427,27 +509,11 @@ export default function App() {
     setCurrentView(view);
   };
 
-  // Reset demo operational data
+  // Reset / Kosongkan Seluruh Data Operasional (Super Admin Quick Reset)
   const handleResetData = () => {
-    storageService.resetToDefault();
-    setProjects(storageService.getProjects());
-    setEmployees(storageService.getEmployees());
-    setTimesheets(storageService.getTimesheets());
-    setInventoryItems(storageService.getInventoryItems());
-    setProjectStocks(storageService.getProjectStocks());
-    setInventoryLogs(storageService.getInventoryLogs());
-    setTasks(storageService.getTasks());
-    setMutations(storageService.getMutations());
-    setBlasts(storageService.getBlasts());
-    setSops(storageService.getSops());
-    setDebts(storageService.getDebts());
-    setReceivables(storageService.getReceivables());
-    setInvestments(storageService.getInvestments());
-    setAccounts(storageService.getChartOfAccounts());
-    setFinanceTransactions(storageService.getFinanceTransactions());
-    setBankStatements(storageService.getBankStatements());
-    setPeriodClosings(storageService.getPeriodClosings());
-    setAuditTrails(storageService.getAuditTrails());
+    storageService.clearAllDataToEmpty();
+    setSelectedProjectId('ALL');
+    loadAllData();
   };
 
   // Badge counts
@@ -506,6 +572,7 @@ export default function App() {
         currentView={currentView}
         onSelectView={handleNavigateView}
         onOpenDriveSync={() => setIsDriveModalOpen(true)}
+        onOpenSupabaseSync={() => setIsSupabaseModalOpen(true)}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -666,6 +733,12 @@ export default function App() {
                 accounts={accounts}
                 projects={projects}
                 currentUser={currentUser}
+                onAddDebt={handleAddDebt}
+                onUpdateDebt={handleUpdateDebt}
+                onDeleteDebt={handleDeleteDebt}
+                onAddReceivable={handleAddReceivable}
+                onUpdateReceivable={handleUpdateReceivable}
+                onDeleteReceivable={handleDeleteReceivable}
                 onUpdateDebts={handleUpdateDebts}
                 onUpdateReceivables={handleUpdateReceivables}
                 onAddTransaction={handleAddFinanceTransaction}
@@ -763,6 +836,7 @@ export default function App() {
                 companyProfile={companyProfile}
                 onUpdateCompanyProfile={handleUpdateCompanyProfile}
                 currentUser={currentUser}
+                onResetAllData={loadAllData}
               />
             )}
           </div>
@@ -789,6 +863,13 @@ export default function App() {
         isOpen={isDriveModalOpen}
         onClose={() => setIsDriveModalOpen(false)}
         userName={currentUser?.name}
+        onDataRestored={loadAllData}
+      />
+
+      {/* Supabase Cloud Database Sync Modal */}
+      <SupabaseSyncModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
         onDataRestored={loadAllData}
       />
     </div>

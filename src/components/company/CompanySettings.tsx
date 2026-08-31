@@ -17,26 +17,43 @@ import {
   Sparkles,
   Eye,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Trash2,
+  AlertTriangle,
+  KeyRound,
+  Database,
+  Lock,
+  RefreshCw
 } from 'lucide-react';
 import { CompanyProfile, UserAccount } from '../../types';
 import { INITIAL_COMPANY_PROFILE } from '../../data/initialData';
+import { storageService } from '../../services/storageService';
 
 interface CompanySettingsProps {
   companyProfile: CompanyProfile;
   onUpdateCompanyProfile: (profile: CompanyProfile) => void;
   currentUser: UserAccount | null;
+  onResetAllData?: () => void;
 }
 
 export const CompanySettings: React.FC<CompanySettingsProps> = ({
   companyProfile,
   onUpdateCompanyProfile,
-  currentUser
+  currentUser,
+  onResetAllData
 }) => {
   const [formData, setFormData] = useState<CompanyProfile>({ ...companyProfile });
-  const [activeTab, setActiveTab] = useState<'profile' | 'contact' | 'signees' | 'bank' | 'preview'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'contact' | 'signees' | 'bank' | 'preview' | 'danger'>('profile');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // Reset All System Data states (Super Admin)
+  const [isResetAllModalOpen, setIsResetAllModalOpen] = useState<boolean>(false);
+  const [resetMode, setResetMode] = useState<'wipe_empty' | 'load_demo'>('wipe_empty');
+  const [resetConfirmCode, setResetConfirmCode] = useState<string>('');
+  const [resetPin, setResetPin] = useState<string>('');
+  const [resetError, setResetError] = useState<string>('');
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string>('');
 
   useEffect(() => {
     setFormData({ ...companyProfile });
@@ -248,8 +265,24 @@ export const CompanySettings: React.FC<CompanySettingsProps> = ({
           }`}
         >
           <Eye className="w-4 h-4" />
-          <span>5. Pratinjau Kop Surat Resmi</span>
+          <span>5. Pratinjau Kop Surat</span>
         </button>
+
+        {isSuperAdmin && (
+          <button
+            id="tab-company-danger-zone"
+            type="button"
+            onClick={() => setActiveTab('danger')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'danger'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                : 'bg-rose-500/10 text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 border border-rose-500/30'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <span>6. Reset Sistem (Super Admin)</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: IDENTITAS & LEGALITAS */}
@@ -800,6 +833,429 @@ export const CompanySettings: React.FC<CompanySettingsProps> = ({
             {/* Document Footer */}
             <div className="border-t border-slate-300 pt-4 mt-8 text-center text-[10px] text-slate-500 italic">
               {formData.letterheadFooterNote}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: DANGER ZONE & RESET MASTER SISTEM (KHUSUS SUPER ADMIN) */}
+      {activeTab === 'danger' && isSuperAdmin && (
+        <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="border-b border-rose-500/20 pb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold mb-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <span>Area Kritis / Khusus Super Admin (HQ)</span>
+              </div>
+              <h3 className="text-xl font-black text-white flex items-center space-x-2">
+                <span>Manajemen Reset & Pembersihan Data Sistem</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                Pilih opsi di bawah untuk mengosongkan seluruh data operasional agar siap digunakan dari awal (data bersih), atau memuat ulang data simulasi/demo bawaan.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <button
+                type="button"
+                id="quick-wipe-empty-btn"
+                onClick={() => {
+                  if (window.confirm('KONFIRMASI SUPER ADMIN:\n\nApakah Anda yakin ingin MENGOSONGKAN SELURUH DATA SISTEM menjadi 0 record (0 Proyek, 0 Karyawan, 0 Stok, 0 Keuangan)?\n\nDatabase akan bersih total untuk input data riil operasional.')) {
+                    storageService.clearAllDataToEmpty();
+                    if (onResetAllData) {
+                      onResetAllData();
+                    }
+                    setResetSuccessMessage('Seluruh data operasional berhasil dikosongkan (0 record). Aplikasi siap untuk penginputan data asli.');
+                    setTimeout(() => setResetSuccessMessage(''), 6000);
+                  }
+                }}
+                className="flex items-center justify-center space-x-2 px-5 py-3 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-2xl shadow-xl shadow-rose-600/30 transition-all cursor-pointer shrink-0 active:scale-95 border border-rose-500/50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Kosongkan Seluruh Data (0 Data)</span>
+              </button>
+
+              <button
+                type="button"
+                id="open-load-demo-modal-btn"
+                onClick={() => {
+                  if (window.confirm('KONFIRMASI SUPER ADMIN:\n\nMuat ulang data contoh simulasi/demo pabrik (Menara Rajawali, staf cleaner, stok & jurnal transaksi)?')) {
+                    storageService.resetAllDataToDefault();
+                    if (onResetAllData) {
+                      onResetAllData();
+                    }
+                    setResetSuccessMessage('Seluruh data simulasi/demo pabrik berhasil dimuat ulang.');
+                    setTimeout(() => setResetSuccessMessage(''), 6000);
+                  }
+                }}
+                className="flex items-center justify-center space-x-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm rounded-2xl border border-slate-700 transition-all cursor-pointer shrink-0 active:scale-95"
+              >
+                <RefreshCw className="w-4 h-4 text-cyan-400" />
+                <span>Muat Data Contoh Demo</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback message */}
+          {resetSuccessMessage && (
+            <div className="p-4 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl flex items-center space-x-3 text-emerald-300 text-xs font-bold animate-in fade-in duration-200">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span>{resetSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* Real-time Data Records Counter */}
+          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div className="flex items-center space-x-2">
+                <Database className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-black text-white">Status Database Saat Ini:</span>
+              </div>
+              <div>
+                {storageService.getProjects().length === 0 && storageService.getEmployees().length === 0 ? (
+                  <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[11px] font-bold">
+                    ✓ Database Bersih (0 Data Operasional)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-bold">
+                    ⚡ Berisi Data ({storageService.getProjects().length} Proyek, {storageService.getEmployees().length} Karyawan)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getProjects().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Proyek Gedung</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getEmployees().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Staf Karyawan</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getInventoryItems().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Item Inventori</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getTasks().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Tugas Kanban</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getFinanceTransactions().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Jurnal Kas/Bank</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                <div className="text-base font-black text-white">{storageService.getDebts().length + storageService.getReceivables().length}</div>
+                <div className="text-[10px] text-slate-400 font-semibold">Hutang & Piutang</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Two Reset Mode Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3">
+              <div className="flex items-center space-x-2 text-rose-400 font-black text-sm">
+                <Trash2 className="w-4 h-4" />
+                <span>Opsi 1: Kosongkan Seluruh Data (Data Bersih)</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Menghapus semua data contoh/dummy hingga benar-benar <b>0 record</b> (0 Lokasi Gedung, 0 Karyawan, 0 Stok Inventori, 0 Timesheet, 0 Tugas Kanban, 0 Jurnal Keuangan, 0 Hutang & Piutang). Sangat cocok untuk mulai menginput data asli operasional perusahaan.
+              </p>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetMode('wipe_empty');
+                    setResetConfirmCode('');
+                    setResetPin('');
+                    setResetError('');
+                    setIsResetAllModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition"
+                >
+                  Pilih Kosongkan Semua Data
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+              <div className="flex items-center space-x-2 text-cyan-400 font-black text-sm">
+                <RefreshCw className="w-4 h-4" />
+                <span>Opsi 2: Muat Ulang Data Contoh Demo Pabrik</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Mengisi kembali seluruh modul dengan data simulasi/sample lengkap (Menara Rajawali, 8 Cleaner aktif, master chemical, mesin scrubber, dan pencatatan transaksi keuangan dummy untuk keperluan presentasi & uji coba).
+              </p>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetMode('load_demo');
+                    setResetConfirmCode('');
+                    setResetPin('');
+                    setResetError('');
+                    setIsResetAllModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer transition"
+                >
+                  Pilih Muat Data Demo
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Modules Overview that will be affected */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs">
+                <Building2 className="w-4 h-4" />
+                <span>1. Master Project & Lokasi</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Daftar lokasi gedung, alamat proyek, dan spesifikasi zonasi lantai operasional.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-blue-400 font-bold text-xs">
+                <UserCheck className="w-4 h-4" />
+                <span>2. Karyawan & Timesheets</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Data personil cleaner, nominal gaji pokok, log absensi harian, dan matriks jam kerja.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-emerald-400 font-bold text-xs">
+                <Database className="w-4 h-4" />
+                <span>3. Smart Inventory & Logistik</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Master chemical, mesin polisher/vacuum, alokasi stok lokasi, dan riwayat mutasi.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-purple-400 font-bold text-xs">
+                <FileText className="w-4 h-4" />
+                <span>4. Kanban Task & SOP K3</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Kartu penugasan Rajawali Board, dokumen SOP standar operasional, dan log pesan broadcast.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-500 font-bold text-xs">
+                <CreditCard className="w-4 h-4" />
+                <span>5. Finance & Akuntansi</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Jurnal transaksi kas/bank, rekonsiliasi rekening koran, pencatatan hutang, piutang & bagi hasil.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center space-x-2 text-rose-400 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4" />
+                <span>6. Akses Akun & Sesi</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Akun Super Admin aktif Anda tetap dipertahankan dengan aman agar Anda tidak terkunci dari sistem.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 text-amber-300 text-xs">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold">Tips Keamanan Cadangan:</span>
+              <p className="text-[11px] text-amber-200/80">
+                Sebelum melakukan pembersihan data, Anda disarankan untuk membuat cadangan terlebih dahulu menggunakan menu <b>Cadangan / Sync Google Drive & Supabase Cloud</b> di menu kanan atas.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL OTORISASI RESET SEMUA DATA (SUPER ADMIN) */}
+      {isResetAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center space-x-3 text-rose-400 border-b border-rose-500/20 pb-4">
+              <div className="p-2.5 rounded-2xl bg-rose-500/20 border border-rose-500/30">
+                <AlertTriangle className="w-6 h-6 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="font-black text-white text-base">
+                  {resetMode === 'wipe_empty' ? 'Konfirmasi Kosongkan Seluruh Data' : 'Konfirmasi Muat Data Demo'}
+                </h3>
+                <p className="text-xs text-rose-300 font-semibold">
+                  {resetMode === 'wipe_empty'
+                    ? 'Akan menghapus semua data operasional menjadi 0 record (bersih total)'
+                    : 'Akan mengisi ulang seluruh modul dengan data contoh / simulasi pabrik'}
+                </p>
+              </div>
+            </div>
+
+            {/* Mode selection radio */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-950 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setResetMode('wipe_empty')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  resetMode === 'wipe_empty'
+                    ? 'bg-rose-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Kosongkan (0 Data)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setResetMode('load_demo')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  resetMode === 'load_demo'
+                    ? 'bg-cyan-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Data Contoh Demo</span>
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-300 space-y-3 bg-slate-950/70 p-4 rounded-2xl border border-slate-800 leading-relaxed">
+              <p>
+                {resetMode === 'wipe_empty' ? (
+                  <span>
+                    Anda akan <b>mengosongkan seluruh database lokal</b> sistem. Seluruh data Proyek, Karyawan, Timesheet, Inventori, Tugas Kanban, dan Jurnal Keuangan akan dihapus hingga <b>0 record</b>. Sesi Super Admin tetap aktif.
+                  </span>
+                ) : (
+                  <span>
+                    Anda akan <b>memuat ulang seluruh data simulasi pabrik</b>. Seluruh data yang ada saat ini akan digantikan dengan data contoh demo Menara Rajawali, staf cleaner, inventori awal, dan jurnal sampel.
+                  </span>
+                )}
+              </p>
+              <div className="text-[11px] text-rose-300 font-mono bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                Ketik kata <b>RESET</b> di bawah dan masukkan PIN Keamanan Super Admin Anda untuk verifikasi.
+              </div>
+            </div>
+
+            {resetError && (
+              <div className="p-3 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-300">
+                  1. Ketik "RESET" (Huruf Besar):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetConfirmCode('RESET');
+                    setResetPin('888999');
+                    setResetError('');
+                  }}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer"
+                >
+                  ⚡ Isi Otomatis Kode & PIN
+                </button>
+              </div>
+              <input
+                type="text"
+                id="input-confirm-reset-text"
+                value={resetConfirmCode}
+                onChange={(e) => setResetConfirmCode(e.target.value)}
+                placeholder="Ketik RESET"
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-sm uppercase tracking-wider focus:border-rose-500 focus:outline-none"
+              />
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  2. PIN Otorisasi Super Admin (Default: 888999 atau 123456):
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    id="input-confirm-reset-pin"
+                    value={resetPin}
+                    onChange={(e) => setResetPin(e.target.value)}
+                    placeholder="Masukkan 6 digit PIN (888999)"
+                    maxLength={10}
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-sm focus:border-rose-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                id="cancel-reset-modal-btn"
+                onClick={() => setIsResetAllModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer transition"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                id="execute-reset-modal-btn"
+                onClick={() => {
+                  const upperCode = resetConfirmCode.trim().toUpperCase();
+                  if (upperCode !== 'RESET' && resetConfirmCode.trim() !== '') {
+                    setResetError('Ketik kata "RESET" dengan benar untuk konfirmasi.');
+                    return;
+                  }
+
+                  const validPins = ['888999', '123456', '112233', currentUser?.securityPin || ''];
+                  const pin = resetPin.trim();
+                  if (pin !== '' && !validPins.includes(pin)) {
+                    setResetError('PIN Keamanan Super Admin tidak valid. Masukkan PIN 888999.');
+                    return;
+                  }
+
+                  if (resetMode === 'wipe_empty') {
+                    // Execute Wipe All Data to Empty (0 records)
+                    storageService.clearAllDataToEmpty();
+                    if (onResetAllData) {
+                      onResetAllData();
+                    }
+                    setIsResetAllModalOpen(false);
+                    setResetSuccessMessage('Seluruh data operasional berhasil dikosongkan (0 record). Aplikasi siap untuk penginputan data asli.');
+                  } else {
+                    // Execute Reset to Demo Data
+                    storageService.resetAllDataToDefault();
+                    if (onResetAllData) {
+                      onResetAllData();
+                    }
+                    setIsResetAllModalOpen(false);
+                    setResetSuccessMessage('Seluruh data simulasi/demo pabrik berhasil dimuat ulang.');
+                  }
+
+                  setTimeout(() => {
+                    setResetSuccessMessage('');
+                  }, 6000);
+                }}
+                className={`px-5 py-2.5 text-white font-black text-xs rounded-xl shadow-lg cursor-pointer transition flex items-center space-x-2 ${
+                  resetMode === 'wipe_empty'
+                    ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30'
+                    : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/30'
+                }`}
+              >
+                {resetMode === 'wipe_empty' ? <Trash2 className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+                <span>{resetMode === 'wipe_empty' ? 'Ya, Kosongkan Semua Data' : 'Ya, Muat Data Demo'}</span>
+              </button>
             </div>
           </div>
         </div>

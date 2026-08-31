@@ -11,7 +11,8 @@ import {
   User,
   Shield,
   Sparkles,
-  Cloud
+  Cloud,
+  Database
 } from 'lucide-react';
 import { Project, UserAccount, AppView, CompanyProfile } from '../../types';
 import { storageService } from '../../services/storageService';
@@ -30,6 +31,7 @@ interface NavbarProps {
   currentView?: AppView;
   onSelectView?: (view: AppView) => void;
   onOpenDriveSync?: () => void;
+  onOpenSupabaseSync?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,7 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleSidebar,
   currentView,
   onSelectView,
-  onOpenDriveSync
+  onOpenDriveSync,
+  onOpenSupabaseSync
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
@@ -162,6 +165,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Supabase Cloud DB Button */}
+            {onOpenSupabaseSync && (
+              <button
+                id="navbar-supabase-sync-btn"
+                type="button"
+                onClick={onOpenSupabaseSync}
+                className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/40 shadow-sm transition-all cursor-pointer group"
+                title="Integrasi & Sinkronkan Database Supabase"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span className="hidden md:inline">Supabase DB</span>
+              </button>
+            )}
+
             {/* User Session Profile Chip */}
             {currentUser && (
               <div className="relative">
@@ -256,6 +273,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
 
+                      {onOpenSupabaseSync && (
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            onOpenSupabaseSync();
+                          }}
+                          className="w-full text-left flex items-center space-x-2 p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-emerald-500/20"
+                        >
+                          <Database className="w-4 h-4 text-emerald-400" />
+                          <span>Supabase Cloud Database</span>
+                        </button>
+                      )}
+
                       <div className="pt-2 border-t border-slate-800">
                         <button
                           id="navbar-logout-btn"
@@ -275,17 +305,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Quick Reset Demo Data (Optional for testing) */}
-            {onResetData && (
+            {/* Quick Reset System Data (Khusus Super Admin) */}
+            {onResetData && currentUser?.role === 'Super Admin (HQ)' && (
               <button
                 id="reset-demo-data-btn"
                 onClick={() => {
-                  if (confirm('Kembalikan semua data Timesheet, Karyawan, dan Stok ke kondisi awal bawaan?')) {
+                  if (window.confirm('KONFIRMASI SUPER ADMIN:\n\nKosongkan seluruh data demo/operasional (0 Proyek, 0 Karyawan, 0 Stok, 0 Keuangan) sekarang agar siap digunakan dari awal?')) {
                     onResetData();
                   }
                 }}
-                title="Reset data demo ke bawaan"
-                className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 cursor-pointer hidden sm:flex"
+                title="Kosongkan seluruh data sistem menjadi 0 record (Khusus Super Admin)"
+                className="p-1.5 sm:p-2 rounded-xl text-rose-400/80 hover:text-rose-200 hover:bg-rose-500/20 transition-colors shrink-0 cursor-pointer hidden sm:flex border border-rose-500/30"
               >
                 <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
