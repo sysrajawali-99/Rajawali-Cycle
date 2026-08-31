@@ -11,9 +11,7 @@ import {
   User,
   Shield,
   Sparkles,
-  Cloud,
-  Sun,
-  Moon
+  Cloud
 } from 'lucide-react';
 import { Project, UserAccount, AppView, CompanyProfile } from '../../types';
 import { storageService } from '../../services/storageService';
@@ -32,8 +30,6 @@ interface NavbarProps {
   currentView?: AppView;
   onSelectView?: (view: AppView) => void;
   onOpenDriveSync?: () => void;
-  theme?: 'dark' | 'light';
-  onToggleTheme?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -47,9 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleSidebar,
   currentView,
   onSelectView,
-  onOpenDriveSync,
-  theme = 'dark',
-  onToggleTheme
+  onOpenDriveSync
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
@@ -152,28 +146,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ))}
                 </select>
               </div>
-            )}
-
-            {/* Theme Toggle Button (Light / Dark Mode) */}
-            {onToggleTheme && (
-              <button
-                id="navbar-theme-toggle-btn"
-                type="button"
-                onClick={onToggleTheme}
-                className={`p-2 rounded-xl transition-all border cursor-pointer flex items-center justify-center ${
-                  theme === 'dark'
-                    ? 'bg-slate-850 hover:bg-slate-800 text-amber-400 border-slate-700 hover:border-amber-500/50 shadow-sm'
-                    : 'bg-amber-100 hover:bg-amber-200 text-amber-700 border-amber-300 shadow-sm'
-                }`}
-                title={theme === 'dark' ? 'Ganti ke Tema Terang' : 'Ganti ke Tema Gelap'}
-                aria-label="Toggle Theme Mode"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400 animate-pulse" />
-                ) : (
-                  <Moon className="w-4 h-4 text-amber-700" />
-                )}
-              </button>
             )}
 
             {/* Google Drive Cloud Sync Button */}
@@ -281,28 +253,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           <Cloud className="w-4 h-4 text-blue-400" />
                           <span>Google Drive Sync & Cadangan</span>
-                        </button>
-                      )}
-
-                      {onToggleTheme && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onToggleTheme();
-                          }}
-                          className="w-full text-left flex items-center justify-between p-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-slate-700"
-                        >
-                          <div className="flex items-center space-x-2">
-                            {theme === 'dark' ? (
-                              <Sun className="w-4 h-4 text-amber-400" />
-                            ) : (
-                              <Moon className="w-4 h-4 text-amber-700" />
-                            )}
-                            <span>{theme === 'dark' ? 'Mode Tampilan Terang' : 'Mode Tampilan Gelap'}</span>
-                          </div>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-700 text-slate-300 font-mono">
-                            {theme === 'dark' ? '🌙 Gelap' : '☀️ Terang'}
-                          </span>
                         </button>
                       )}
 

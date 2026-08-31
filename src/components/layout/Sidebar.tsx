@@ -28,9 +28,7 @@ import {
   ArrowDownUp,
   TrendingDown,
   TrendingUp,
-  CreditCard,
-  Sun,
-  Moon
+  CreditCard
 } from 'lucide-react';
 import { AppView, UserAccount } from '../../types';
 
@@ -45,8 +43,6 @@ interface SidebarProps {
   activeTasksCount?: number;
   unreadBlastCount?: number;
   onOpenDriveSync?: () => void;
-  theme?: 'dark' | 'light';
-  onToggleTheme?: () => void;
 }
 
 interface MenuItemConfig {
@@ -68,9 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lowStockCount = 0,
   activeTasksCount = 0,
   unreadBlastCount = 0,
-  onOpenDriveSync,
-  theme = 'dark',
-  onToggleTheme
+  onOpenDriveSync
 }) => {
   // Allowed views check
   const allowedViews = currentUser?.allowedViews || [
@@ -732,27 +726,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Role-Based Access Control aktif. Hak akses dikelola oleh Super Admin HQ.
           </p>
-
-          {onToggleTheme && (
-            <button
-              id="sidebar-theme-toggle-btn"
-              type="button"
-              onClick={onToggleTheme}
-              className="w-full flex items-center justify-between p-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-xl border border-slate-800 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center space-x-2">
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Moon className="w-4 h-4 text-amber-700" />
-                )}
-                <span>Tema: {theme === 'dark' ? 'Mode Gelap' : 'Mode Terang'}</span>
-              </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 font-mono">
-                {theme === 'dark' ? '☀️ Ganti Terang' : '🌙 Ganti Gelap'}
-              </span>
-            </button>
-          )}
 
           {onOpenDriveSync && (
             <button

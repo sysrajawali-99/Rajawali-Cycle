@@ -93,26 +93,6 @@ export default function App() {
   // Company Profile Master State
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
 
-  // Theme State ('dark' | 'light')
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => storageService.getTheme());
-
-  // Apply theme to document root
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    } else {
-      root.classList.remove('light');
-      root.classList.add('dark');
-    }
-    storageService.saveTheme(theme);
-  }, [theme]);
-
-  const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
-
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Load all state from storage
@@ -505,15 +485,7 @@ export default function App() {
 
   // Not authenticated: Render Login Page
   if (!currentUser) {
-    return (
-      <LoginPage
-        users={users}
-        onLoginSuccess={handleLoginSuccess}
-        companyProfile={companyProfile}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
-    );
+    return <LoginPage users={users} onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -534,8 +506,6 @@ export default function App() {
         currentView={currentView}
         onSelectView={handleNavigateView}
         onOpenDriveSync={() => setIsDriveModalOpen(true)}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -551,8 +521,6 @@ export default function App() {
           activeTasksCount={activeTasksCount}
           unreadBlastCount={unreadBlastCount}
           onOpenDriveSync={() => setIsDriveModalOpen(true)}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
         />
 
         {/* Main Content Area */}
@@ -814,8 +782,6 @@ export default function App() {
         lowStockCount={lowStockCount}
         activeTasksCount={activeTasksCount}
         unreadBlastCount={unreadBlastCount}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
       />
 
       {/* Google Drive Sync Modal */}

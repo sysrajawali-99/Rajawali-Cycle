@@ -71,8 +71,7 @@ const STORAGE_KEYS = {
   CURRENCY_RATES: 'rajawali_finance_currency_rates',
   DEBTS: 'rajawali_finance_debts',
   RECEIVABLES: 'rajawali_finance_receivables',
-  INVESTMENTS: 'rajawali_finance_investments',
-  THEME: 'rajawali_app_theme'
+  INVESTMENTS: 'rajawali_finance_investments'
 };
 
 export const storageService = {
@@ -548,25 +547,5 @@ export const storageService = {
 
   saveInvestments(data: InvestmentRecord[]) {
     localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(data));
-  },
-
-  // -------------------------------------------------------------------------
-  // THEME (DARK / LIGHT MODE)
-  // -------------------------------------------------------------------------
-  getTheme(): 'dark' | 'light' {
-    const raw = localStorage.getItem(STORAGE_KEYS.THEME);
-    if (raw === 'light' || raw === 'dark') {
-      return raw;
-    }
-    return 'dark'; // Default
-  },
-
-  saveTheme(theme: 'dark' | 'light') {
-    localStorage.setItem(STORAGE_KEYS.THEME, theme);
-    try {
-      window.dispatchEvent(new CustomEvent('theme_changed', { detail: { theme } }));
-    } catch {
-      // ignore
-    }
   }
 };
