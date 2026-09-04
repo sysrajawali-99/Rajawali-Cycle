@@ -267,6 +267,11 @@ export default function App() {
     storageService.saveChartOfAccounts(updated);
   };
 
+  const handleUpdateAccounts = (updatedAccounts: ChartOfAccount[]) => {
+    setAccounts(updatedAccounts);
+    storageService.saveChartOfAccounts(updatedAccounts);
+  };
+
   const handleUpdateAccount = (account: ChartOfAccount) => {
     const updated = accounts.map((a) => (a.code === account.code ? account : a));
     setAccounts(updated);
@@ -621,6 +626,10 @@ export default function App() {
                 selectedProjectId={selectedProjectId}
                 onNavigate={handleNavigateView}
                 userRole={currentUser.role}
+                accounts={accounts}
+                onUpdateAccounts={handleUpdateAccounts}
+                onAddFinanceTransaction={handleAddFinanceTransaction}
+                currentUser={currentUser}
               />
             )}
 

@@ -14,7 +14,16 @@ import {
   ShieldCheck,
   Megaphone,
   CreditCard,
-  Building
+  Building,
+  Wallet,
+  Landmark,
+  Banknote,
+  Pencil,
+  PlusCircle,
+  RotateCcw,
+  FileText,
+  Coins,
+  ArrowUpRight
 } from 'lucide-react';
 import {
   Project,
@@ -26,11 +35,15 @@ import {
   BlastAnnouncement,
   AppView,
   UserRole,
-  CompanyProfile
+  CompanyProfile,
+  ChartOfAccount,
+  FinanceTransaction,
+  UserAccount
 } from '../../types';
 import { formatCurrency, formatNumber, getMonthName } from '../../utils/formatters';
 import { ComparativeCharts } from './ComparativeCharts';
 import { storageService } from '../../services/storageService';
+import { UpdateBalanceModal } from './UpdateBalanceModal';
 
 interface DashboardOverviewProps {
   projects: Project[];
@@ -43,6 +56,10 @@ interface DashboardOverviewProps {
   selectedProjectId: string;
   onNavigate: (view: AppView) => void;
   userRole: UserRole;
+  accounts?: ChartOfAccount[];
+  onUpdateAccounts?: (updated: ChartOfAccount[]) => void;
+  onAddFinanceTransaction?: (trx: FinanceTransaction) => void;
+  currentUser?: UserAccount | null;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
@@ -55,25 +72,77 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   blasts = [],
   selectedProjectId = 'ALL',
   onNavigate,
-  userRole
+  userRole,
+  accounts: propAccounts,
+  onUpdateAccounts,
+  onAddFinanceTransaction,
+  currentUser
 }) => {
   const currentMonth = 8; // August 2026
   const currentYear = 2026;
   const todayDateNumber = 25; // August 25
 
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => storageService.getCompanyProfile());
+  const [internalAccounts, setInternalAccounts] = useState<ChartOfAccount[]>(() =>
+    propAccounts && propAccounts.length > 0 ? propAccounts : storageService.getChartOfAccounts()
+  );
+
+  // Update Balance Modal State
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState<boolean>(false);
+  const [selectedAccCodeForModal, setSelectedAccCodeForModal] = useState<string>('1120');
+
+  // Keep internal accounts in sync
+  useEffect(() => {
+    if (propAccounts && propAccounts.length > 0) {
+      setInternalAccounts(propAccounts);
+    }
+  }, [propAccounts]);
 
   useEffect(() => {
     const handleProfileUpdate = () => {
       setCompanyProfile(storageService.getCompanyProfile());
     };
+    const handleCoaUpdate = () => {
+      setInternalAccounts(storageService.getChartOfAccounts());
+    };
+
     window.addEventListener('company_profile_updated', handleProfileUpdate);
+    window.addEventListener('chart_of_accounts_updated', handleCoaUpdate);
     window.addEventListener('storage', handleProfileUpdate);
+    window.addEventListener('storage', handleCoaUpdate);
     return () => {
       window.removeEventListener('company_profile_updated', handleProfileUpdate);
+      window.removeEventListener('chart_of_accounts_updated', handleCoaUpdate);
       window.removeEventListener('storage', handleProfileUpdate);
+      window.removeEventListener('storage', handleCoaUpdate);
     };
   }, []);
+
+  // Filter accounts for Kas & Bank (Rekening Pemasukan & Likuiditas)
+  const cashAndBankAccounts = useMemo(() => {
+    return internalAccounts.filter((acc) => acc.category === 'Kas & Bank' && acc.isActive);
+  }, [internalAccounts]);
+
+  // Total Liquid Cash & Bank Balance
+  const totalLiquidBalance = useMemo(() => {
+    return cashAndBankAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+  }, [cashAndBankAccounts]);
+
+  const handleOpenBalanceModal = (accountCode?: string) => {
+    if (accountCode) {
+      setSelectedAccCodeForModal(accountCode);
+    } else {
+      setSelectedAccCodeForModal(cashAndBankAccounts[0]?.code || '1120');
+    }
+    setIsBalanceModalOpen(true);
+  };
+
+  const handleAccountsUpdated = (updated: ChartOfAccount[]) => {
+    setInternalAccounts(updated);
+    if (onUpdateAccounts) {
+      onUpdateAccounts(updated);
+    }
+  };
 
   // Filtered employees
   const filteredEmployees = useMemo(() => {
@@ -332,6 +401,146 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
+      {/* PUSAT SALDO REKENING PEMASUKAN & KAS/BANK (LIQUIDITY MANAGEMENT CENTER) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl">
+              <Landmark className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-extrabold text-white text-base sm:text-lg">Saldo Rekening Pemasukan & Kas/Bank</h3>
+                <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  Real-time COA
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Pusat kontrol likuiditas kas operasional, rekening bank penerimaan klien & payroll
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="dash-update-balance-main-btn"
+              onClick={() => handleOpenBalanceModal()}
+              className="flex items-center space-x-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Update Saldo</span>
+            </button>
+
+            <button
+              id="dash-quick-income-trx-btn"
+              onClick={() => {
+                setSelectedAccCodeForModal('1120');
+                setIsBalanceModalOpen(true);
+              }}
+              className="flex items-center space-x-2 px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs rounded-xl transition-all cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ Setoran Pemasukan</span>
+            </button>
+
+            <button
+              id="dash-view-finance-btn"
+              onClick={() => onNavigate('finance')}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-400" />
+              <span>Buku Kas</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Total Liquidity & Individual Accounts Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {cashAndBankAccounts.map((acc) => {
+            const isBca = acc.code === '1120';
+            const isMandiri = acc.code === '1121';
+            const isBni = acc.code === '1122';
+            const isKasBesar = acc.code === '1110';
+            const isKasKecil = acc.code === '1130';
+
+            const badgeColor = isBca
+              ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+              : isMandiri
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              : isBni
+              ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+              : isKasBesar
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+              : 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+
+            return (
+              <div
+                key={acc.code}
+                className="bg-slate-950/80 border border-slate-800 hover:border-slate-700 p-3.5 rounded-2xl transition-all flex flex-col justify-between group hover:shadow-lg hover:shadow-slate-900"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                      {acc.code}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold truncate">
+                      {isBca ? 'Penerimaan Klien' : isMandiri ? 'Payroll & Vendor' : isBni ? 'Giro Operasional' : isKasBesar ? 'Kas Brankas' : 'Kas Lapangan'}
+                    </span>
+                  </div>
+
+                  <h4 className="font-bold text-white text-xs line-clamp-1 group-hover:text-amber-400 transition-colors">
+                    {acc.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                    {acc.description}
+                  </p>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Saldo Terkini</div>
+                    <div className="font-mono font-extrabold text-sm text-amber-400">
+                      {formatCurrency(acc.currentBalance || 0)}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBalanceModal(acc.code)}
+                    className="p-1.5 bg-slate-800 hover:bg-amber-500 text-slate-400 hover:text-slate-950 rounded-lg transition-colors cursor-pointer"
+                    title={`Ubah saldo ${acc.name}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Total Liquidity Banner */}
+        <div className="p-3 bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/20 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center space-x-2 text-slate-300">
+            <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              Total Dana Kas & Bank Siap Pakai ({cashAndBankAccounts.length} Rekening Pemasukan):
+            </span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <span className="text-base font-black text-amber-400 font-mono tracking-tight">
+              {formatCurrency(totalLiquidBalance)}
+            </span>
+            <button
+              onClick={() => handleOpenBalanceModal()}
+              className="text-[11px] font-bold text-amber-400 hover:underline cursor-pointer"
+            >
+              Sinkronkan Saldo ➔
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* EXECUTIVE COMPARATIVE ANALYTICS (Payroll MoM & Manpower Quota vs Actual) */}
       <ComparativeCharts
         projects={projects}
@@ -482,6 +691,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Update Balance Modal */}
+      <UpdateBalanceModal
+        isOpen={isBalanceModalOpen}
+        onClose={() => setIsBalanceModalOpen(false)}
+        accounts={internalAccounts}
+        onUpdateAccounts={handleAccountsUpdated}
+        onAddFinanceTransaction={onAddFinanceTransaction}
+        initialSelectedAccountCode={selectedAccCodeForModal}
+        userRole={userRole}
+        userName={currentUser?.name || 'Admin'}
+      />
     </div>
   );
 };

@@ -473,6 +473,33 @@ export const storageService = {
     applyStorageUpdate('chart_of_accounts', STORAGE_KEYS.CHART_OF_ACCOUNTS, data);
   },
 
+  resetCoaBalancesToZero(): ChartOfAccount[] {
+    const currentAccounts = this.getChartOfAccounts();
+    const zeroed = currentAccounts.map((acc) => ({
+      ...acc,
+      initialBalance: 0,
+      currentBalance: 0
+    }));
+    this.saveChartOfAccounts(zeroed);
+    return zeroed;
+  },
+
+  updateAccountBalance(accountCode: string, newBalance: number): ChartOfAccount[] {
+    const currentAccounts = this.getChartOfAccounts();
+    const updated = currentAccounts.map((acc) => {
+      if (acc.code === accountCode) {
+        return {
+          ...acc,
+          initialBalance: newBalance,
+          currentBalance: newBalance
+        };
+      }
+      return acc;
+    });
+    this.saveChartOfAccounts(updated);
+    return updated;
+  },
+
   getFinanceTransactions(): FinanceTransaction[] {
     const raw = localStorage.getItem(STORAGE_KEYS.FINANCE_TRANSACTIONS);
     if (raw === null) {

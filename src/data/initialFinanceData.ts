@@ -20,8 +20,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Kas & Bank',
     normalBalance: 'Debit',
-    initialBalance: 25000000,
-    currentBalance: 32500000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Kas fisik di brankas kantor pusat Rajawali',
     isActive: true,
     isSystem: true
@@ -32,8 +32,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Kas & Bank',
     normalBalance: 'Debit',
-    initialBalance: 350000000,
-    currentBalance: 485000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Rekening utama penerimaan pembayaran klien & payroll BCA',
     isActive: true,
     isSystem: true
@@ -44,8 +44,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Kas & Bank',
     normalBalance: 'Debit',
-    initialBalance: 120000000,
-    currentBalance: 145000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Rekening operasional penggajian dan vendor procurement Mandiri',
     isActive: true,
     isSystem: true
@@ -56,8 +56,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Kas & Bank',
     normalBalance: 'Debit',
-    initialBalance: 401316130,
-    currentBalance: 398009630,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Rekening e-Statement BNI Direct PT Joeriz Talenta Indonesia / Rajawali',
     isActive: true,
     isSystem: true
@@ -68,8 +68,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Kas & Bank',
     normalBalance: 'Debit',
-    initialBalance: 15000000,
-    currentBalance: 12800000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Dana petty cash untuk kebutuhan darurat supervisor lapangan',
     isActive: true,
     isSystem: true
@@ -80,8 +80,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Piutang Usaha',
     normalBalance: 'Debit',
-    initialBalance: 185000000,
-    currentBalance: 160000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Tagihan termin invoice jasa cleaning yang belum jatuh tempo',
     isActive: true,
     isSystem: true
@@ -92,8 +92,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Persediaan & Logistik',
     normalBalance: 'Debit',
-    initialBalance: 45000000,
-    currentBalance: 52000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Stok chemical MPC, Floor Polish, Sanitizer, Pad di gudang logistik',
     isActive: true,
     isSystem: true
@@ -104,8 +104,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Biaya Dibayar di Muka',
     normalBalance: 'Debit',
-    initialBalance: 18000000,
-    currentBalance: 14500000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Asuransi BPJS TK & sewa warehouse dibayar dimuka',
     isActive: true
   },
@@ -117,8 +117,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Aset Tetap',
     normalBalance: 'Debit',
-    initialBalance: 240000000,
-    currentBalance: 240000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Mesin Ride-on Scrubber, Auto Floor Polisher, High Pressure Washer, Gondola Set',
     isActive: true
   },
@@ -128,8 +128,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Aset Tetap',
     normalBalance: 'Debit',
-    initialBalance: 180000000,
-    currentBalance: 180000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Mobil Box Logistik Chemical & Motor Operasional Supervisor',
     isActive: true
   },
@@ -139,8 +139,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Asset',
     category: 'Akumulasi Penyusutan',
     normalBalance: 'Credit',
-    initialBalance: 65000000,
-    currentBalance: 72000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Kontra akun penyusutan mesin dan kendaraan operasional',
     isActive: true
   },
@@ -152,8 +152,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Liability',
     category: 'Utang Usaha / Supplier',
     normalBalance: 'Credit',
-    initialBalance: 42000000,
-    currentBalance: 38000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Kewajiban pembayaran faktur vendor chemical & consumables',
     isActive: true,
     isSystem: true
@@ -176,8 +176,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Liability',
     category: 'Utang Pajak',
     normalBalance: 'Credit',
-    initialBalance: 14500000,
-    currentBalance: 18200000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Pajak penghasilan karyawan & PPh jasa yang belum disetor',
     isActive: true
   },
@@ -187,8 +187,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Liability',
     category: 'Utang Jangka Panjang',
     normalBalance: 'Credit',
-    initialBalance: 110000000,
-    currentBalance: 95000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Fasilitas pinjaman modal investasi pengadaan mesin dari bank',
     isActive: true
   },
@@ -200,8 +200,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Equity',
     category: 'Modal Saham',
     normalBalance: 'Credit',
-    initialBalance: 500000000,
-    currentBalance: 500000000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Modal awal pendirian PT Rajawali Sukses Mandiri',
     isActive: true,
     isSystem: true
@@ -212,8 +212,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     type: 'Equity',
     category: 'Laba Ditahan',
     normalBalance: 'Credit',
-    initialBalance: 331500000,
-    currentBalance: 389600000,
+    initialBalance: 0,
+    currentBalance: 0,
     description: 'Akumulasi laba bersih dari tahun-tahun buku sebelumnya',
     isActive: true,
     isSystem: true
@@ -227,7 +227,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Pendapatan Jasa Kontrak',
     normalBalance: 'Credit',
     initialBalance: 0,
-    currentBalance: 480000000,
+    currentBalance: 0,
     description: 'Penerimaan kontrak bulanan rutin dari Mall, RS, Apartemen & Gedung',
     isActive: true,
     isSystem: true
@@ -239,7 +239,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Pendapatan Jasa Khusus',
     normalBalance: 'Credit',
     initialBalance: 0,
-    currentBalance: 75000000,
+    currentBalance: 0,
     description: 'Pekerjaan berkala kristalisasi marmer, cuci karpet & gondola kaca',
     isActive: true
   },
@@ -250,7 +250,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Pendapatan Non-Operasional',
     normalBalance: 'Credit',
     initialBalance: 0,
-    currentBalance: 4200000,
+    currentBalance: 0,
     description: 'Pendapatan bunga tabungan, selisih kurs, dan penjualan barang bekas',
     isActive: true
   },
@@ -263,7 +263,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'HPP - Tenaga Kerja Langsung',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 185000000,
+    currentBalance: 0,
     description: 'Gaji pokok, tunjangan hadir, dan uang lembur cleaner & leader lapangan',
     isActive: true,
     isSystem: true
@@ -275,7 +275,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'HPP - Chemical & Perlengkapan',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 48000000,
+    currentBalance: 0,
     description: 'Biaya chemical pembersih, tissue, garbage bag, mop head, pad scrubbing',
     isActive: true,
     isSystem: true
@@ -287,7 +287,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'HPP - Chemical & Perlengkapan',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 12500000,
+    currentBalance: 0,
     description: 'Pengadaan seragam kerja, sarung tangan nitril, helm safety & harness',
     isActive: true
   },
@@ -300,7 +300,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Gaji Staf & Manajemen',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 42000000,
+    currentBalance: 0,
     description: 'Gaji manager operasional, finance, HRD, dan admin pusat',
     isActive: true
   },
@@ -311,7 +311,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Operasional Gedung',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 16500000,
+    currentBalance: 0,
     description: 'Sewa kantor pusat, tagihan listrik, internet fiber, PDAM',
     isActive: true
   },
@@ -322,7 +322,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Pemeliharaan & Mesin',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 9800000,
+    currentBalance: 0,
     description: 'Penggantian sparepart vacuum motor, baterai scrubber, squeegee blade',
     isActive: true
   },
@@ -333,7 +333,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Umum & Administrasi',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 11200000,
+    currentBalance: 0,
     description: 'BBM mobil box pengiriman chemical ke project dan tol',
     isActive: true
   },
@@ -344,7 +344,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Umum & Administrasi',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 6500000,
+    currentBalance: 0,
     description: 'Kertas print, binder laporan klien, materai, software tools',
     isActive: true
   },
@@ -355,7 +355,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Penyusutan Aset',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 7000000,
+    currentBalance: 0,
     description: 'Alokasi penyusutan mesin dan kendaraan per bulan berjalan',
     isActive: true
   },
@@ -366,7 +366,7 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
     category: 'Beban Pajak & Bunga Bank',
     normalBalance: 'Debit',
     initialBalance: 0,
-    currentBalance: 1500000,
+    currentBalance: 0,
     description: 'Biaya admin transfer payroll bank, kliring, dan pajak bunga',
     isActive: true
   }
