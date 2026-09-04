@@ -177,6 +177,154 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     };
   }, [accounts, activeStatement]);
 
+  // ---------------------------------------------------------------------------
+  // AUTO-MATCH LOGIC: Pencocokan Otomatis Baris Mutasi Rekening Koran dengan Transaksi Keuangan
+  // Berdasarkan Tanggal, Nominal, dan Arah Arus Kas (CR/DB vs IN/OUT)
+  // ---------------------------------------------------------------------------
+  const executeAutoMatchLogic = (
+    bankItems: BankStatementItem[],
+    internalTrxs: FinanceTransaction[],
+    options: {
+      minConfidence: number;
+      toleranceDays: number;
+      amountTolerance: number;
+      forceRematch?: boolean;
+    }
+  ): {
+    matchedItems: BankStatementItem[];
+    matchedTrxMap: Map<string, string>;
+    exactDateAndAmountCount: number;
+    totalMatchedCount: number;
+  } => {
+    const { minConfidence, toleranceDays, amountTolerance, forceRematch = false } = options;
+    const usedTrxIds = new Set<string>();
+    const matchedTrxMap = new Map<string, string>(); // trxId -> bankItemId
+    let exactDateAndAmountCount = 0;
+    let totalMatchedCount = 0;
+
+    // Track already matched transactions if not force rematching
+    if (!forceRematch) {
+      bankItems.forEach((item) => {
+        if ((item.matchStatus === 'MATCHED' || item.matchStatus === 'MANUAL_MATCHED') && item.matchedTransactionId) {
+          usedTrxIds.add(item.matchedTransactionId);
+        }
+      });
+    }
+
+    const matchedItems = bankItems.map((item) => {
+      // Retain existing match if not forcing rematch
+      if (!forceRematch && (item.matchStatus === 'MATCHED' || item.matchStatus === 'MANUAL_MATCHED') && item.matchedTransactionId) {
+        matchedTrxMap.set(item.matchedTransactionId, item.id);
+        totalMatchedCount++;
+        return item;
+      }
+
+      // Filter available internal transactions by cash flow direction
+      const expectedTrxType = item.type === 'CR' ? 'IN' : 'OUT';
+      const candidateTrxs = internalTrxs.filter(
+        (t) => t.type === expectedTrxType && (!usedTrxIds.has(t.id) || t.bankStatementItemId === item.id)
+      );
+
+      let bestScore = 0;
+      let bestTrx: FinanceTransaction | null = null;
+      let isExactDateAndAmount = false;
+
+      candidateTrxs.forEach((trx) => {
+        let score = 0;
+
+        // 1. EVALUASI NOMINAL (Hingga 50 Poin)
+        const amountDiff = Math.abs(trx.amount - item.amount);
+        if (amountDiff <= amountTolerance) {
+          score += 50; // Nominal Persis Sama
+        } else if (amountDiff <= 1000) {
+          score += 35; // Selisih pembulatan kecil
+        } else if (amountDiff / Math.max(trx.amount, item.amount) <= 0.01) {
+          score += 25; // Selisih < 1% (misal potongan biaya admin bank)
+        } else {
+          return; // Nominal tidak mendekati, lewati kandidat ini
+        }
+
+        // 2. EVALUASI TANGGAL (Hingga 30 Poin)
+        const isSameDate = trx.date === item.date;
+        if (isSameDate) {
+          score += 30; // Tanggal Persis Sama
+          if (amountDiff <= amountTolerance) {
+            isExactDateAndAmount = true;
+          }
+        } else {
+          try {
+            const trxTime = new Date(trx.date).getTime();
+            const itemTime = new Date(item.date).getTime();
+            const diffDays = Math.abs((trxTime - itemTime) / (1000 * 3600 * 24));
+            
+            if (diffDays <= 1) {
+              score += 22; // Selisih 1 hari (kliring H+1)
+            } else if (diffDays <= toleranceDays) {
+              score += 15; // Dalam batas toleransi hari
+            } else if (diffDays <= toleranceDays + 2) {
+              score += 8;
+            }
+          } catch {
+            // fallback
+          }
+        }
+
+        // 3. EVALUASI KESESUAIAN ARAH (20 Poin)
+        score += 20;
+
+        // 4. EVALUASI KATA KUNCI & NOMOR REFERENSI (Bonus hingga 10 Poin)
+        const bText = `${item.description} ${item.referenceNumber || ''}`.toLowerCase();
+        if (trx.code && bText.includes(trx.code.toLowerCase())) {
+          score += 10;
+        } else if (trx.referenceNumber && trx.referenceNumber.length >= 4 && bText.includes(trx.referenceNumber.toLowerCase())) {
+          score += 10;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestTrx = trx;
+        }
+      });
+
+      // Validasi ambang batas kecocokan (confidence threshold)
+      if (bestScore >= minConfidence && bestTrx) {
+        usedTrxIds.add((bestTrx as FinanceTransaction).id);
+        matchedTrxMap.set((bestTrx as FinanceTransaction).id, item.id);
+        totalMatchedCount++;
+        if (isExactDateAndAmount) {
+          exactDateAndAmountCount++;
+        }
+
+        const matchedResult: BankStatementItem = {
+          ...item,
+          matchStatus: 'MATCHED',
+          matchedTransactionId: (bestTrx as FinanceTransaction).id,
+          matchedTransactionCode: (bestTrx as FinanceTransaction).code,
+          confidenceScore: Math.min(100, bestScore),
+          notes: `Auto-Match: Cocok dengan ${(bestTrx as FinanceTransaction).code} (Tgl: ${(bestTrx as FinanceTransaction).date}, Nominal: ${financeService.formatRupiah((bestTrx as FinanceTransaction).amount)})`
+        };
+        return matchedResult;
+      }
+
+      const unmatchedResult: BankStatementItem = {
+        ...item,
+        matchStatus: 'UNMATCHED',
+        matchedTransactionId: undefined,
+        matchedTransactionCode: undefined,
+        confidenceScore: 0,
+        notes: undefined
+      };
+      return unmatchedResult;
+    });
+
+    return {
+      matchedItems,
+      matchedTrxMap,
+      exactDateAndAmountCount,
+      totalMatchedCount
+    };
+  };
+
   // Run Auto-Matching Algorithm on Current Statement (or All Statements) with 2-Way Sync
   const handleExecuteAutoMatch = (
     options: {
@@ -196,6 +344,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     if (bankStatements.length === 0) return;
 
     let totalMatchedOverall = 0;
+    let totalExactDateAndAmountOverall = 0;
     const allMatchedTrxMap = new Map<string, string>(); // trxId -> bankStatementItemId
 
     const updatedStatements = bankStatements.map((stmt) => {
@@ -203,24 +352,28 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         return stmt;
       }
 
-      const matchedItems = financeService.autoMatchBankStatements(stmt.items, transactions, {
-        minConfidence,
-        toleranceDays,
-        exactAmountTolerance: amountTolerance
+      const { matchedItems, matchedTrxMap, exactDateAndAmountCount, totalMatchedCount } = executeAutoMatchLogic(
+        stmt.items,
+        transactions,
+        {
+          minConfidence,
+          toleranceDays,
+          amountTolerance,
+          forceRematch: true
+        }
+      );
+
+      matchedTrxMap.forEach((val, key) => {
+        allMatchedTrxMap.set(key, val);
       });
+
+      totalMatchedOverall += totalMatchedCount;
+      totalExactDateAndAmountOverall += exactDateAndAmountCount;
 
       const matchedCount = matchedItems.filter(
         (i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED'
       ).length;
       const unmatchedCount = matchedItems.length - matchedCount;
-
-      matchedItems.forEach((it) => {
-        if ((it.matchStatus === 'MATCHED' || it.matchStatus === 'MANUAL_MATCHED') && it.matchedTransactionId) {
-          allMatchedTrxMap.set(it.matchedTransactionId, it.id);
-        }
-      });
-
-      totalMatchedOverall += matchedCount;
 
       return {
         ...stmt,
@@ -264,7 +417,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         module: 'Rekonsiliasi Bank',
         recordId: activeStatement?.id || 'ALL',
         recordCode: targetScope === 'ACTIVE' ? activeStatement?.bankName : 'ALL_STATEMENTS',
-        description: `Menjalankan algoritma Auto-Match Otomatis Masal (${targetScope === 'ACTIVE' ? activeStatement?.bankName : 'Semua Rekening'}) - ${totalMatchedOverall} mutasi berhasil dicocokkan dengan threshold ${minConfidence}% dan toleransi ±${toleranceDays} hari.`
+        description: `Menjalankan Auto-Match Otomatis (${targetScope === 'ACTIVE' ? activeStatement?.bankName : 'Semua Rekening'}) - ${totalMatchedOverall} mutasi berhasil dicocokkan berdasarkan Tanggal & Nominal (${totalExactDateAndAmountOverall} tanggal & nominal persis sama).`
       });
     }
 
@@ -272,9 +425,9 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     setNotification({
       type: 'success',
-      message: `⚡ Auto-Match Masal Berhasil! ${totalMatchedOverall} mutasi berhasil dicocokkan otomatis dan disinkronkan ke Buku Kas.`
+      message: `⚡ Auto-Match Berhasil! ${totalMatchedOverall} mutasi berhasil dicocokkan otomatis berdasarkan Tanggal & Nominal (${totalExactDateAndAmountOverall} persis sama) dan disinkronkan ke Buku Kas.`
     });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 4500);
   };
 
   // Quick 1-click Run Auto-Match from header button
@@ -1606,23 +1759,80 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
               </button>
             </div>
 
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
-              {transactions
-                .filter((t) => (manualMatchItem.type === 'CR' ? t.type === 'IN' : t.type === 'OUT'))
-                .map((trx) => (
+            <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+              {(() => {
+                const candidates = transactions
+                  .filter((t) => (manualMatchItem.type === 'CR' ? t.type === 'IN' : t.type === 'OUT'))
+                  .map((trx) => {
+                    const isSameAmount = Math.abs(trx.amount - manualMatchItem.amount) <= 1;
+                    const isSameDate = trx.date === manualMatchItem.date;
+                    const amountDiff = Math.abs(trx.amount - manualMatchItem.amount);
+                    
+                    let sortPriority = 4;
+                    if (isSameDate && isSameAmount) sortPriority = 1;
+                    else if (isSameAmount) sortPriority = 2;
+                    else if (isSameDate) sortPriority = 3;
+
+                    return {
+                      trx,
+                      isSameAmount,
+                      isSameDate,
+                      amountDiff,
+                      sortPriority
+                    };
+                  })
+                  .sort((a, b) => a.sortPriority - b.sortPriority);
+
+                if (candidates.length === 0) {
+                  return (
+                    <div className="p-6 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl">
+                      Tidak ada transaksi internal dengan arah {manualMatchItem.type === 'CR' ? 'Uang Masuk (IN)' : 'Uang Keluar (OUT)'}.
+                    </div>
+                  );
+                }
+
+                return candidates.map(({ trx, isSameAmount, isSameDate, sortPriority }) => (
                   <div
                     key={trx.id}
                     onClick={() => handleManualForceMatch(trx.id)}
-                    className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-blue-500 rounded-2xl cursor-pointer transition-all flex items-center justify-between group"
+                    className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center justify-between group border ${
+                      sortPriority === 1
+                        ? 'bg-emerald-950/40 border-emerald-500/80 hover:bg-emerald-900/50 shadow-md shadow-emerald-950/30'
+                        : sortPriority === 2
+                        ? 'bg-slate-950 hover:bg-slate-800/80 border-slate-700/90 hover:border-emerald-500'
+                        : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 hover:border-blue-500'
+                    }`}
                   >
-                    <div>
-                      <div className="font-bold text-white text-xs">{trx.title}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                        {trx.code} • {trx.date} • {trx.projectName}
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-white text-xs">{trx.title}</span>
+                        {isSameDate && isSameAmount && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-extrabold text-[9px] uppercase tracking-wider flex items-center space-x-1">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span>Tanggal & Nominal Cocok</span>
+                          </span>
+                        )}
+                        {!isSameDate && isSameAmount && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[9px] border border-emerald-500/30">
+                            Nominal Sama
+                          </span>
+                        )}
+                        {isSameDate && !isSameAmount && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-bold text-[9px] border border-blue-500/30">
+                            Tanggal Sama
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {trx.code} • 📅 {trx.date} • {trx.projectName || 'Kantor Pusat'}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-bold text-emerald-400 text-xs">
+                      <div
+                        className={`font-mono font-bold text-xs ${
+                          isSameAmount ? 'text-emerald-400' : 'text-slate-300'
+                        }`}
+                      >
                         {financeService.formatRupiah(trx.amount)}
                       </div>
                       <span className="text-[10px] text-blue-400 group-hover:underline">
@@ -1630,7 +1840,8 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                       </span>
                     </div>
                   </div>
-                ))}
+                ));
+              })()}
             </div>
 
             <div className="flex items-center justify-end pt-2 border-t border-slate-800">
