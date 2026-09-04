@@ -826,12 +826,25 @@ export default function App() {
                 transactions={financeTransactions}
                 accounts={accounts}
                 projects={projects}
+                debts={debts}
+                receivables={receivables}
+                investments={investments}
                 currentUser={currentUser}
                 onUpdateStatements={handleUpdateBankStatements}
                 onAddTransaction={handleAddFinanceTransaction}
                 onBatchAddTransactions={handleBatchAddFinanceTransactions}
                 onUpdateTransaction={handleUpdateFinanceTransaction}
                 onBatchUpdateTransactions={handleBatchUpdateFinanceTransactions}
+                onUpdateDebts={handleUpdateDebts}
+                onUpdateDebt={handleUpdateDebt}
+                onUpdateReceivables={handleUpdateReceivables}
+                onUpdateReceivable={handleUpdateReceivable}
+                onUpdateInvestments={(in计划) => {
+                  setInvestments(in计划);
+                  storageService.saveInvestments(in计划);
+                }}
+                onUpdateInvestment={handleUpdateInvestment}
+                onUpdateAccounts={handleUpdateAccounts}
                 onLogAudit={handleAddAuditLog}
               />
             )}

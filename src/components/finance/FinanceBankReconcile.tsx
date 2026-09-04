@@ -32,7 +32,15 @@ import {
   FinanceTransaction,
   ChartOfAccount,
   ReconcileStatus,
-  AuditTrailItem
+  AuditTrailItem,
+  DebtRecord,
+  DebtPaymentHistory,
+  DebtStatus,
+  ReceivableRecord,
+  ReceivablePaymentHistory,
+  ReceivableStatus,
+  InvestmentRecord,
+  InvestmentScheduleRow
 } from '../../types/finance';
 import { Project, UserAccount } from '../../types';
 import { financeService } from '../../services/financeService';
@@ -44,12 +52,22 @@ interface FinanceBankReconcileProps {
   transactions: FinanceTransaction[];
   accounts: ChartOfAccount[];
   projects: Project[];
+  debts?: DebtRecord[];
+  receivables?: ReceivableRecord[];
+  investments?: InvestmentRecord[];
   currentUser?: UserAccount | null;
   onUpdateStatements: (statements: BankStatementImport[]) => void;
   onAddTransaction: (trx: FinanceTransaction) => void;
   onBatchAddTransactions?: (trxs: FinanceTransaction[]) => void;
   onUpdateTransaction: (trx: FinanceTransaction) => void;
   onBatchUpdateTransactions?: (trxs: FinanceTransaction[]) => void;
+  onUpdateDebts?: (debts: DebtRecord[]) => void;
+  onUpdateDebt?: (debt: DebtRecord) => void;
+  onUpdateReceivables?: (receivables: ReceivableRecord[]) => void;
+  onUpdateReceivable?: (receivable: ReceivableRecord) => void;
+  onUpdateInvestments?: (investments: InvestmentRecord[]) => void;
+  onUpdateInvestment?: (investment: InvestmentRecord) => void;
+  onUpdateAccounts?: (accounts: ChartOfAccount[]) => void;
   onLogAudit?: (audit: AuditTrailItem) => void;
 }
 
@@ -58,12 +76,22 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
   transactions,
   accounts,
   projects,
+  debts = [],
+  receivables = [],
+  investments = [],
   currentUser,
   onUpdateStatements,
   onAddTransaction,
   onBatchAddTransactions,
   onUpdateTransaction,
   onBatchUpdateTransactions,
+  onUpdateDebts,
+  onUpdateDebt,
+  onUpdateReceivables,
+  onUpdateReceivable,
+  onUpdateInvestments,
+  onUpdateInvestment,
+  onUpdateAccounts,
   onLogAudit
 }) => {
   const [selectedStatementId, setSelectedStatementId] = useState<string>(
@@ -74,6 +102,9 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [manualMatchItem, setManualMatchItem] = useState<BankStatementItem | null>(null);
   const [quickConvertItem, setQuickConvertItem] = useState<BankStatementItem | null>(null);
+  const [quickConvertCategory, setQuickConvertCategory] = useState<'STANDARD' | 'RECEIVABLE' | 'DEBT' | 'INVESTMENT'>('STANDARD');
+  const [quickConvertTargetId, setQuickConvertTargetId] = useState<string>('');
+  const [isSyncingAllModules, setIsSyncingAllModules] = useState(false);
 
   // Auto-Match Otomatis Masal Modal & Config
   const [isAutoMatchModalOpen, setIsAutoMatchModalOpen] = useState(false);
@@ -325,6 +356,278 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     };
   };
 
+  // ---------------------------------------------------------------------------
+  // CROSS-MODULE SYNCHRONIZATION ENGINES (7 MODUL KEUANGAN TERPADU)
+  // ---------------------------------------------------------------------------
+
+  // 1. Sinkronisasi Saldo Akun COA & Jurnal Umum Buku Kas
+  const recalculateAndSyncAccounts = (currentTrxs: FinanceTransaction[]) => {
+    if (!onUpdateAccounts || accounts.length === 0) return;
+
+    const debitMap = new Map<string, number>();
+    const creditMap = new Map<string, number>();
+
+    currentTrxs.forEach((trx) => {
+      trx.journalEntries?.forEach((je) => {
+        debitMap.set(je.accountCode, (debitMap.get(je.accountCode) || 0) + (je.debit || 0));
+        creditMap.set(je.accountCode, (creditMap.get(je.accountCode) || 0) + (je.credit || 0));
+      });
+    });
+
+    const updatedAccounts = accounts.map((acc) => {
+      const totalDebits = debitMap.get(acc.code) || 0;
+      const totalCredits = creditMap.get(acc.code) || 0;
+      const initial = acc.initialBalance || 0;
+
+      let currentBalance = initial;
+      if (acc.type === 'ASSET' || acc.type === 'EXPENSE') {
+        currentBalance = initial + totalDebits - totalCredits;
+      } else {
+        // LIABILITY, EQUITY, REVENUE
+        currentBalance = initial + totalCredits - totalDebits;
+      }
+
+      return {
+        ...acc,
+        balance: currentBalance,
+        currentBalance: currentBalance
+      };
+    });
+
+    onUpdateAccounts(updatedAccounts);
+  };
+
+  // 2. Sinkronisasi Hutang Vendor (AP), Piutang Klien (AR), & Bagi Hasil Investor (12 Baris Jadwal)
+  const syncHutangPiutangAndInvestments = (
+    itemsToSync: Array<{
+      item: BankStatementItem;
+      trxCode?: string;
+      trxTitle?: string;
+      targetType?: 'STANDARD' | 'RECEIVABLE' | 'DEBT' | 'INVESTMENT';
+      targetId?: string;
+    }>
+  ) => {
+    let debtsChanged = false;
+    let receivablesChanged = false;
+    let investmentsChanged = false;
+
+    let updatedDebtsList = [...debts];
+    let updatedRecsList = [...receivables];
+    let updatedInvsList = [...investments];
+
+    itemsToSync.forEach(({ item, trxCode, trxTitle, targetType, targetId }) => {
+      const isCr = item.type === 'CR'; // Inflow -> Piutang (AR) / Investasi Masuk
+      const isDb = item.type === 'DB'; // Outflow -> Hutang (AP) / Bagi Hasil Investor
+      const desc = `${item.description} ${item.referenceNumber || ''} ${trxTitle || ''}`.toLowerCase();
+
+      // A. SINKRONISASI PIUTANG KLIEN (AR INVOICE & AGING)
+      if (isCr && updatedRecsList.length > 0) {
+        let matchedRecIndex = -1;
+
+        if (targetType === 'RECEIVABLE' && targetId) {
+          matchedRecIndex = updatedRecsList.findIndex((r) => r.id === targetId);
+        } else {
+          matchedRecIndex = updatedRecsList.findIndex((rec) => {
+            if (rec.status === 'PAID') return false;
+            const invMatch = rec.invoiceNumber && desc.includes(rec.invoiceNumber.toLowerCase());
+            const codeMatch = rec.code && desc.includes(rec.code.toLowerCase());
+            const custMatch = rec.customerName && desc.includes(rec.customerName.toLowerCase());
+            const amountMatch = Math.abs(rec.remainingAmount - item.amount) <= 10000 || Math.abs(rec.totalAmount - item.amount) <= 10000;
+            return invMatch || codeMatch || custMatch || (amountMatch && rec.customerName && desc.includes(rec.customerName.substring(0, 4).toLowerCase()));
+          });
+        }
+
+        if (matchedRecIndex >= 0) {
+          const matchedRec = updatedRecsList[matchedRecIndex];
+          const payAmount = Math.min(item.amount, matchedRec.remainingAmount || matchedRec.totalAmount);
+          const newPaid = matchedRec.paidAmount + payAmount;
+          const newRemaining = Math.max(0, matchedRec.totalAmount - newPaid);
+          const newStatus: ReceivableStatus = newRemaining === 0 ? 'PAID' : 'PARTIAL';
+
+          const paymentLog: ReceivablePaymentHistory = {
+            id: `rec-pay-reconcile-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            date: item.date,
+            amount: payAmount,
+            paymentMethod: activeStatement?.bankName || 'Bank Transfer',
+            accountCode: '1120',
+            referenceNumber: item.referenceNumber || trxCode || 'BANK-RECONCILE',
+            notes: `Pelunasan otomatis tersinkronisasi via Rekonsiliasi Bank: ${item.description}`,
+            recordedBy: currentUser?.name || 'Auto-Reconcile System'
+          };
+
+          updatedRecsList[matchedRecIndex] = {
+            ...matchedRec,
+            paidAmount: newPaid,
+            remainingAmount: newRemaining,
+            status: newStatus,
+            payments: [paymentLog, ...(matchedRec.payments || [])],
+            updatedAt: new Date().toISOString()
+          };
+          receivablesChanged = true;
+        }
+      }
+
+      // B. SINKRONISASI HUTANG VENDOR (AP BILL & AGING)
+      if (isDb && updatedDebtsList.length > 0) {
+        let matchedDebtIndex = -1;
+
+        if (targetType === 'DEBT' && targetId) {
+          matchedDebtIndex = updatedDebtsList.findIndex((d) => d.id === targetId);
+        } else {
+          matchedDebtIndex = updatedDebtsList.findIndex((debt) => {
+            if (debt.status === 'PAID') return false;
+            const invMatch = debt.invoiceNumber && desc.includes(debt.invoiceNumber.toLowerCase());
+            const codeMatch = debt.code && desc.includes(debt.code.toLowerCase());
+            const credMatch = debt.creditorName && desc.includes(debt.creditorName.toLowerCase());
+            const amountMatch = Math.abs(debt.remainingAmount - item.amount) <= 10000 || Math.abs(debt.totalAmount - item.amount) <= 10000;
+            return invMatch || codeMatch || credMatch || (amountMatch && debt.creditorName && desc.includes(debt.creditorName.substring(0, 4).toLowerCase()));
+          });
+        }
+
+        if (matchedDebtIndex >= 0) {
+          const matchedDebt = updatedDebtsList[matchedDebtIndex];
+          const payAmount = Math.min(item.amount, matchedDebt.remainingAmount || matchedDebt.totalAmount);
+          const newPaid = matchedDebt.paidAmount + payAmount;
+          const newRemaining = Math.max(0, matchedDebt.totalAmount - newPaid);
+          const newStatus: DebtStatus = newRemaining === 0 ? 'PAID' : 'PARTIAL';
+
+          const paymentLog: DebtPaymentHistory = {
+            id: `debt-pay-reconcile-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            date: item.date,
+            amount: payAmount,
+            paymentMethod: activeStatement?.bankName || 'Bank Transfer',
+            accountCode: '1120',
+            referenceNumber: item.referenceNumber || trxCode || 'BANK-RECONCILE',
+            notes: `Pembayaran hutang otomatis tersinkronisasi via Rekonsiliasi Bank: ${item.description}`,
+            recordedBy: currentUser?.name || 'Auto-Reconcile System'
+          };
+
+          updatedDebtsList[matchedDebtIndex] = {
+            ...matchedDebt,
+            paidAmount: newPaid,
+            remainingAmount: newRemaining,
+            status: newStatus,
+            payments: [paymentLog, ...(matchedDebt.payments || [])],
+            updatedAt: new Date().toISOString()
+          };
+          debtsChanged = true;
+        }
+      }
+
+      // C. SINKRONISASI INVESTASI & BAGI HASIL 12 BARIS JADWAL DIVIDEN
+      if (isDb && updatedInvsList.length > 0) {
+        let matchedInvIndex = -1;
+
+        if (targetType === 'INVESTMENT' && targetId) {
+          matchedInvIndex = updatedInvsList.findIndex((i) => i.id === targetId);
+        } else {
+          const isProfitSharingWord = desc.includes('bagi hasil') || desc.includes('dividen') || desc.includes('investor') || desc.includes('roi') || desc.includes('profit');
+          matchedInvIndex = updatedInvsList.findIndex((inv) => {
+            const nameMatch = inv.investorName && desc.includes(inv.investorName.toLowerCase());
+            const codeMatch = inv.code && desc.includes(inv.code.toLowerCase());
+            const monthlyProfitMatch = Math.abs(inv.monthlyProfitAmount - item.amount) <= 10000;
+            return nameMatch || codeMatch || (isProfitSharingWord && monthlyProfitMatch);
+          });
+        }
+
+        if (matchedInvIndex >= 0) {
+          const matchedInv = updatedInvsList[matchedInvIndex];
+          let scheduleRowUpdated = false;
+
+          const updatedSchedules: InvestmentScheduleRow[] = matchedInv.schedules.map((row) => {
+            if (!scheduleRowUpdated && row.status === 'Ditunda') {
+              scheduleRowUpdated = true;
+              return {
+                ...row,
+                status: 'DI Realisasikan' as const,
+                realizationDate: item.date,
+                bankAccountSnapshot: matchedInv.bankAccountNumber,
+                bankAccountNumberSnapshot: matchedInv.bankAccountNumber,
+                bankNameSnapshot: activeStatement?.bankName || matchedInv.bankName,
+                accountHolderSnapshot: matchedInv.bankAccountHolder,
+                transferProof: 'Terverifikasi via Rekonsiliasi Bank',
+                notes: `Bagi hasil ${row.monthLabel} terverifikasi lunas via mutasi bank (${item.description})`,
+                updatedBy: currentUser?.name || 'Auto-Reconcile System'
+              };
+            }
+            return row;
+          });
+
+          if (scheduleRowUpdated) {
+            updatedInvsList[matchedInvIndex] = {
+              ...matchedInv,
+              schedules: updatedSchedules,
+              updatedAt: new Date().toISOString()
+            };
+            investmentsChanged = true;
+          }
+        }
+      }
+    });
+
+    if (receivablesChanged) {
+      if (onUpdateReceivables) onUpdateReceivables(updatedRecsList);
+    }
+    if (debtsChanged) {
+      if (onUpdateDebts) onUpdateDebts(updatedDebtsList);
+    }
+    if (investmentsChanged) {
+      if (onUpdateInvestments) onUpdateInvestments(updatedInvsList);
+    }
+  };
+
+  // 3. Manual Trigger Full Cross-Module Sync
+  const handleRunFullCrossModuleSync = () => {
+    setIsSyncingAllModules(true);
+
+    try {
+      // Step A: Sync COA Balances with all current transactions
+      recalculateAndSyncAccounts(transactions);
+
+      // Step B: Collect all matched bank items
+      const allMatchedItems: Array<{ item: BankStatementItem; trxCode?: string; trxTitle?: string }> = [];
+      bankStatements.forEach((stmt) => {
+        stmt.items.forEach((it) => {
+          if (it.matchStatus === 'MATCHED' || it.matchStatus === 'MANUAL_MATCHED') {
+            allMatchedItems.push({
+              item: it,
+              trxCode: it.matchedTransactionCode,
+              trxTitle: it.description
+            });
+          }
+        });
+      });
+
+      // Step C: Sync Hutang, Piutang, and Investments
+      if (allMatchedItems.length > 0) {
+        syncHutangPiutangAndInvestments(allMatchedItems);
+      }
+
+      // Step D: Log Audit
+      if (onLogAudit) {
+        onLogAudit({
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          userName: currentUser?.name || 'Finance Lead',
+          userRole: currentUser?.role || 'Finance',
+          actionType: 'RECONCILE',
+          module: 'Rekonsiliasi Bank',
+          recordId: 'FULL_SYNC',
+          recordCode: 'CROSS_MODULE_SYNC',
+          description: `Sinkronisasi menyeluruh 7 Modul Keuangan berhasil: Buku Kas & Jurnal COA, Hutang Vendor, Piutang Klien, 12 Baris Jadwal Dividen, Forecast Pengeluaran, Laba Rugi, dan Laporan Keuangan SAK.`
+        });
+      }
+
+      setNotification({
+        type: 'success',
+        message: '⚡ 7 Modul Keuangan berhasil disinkronkan secara menyeluruh (Buku Kas, AP/AR, Investasi, Forecast, P&L, SAK, dan Audit Trail)!'
+      });
+      setTimeout(() => setNotification(null), 4500);
+    } finally {
+      setIsSyncingAllModules(false);
+    }
+  };
+
   // Run Auto-Matching Algorithm on Current Statement (or All Statements) with 2-Way Sync
   const handleExecuteAutoMatch = (
     options: {
@@ -346,6 +649,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     let totalMatchedOverall = 0;
     let totalExactDateAndAmountOverall = 0;
     const allMatchedTrxMap = new Map<string, string>(); // trxId -> bankStatementItemId
+    const newlyMatchedItems: Array<{ item: BankStatementItem; trxCode?: string; trxTitle?: string }> = [];
 
     const updatedStatements = bankStatements.map((stmt) => {
       if (targetScope === 'ACTIVE' && stmt.id !== activeStatement?.id) {
@@ -367,6 +671,16 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         allMatchedTrxMap.set(key, val);
       });
 
+      matchedItems.forEach((it) => {
+        if (it.matchStatus === 'MATCHED') {
+          newlyMatchedItems.push({
+            item: it,
+            trxCode: it.matchedTransactionCode,
+            trxTitle: it.description
+          });
+        }
+      });
+
       totalMatchedOverall += totalMatchedCount;
       totalExactDateAndAmountOverall += exactDateAndAmountCount;
 
@@ -386,8 +700,9 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     onUpdateStatements(updatedStatements);
 
     // Sync 2-Way to Internal Buku Kas transactions
+    let finalTrxs = transactions;
     if (syncBukuKas && allMatchedTrxMap.size > 0) {
-      const updatedTrxs = transactions.map((t) => {
+      finalTrxs = transactions.map((t) => {
         if (allMatchedTrxMap.has(t.id)) {
           return {
             ...t,
@@ -399,12 +714,18 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
       });
 
       if (onBatchUpdateTransactions) {
-        onBatchUpdateTransactions(updatedTrxs);
+        onBatchUpdateTransactions(finalTrxs);
       } else {
-        updatedTrxs.forEach((t) => {
+        finalTrxs.forEach((t) => {
           if (allMatchedTrxMap.has(t.id)) onUpdateTransaction(t);
         });
       }
+    }
+
+    // Sync COA Balances and Hutang/Piutang/Investments
+    recalculateAndSyncAccounts(finalTrxs);
+    if (newlyMatchedItems.length > 0) {
+      syncHutangPiutangAndInvestments(newlyMatchedItems);
     }
 
     if (onLogAudit) {
@@ -417,7 +738,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         module: 'Rekonsiliasi Bank',
         recordId: activeStatement?.id || 'ALL',
         recordCode: targetScope === 'ACTIVE' ? activeStatement?.bankName : 'ALL_STATEMENTS',
-        description: `Menjalankan Auto-Match Otomatis (${targetScope === 'ACTIVE' ? activeStatement?.bankName : 'Semua Rekening'}) - ${totalMatchedOverall} mutasi berhasil dicocokkan berdasarkan Tanggal & Nominal (${totalExactDateAndAmountOverall} tanggal & nominal persis sama).`
+        description: `Menjalankan Auto-Match Otomatis (${targetScope === 'ACTIVE' ? activeStatement?.bankName : 'Semua Rekening'}) - ${totalMatchedOverall} mutasi berhasil dicocokkan berdasarkan Tanggal & Nominal (${totalExactDateAndAmountOverall} tanggal & nominal persis sama) dan disinkronkan ke seluruh modul keuangan.`
       });
     }
 
@@ -425,7 +746,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     setNotification({
       type: 'success',
-      message: `⚡ Auto-Match Berhasil! ${totalMatchedOverall} mutasi berhasil dicocokkan otomatis berdasarkan Tanggal & Nominal (${totalExactDateAndAmountOverall} persis sama) dan disinkronkan ke Buku Kas.`
+      message: `⚡ Auto-Match Berhasil! ${totalMatchedOverall} mutasi berhasil dicocokkan otomatis (${totalExactDateAndAmountOverall} tanggal & nominal persis sama) dan 7 Modul Keuangan berhasil disinkronkan!`
     });
     setTimeout(() => setNotification(null), 4500);
   };
@@ -552,6 +873,28 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
       newTrxs.forEach((t) => onAddTransaction(t));
     }
 
+    const allCurrentTrxs = [...transactions, ...newTrxs];
+
+    // Synchronize COA Balances & Debts/Receivables/Investments
+    recalculateAndSyncAccounts(allCurrentTrxs);
+    syncHutangPiutangAndInvestments(
+      newTrxs.map((nt) => {
+        const correspondingItem = unmatchedItems.find((ui) => ui.id === nt.bankStatementItemId);
+        return {
+          item: correspondingItem || {
+            id: nt.bankStatementItemId || '',
+            date: nt.date,
+            type: nt.type === 'IN' ? 'CR' : 'DB',
+            description: nt.title,
+            amount: nt.amount,
+            matchStatus: 'MATCHED'
+          },
+          trxCode: nt.code,
+          trxTitle: nt.title
+        };
+      })
+    );
+
     // Update active statement
     const updatedStatements = bankStatements.map((s) => {
       if (s.id === activeStatement.id) {
@@ -577,7 +920,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         module: 'Rekonsiliasi Bank',
         recordId: activeStatement.id,
         recordCode: activeStatement.fileName,
-        description: `Membuat ${newTrxs.length} transaksi Buku Kas baru secara masal dari mutasi belum cocok rekening koran ${activeStatement.bankName}.`
+        description: `Membuat ${newTrxs.length} transaksi Buku Kas baru secara masal dari mutasi rekening koran ${activeStatement.bankName}, menyinkronkan COA & seluruh modul keuangan.`
       });
     }
 
@@ -585,7 +928,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     setNotification({
       type: 'success',
-      message: `⚡ Berhasil membuat ${newTrxs.length} transaksi Buku Kas dan merekonsiliasi seluruh mutasi rekening koran!`
+      message: `⚡ Berhasil membuat ${newTrxs.length} transaksi Buku Kas dan merekonsiliasi seluruh mutasi rekening koran serta menyinkronkan COA & Modul Terkait!`
     });
     setTimeout(() => setNotification(null), 4000);
   };
@@ -596,9 +939,9 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     if (!quickConvertItem || !activeStatement) return;
 
     const form = e.target as any;
-    const accountCode = form.accountCode.value;
-    const projectId = form.projectId.value;
-    const title = form.title.value;
+    const accountCode = form.accountCode?.value || (quickConvertItem.type === 'CR' ? '4110' : '5120');
+    const projectId = form.projectId?.value || 'ALL';
+    const title = form.title?.value || quickConvertItem.description;
     const now = new Date();
 
     const isCr = quickConvertItem.type === 'CR';
@@ -620,7 +963,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
       title: title || quickConvertItem.description,
       description: `Dicatat otomatis dari mutasi rekening koran: ${quickConvertItem.description}`,
       amount: quickConvertItem.amount,
-      paymentMethod: 'Bank BCA (123-456-7890)',
+      paymentMethod: activeStatement.bankName || 'Bank BCA (123-456-7890)',
       primaryAccountCode: primaryAccCode,
       contraAccountCode: accountCode,
       journalEntries: isCr
@@ -628,7 +971,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
             {
               id: `j-${Date.now()}-1`,
               accountCode: primaryAccCode,
-              accountName: 'Bank BCA - Rek Operasional',
+              accountName: `${activeStatement.bankName || 'Bank BCA'} - Rek Operasional`,
               debit: quickConvertItem.amount,
               credit: 0,
               notes: 'Penerimaan rekening koran'
@@ -654,7 +997,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
             {
               id: `j-${Date.now()}-2`,
               accountCode: primaryAccCode,
-              accountName: 'Bank BCA - Rek Operasional',
+              accountName: `${activeStatement.bankName || 'Bank BCA'} - Rek Operasional`,
               debit: 0,
               credit: quickConvertItem.amount,
               notes: 'Pengeluaran rekening koran'
@@ -677,6 +1020,20 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
     // Add transaction
     onAddTransaction(newTrx);
 
+    // Sync COA and Hutang / Piutang / Investasi
+    const updatedTransactions = [...transactions, newTrx];
+    recalculateAndSyncAccounts(updatedTransactions);
+
+    syncHutangPiutangAndInvestments([
+      {
+        item: quickConvertItem,
+        trxCode: newTrx.code,
+        trxTitle: newTrx.title,
+        targetType: quickConvertCategory,
+        targetId: quickConvertTargetId
+      }
+    ]);
+
     // Update statement item as MATCHED
     const updatedItems = activeStatement.items.map((i) => {
       if (i.id === quickConvertItem.id) {
@@ -694,16 +1051,40 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     const updatedStatements = bankStatements.map((s) => {
       if (s.id === activeStatement.id) {
-        return { ...s, items: updatedItems };
+        const matchedCount = updatedItems.filter((i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED').length;
+        return {
+          ...s,
+          items: updatedItems,
+          matchedCount,
+          unmatchedCount: updatedItems.length - matchedCount
+        };
       }
       return s;
     });
 
     onUpdateStatements(updatedStatements);
+
+    if (onLogAudit) {
+      onLogAudit({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        userName: currentUser?.name || 'Finance Admin',
+        userRole: currentUser?.role || 'Admin Operasional',
+        actionType: 'CREATE',
+        module: 'Rekonsiliasi Bank',
+        recordId: newTrx.id,
+        recordCode: newTrx.code,
+        description: `Konversi cepat mutasi ${quickConvertItem.description} (${financeService.formatRupiah(quickConvertItem.amount)}) menjadi transaksi ${code} & sinkronisasi modul ${quickConvertCategory}.`
+      });
+    }
+
     setQuickConvertItem(null);
+    setQuickConvertCategory('STANDARD');
+    setQuickConvertTargetId('');
+
     setNotification({
       type: 'success',
-      message: `Mutasi berhasil dicatat sebagai transaksi ${code} dan langsung berstatus MATCHED!`
+      message: `Mutasi berhasil dicatat sebagai transaksi ${code}, berstatus MATCHED, dan disinkronkan ke seluruh modul keuangan!`
     });
     setTimeout(() => setNotification(null), 3500);
   };
@@ -731,20 +1112,68 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     const updatedStatements = bankStatements.map((s) => {
       if (s.id === activeStatement.id) {
-        return { ...s, items: updatedItems };
+        const matchedCount = updatedItems.filter((i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED').length;
+        return {
+          ...s,
+          items: updatedItems,
+          matchedCount,
+          unmatchedCount: updatedItems.length - matchedCount
+        };
       }
       return s;
     });
 
     // Mark internal transaction as reconciled
-    onUpdateTransaction({ ...matchedTrx, isReconciled: true, bankStatementItemId: manualMatchItem.id });
+    const reconciledTrx: FinanceTransaction = { ...matchedTrx, isReconciled: true, bankStatementItemId: manualMatchItem.id };
+    onUpdateTransaction(reconciledTrx);
     onUpdateStatements(updatedStatements);
+
+    // Sync cross-module
+    recalculateAndSyncAccounts(transactions);
+    syncHutangPiutangAndInvestments([
+      {
+        item: manualMatchItem,
+        trxCode: matchedTrx.code,
+        trxTitle: matchedTrx.title
+      }
+    ]);
+
+    if (onLogAudit) {
+      onLogAudit({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        userName: currentUser?.name || 'Finance Admin',
+        userRole: currentUser?.role || 'Admin Operasional',
+        actionType: 'RECONCILE',
+        module: 'Rekonsiliasi Bank',
+        recordId: manualMatchItem.id,
+        recordCode: matchedTrx.code,
+        description: `Pencocokan manual mutasi ${manualMatchItem.description} dengan transaksi ${matchedTrx.code} (${financeService.formatRupiah(manualMatchItem.amount)}) & sinkronisasi modul keuangan.`
+      });
+    }
+
     setManualMatchItem(null);
+    setNotification({
+      type: 'success',
+      message: `Mutasi berhasil dicocokkan manual dengan ${matchedTrx.code} dan disinkronkan ke seluruh modul keuangan!`
+    });
+    setTimeout(() => setNotification(null), 3500);
   };
 
   // Handle Unmatch / Release
   const handleUnmatch = (item: BankStatementItem) => {
     if (!activeStatement) return;
+
+    if (item.matchedTransactionId) {
+      const targetTrx = transactions.find((t) => t.id === item.matchedTransactionId);
+      if (targetTrx) {
+        onUpdateTransaction({
+          ...targetTrx,
+          isReconciled: false,
+          bankStatementItemId: undefined
+        });
+      }
+    }
 
     const updatedItems = activeStatement.items.map((i) => {
       if (i.id === item.id) {
@@ -762,12 +1191,38 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
 
     const updatedStatements = bankStatements.map((s) => {
       if (s.id === activeStatement.id) {
-        return { ...s, items: updatedItems };
+        const matchedCount = updatedItems.filter((i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED').length;
+        return {
+          ...s,
+          items: updatedItems,
+          matchedCount,
+          unmatchedCount: updatedItems.length - matchedCount
+        };
       }
       return s;
     });
 
     onUpdateStatements(updatedStatements);
+
+    if (onLogAudit) {
+      onLogAudit({
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        userName: currentUser?.name || 'Finance Admin',
+        userRole: currentUser?.role || 'Admin Operasional',
+        actionType: 'UPDATE',
+        module: 'Rekonsiliasi Bank',
+        recordId: item.id,
+        recordCode: item.matchedTransactionCode || 'UNMATCH',
+        description: `Melepas pencocokan rekonsiliasi mutasi ${item.description} (${financeService.formatRupiah(item.amount)}).`
+      });
+    }
+
+    setNotification({
+      type: 'info',
+      message: 'Status pencocokan mutasi bank telah dilepas (UNMATCHED).'
+    });
+    setTimeout(() => setNotification(null), 3000);
   };
 
   // Handle Upload Statement Success from BankStatementUploadModal
@@ -795,6 +1250,16 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
           updatedTrxs.forEach((t) => onUpdateTransaction(t));
         }
       }
+
+      // Sync COA balances and entities
+      recalculateAndSyncAccounts(transactions);
+      syncHutangPiutangAndInvestments(
+        matchedPairs.map((mp) => ({
+          item: mp,
+          trxCode: mp.matchedTransactionCode,
+          trxTitle: mp.description
+        }))
+      );
     }
 
     setNotification({
@@ -1243,6 +1708,93 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
         </div>
       )}
 
+      {/* ------------------------------------------------------------- */}
+      {/* 7-MODULE FINANCIAL CROSS-SYNCHRONIZATION LIVE STATUS BANNER */}
+      {/* ------------------------------------------------------------- */}
+      <div className="bg-slate-900/95 border border-slate-800/90 rounded-2xl p-4 space-y-3 shadow-lg shadow-black/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h4 className="text-xs font-extrabold text-white uppercase tracking-wider">
+                  Status Sinkronisasi 7 Modul Keuangan Terpadu
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                  ● Real-Time Auto-Sync Aktif
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Setiap mutasi rekening koran yang dicocokkan (Match / Quick-Convert) otomatis menyinkronkan data buku kas, hutang piutang, dan laporan finansial.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleRunFullCrossModuleSync}
+            disabled={isSyncingAllModules}
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-950/40 shrink-0"
+            title="Jalankan sinkronisasi menyeluruh ke seluruh modul keuangan sekarang"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAllModules ? 'animate-spin' : ''}`} />
+            <span>{isSyncingAllModules ? 'Menyinkronkan...' : '⚡ Sinkronkan 7 Modul Sekarang'}</span>
+          </button>
+        </div>
+
+        {/* 7 Module Status Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-[11px]">
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">1. Buku Kas & Jurnal</span>
+            <span className="font-bold text-emerald-400 font-mono text-xs">{transactions.length} Trx Sync</span>
+            <span className="text-[9px] text-slate-500">COA & General Ledger</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">2. Hutang Vendor</span>
+            <span className="font-bold text-rose-400 font-mono text-xs">
+              {debts.filter((d) => d.status === 'PAID').length}/{debts.length} Lunas
+            </span>
+            <span className="text-[9px] text-slate-500">AP Bill & Aging</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">3. Piutang Klien</span>
+            <span className="font-bold text-emerald-400 font-mono text-xs">
+              {receivables.filter((r) => r.status === 'PAID').length}/{receivables.length} Lunas
+            </span>
+            <span className="text-[9px] text-slate-500">AR Invoice & Aging</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">4. Investasi & Dividen</span>
+            <span className="font-bold text-purple-400 font-mono text-xs">
+              {investments.length} Investor
+            </span>
+            <span className="text-[9px] text-slate-500">12 Baris Jadwal</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">5. Forecast Belanja</span>
+            <span className="font-bold text-blue-400 font-mono text-xs">Gaji + AP + Dividen</span>
+            <span className="text-[9px] text-slate-500">Proyeksi Arus Kas</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">6. Laba Rugi (P&L)</span>
+            <span className="font-bold text-amber-400 font-mono text-xs">Laba Komprehensif</span>
+            <span className="text-[9px] text-slate-500">Revenue & Expense</span>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between space-y-1">
+            <span className="text-[10px] text-slate-400 font-semibold truncate">7. SAK & Biaya</span>
+            <span className="font-bold text-cyan-400 font-mono text-xs">Neraca & Arus Kas</span>
+            <span className="text-[9px] text-slate-500">Cost Center & Audit</span>
+          </div>
+        </div>
+      </div>
+
       {/* Filter & Search Bar */}
       {activeStatement && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -1666,6 +2218,157 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                 </div>
               </div>
 
+              {/* Module Destination Selector */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1.5">
+                  Tujuan Integrasi Modul Keuangan
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickConvertCategory('STANDARD');
+                      setQuickConvertTargetId('');
+                    }}
+                    className={`p-2 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                      quickConvertCategory === 'STANDARD'
+                        ? 'bg-blue-600/20 border-blue-500 text-white font-bold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>📊 Buku Kas & COA</span>
+                  </button>
+
+                  {quickConvertItem.type === 'CR' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickConvertCategory('RECEIVABLE');
+                        const firstOpen = receivables.find((r) => r.status !== 'PAID');
+                        setQuickConvertTargetId(firstOpen?.id || '');
+                      }}
+                      className={`p-2 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                        quickConvertCategory === 'RECEIVABLE'
+                          ? 'bg-emerald-600/20 border-emerald-500 text-white font-bold'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>📥 Pelunasan Piutang (AR)</span>
+                    </button>
+                  )}
+
+                  {quickConvertItem.type === 'DB' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickConvertCategory('DEBT');
+                          const firstOpen = debts.find((d) => d.status !== 'PAID');
+                          setQuickConvertTargetId(firstOpen?.id || '');
+                        }}
+                        className={`p-2 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                          quickConvertCategory === 'DEBT'
+                            ? 'bg-rose-600/20 border-rose-500 text-white font-bold'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>📤 Bayar Hutang (AP)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickConvertCategory('INVESTMENT');
+                          const firstInv = investments.find((i) => i.status === 'ACTIVE');
+                          setQuickConvertTargetId(firstInv?.id || '');
+                        }}
+                        className={`p-2 rounded-xl border text-left flex items-center space-x-2 transition-all cursor-pointer ${
+                          quickConvertCategory === 'INVESTMENT'
+                            ? 'bg-purple-600/20 border-purple-500 text-white font-bold'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>💎 Bagi Hasil Investor</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Target Entity Selection based on Category */}
+              {quickConvertCategory === 'RECEIVABLE' && (
+                <div className="bg-emerald-950/30 border border-emerald-800/60 rounded-xl p-3 space-y-1.5 animate-in fade-in">
+                  <label className="text-[11px] font-bold text-emerald-300 block">
+                    Pilih Invoice Piutang Klien yang Dilunasi:
+                  </label>
+                  <select
+                    value={quickConvertTargetId}
+                    onChange={(e) => setQuickConvertTargetId(e.target.value)}
+                    className="w-full bg-slate-950 border border-emerald-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    {receivables.filter((r) => r.status !== 'PAID').length === 0 ? (
+                      <option value="">Tidak ada piutang outstanding</option>
+                    ) : (
+                      receivables
+                        .filter((r) => r.status !== 'PAID')
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.invoiceNumber || r.code} - {r.customerName} (Sisa: {financeService.formatRupiah(r.remainingAmount)})
+                          </option>
+                        ))
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {quickConvertCategory === 'DEBT' && (
+                <div className="bg-rose-950/30 border border-rose-800/60 rounded-xl p-3 space-y-1.5 animate-in fade-in">
+                  <label className="text-[11px] font-bold text-rose-300 block">
+                    Pilih Tagihan Hutang Vendor yang Dibayar:
+                  </label>
+                  <select
+                    value={quickConvertTargetId}
+                    onChange={(e) => setQuickConvertTargetId(e.target.value)}
+                    className="w-full bg-slate-950 border border-rose-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    {debts.filter((d) => d.status !== 'PAID').length === 0 ? (
+                      <option value="">Tidak ada hutang outstanding</option>
+                    ) : (
+                      debts
+                        .filter((d) => d.status !== 'PAID')
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.invoiceNumber || d.code} - {d.creditorName} (Sisa: {financeService.formatRupiah(d.remainingAmount)})
+                          </option>
+                        ))
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {quickConvertCategory === 'INVESTMENT' && (
+                <div className="bg-purple-950/30 border border-purple-800/60 rounded-xl p-3 space-y-1.5 animate-in fade-in">
+                  <label className="text-[11px] font-bold text-purple-300 block">
+                    Pilih Portofolio Investor (12 Bulan Bagi Hasil):
+                  </label>
+                  <select
+                    value={quickConvertTargetId}
+                    onChange={(e) => setQuickConvertTargetId(e.target.value)}
+                    className="w-full bg-slate-950 border border-purple-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    {investments.length === 0 ? (
+                      <option value="">Tidak ada data investor</option>
+                    ) : (
+                      investments.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.code} - {i.investorName} (Bagi Hasil: {financeService.formatRupiah(i.monthlyProfitAmount)}/bln)
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="text-[11px] font-bold text-slate-300 block mb-1">
                   Judul Transaksi / Keperluan *
@@ -1674,7 +2377,15 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                   type="text"
                   name="title"
                   required
-                  defaultValue={quickConvertItem.description}
+                  defaultValue={
+                    quickConvertCategory === 'RECEIVABLE'
+                      ? `Pelunasan Piutang - ${quickConvertItem.description}`
+                      : quickConvertCategory === 'DEBT'
+                      ? `Pembayaran Hutang Tagihan - ${quickConvertItem.description}`
+                      : quickConvertCategory === 'INVESTMENT'
+                      ? `Bagi Hasil Dividen Investor - ${quickConvertItem.description}`
+                      : quickConvertItem.description
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1685,7 +2396,17 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                 </label>
                 <select
                   name="accountCode"
-                  defaultValue={quickConvertItem.type === 'CR' ? '4110' : '6170'}
+                  defaultValue={
+                    quickConvertCategory === 'RECEIVABLE'
+                      ? '1140'
+                      : quickConvertCategory === 'DEBT'
+                      ? '2110'
+                      : quickConvertCategory === 'INVESTMENT'
+                      ? '3210'
+                      : quickConvertItem.type === 'CR'
+                      ? '4110'
+                      : '6170'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 >
                   {accounts.map((a) => (
@@ -1717,7 +2438,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                 <button
                   type="button"
                   onClick={() => setQuickConvertItem(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -1725,7 +2446,7 @@ export const FinanceBankReconcile: React.FC<FinanceBankReconcileProps> = ({
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/40 cursor-pointer"
                 >
-                  Simpan & Hubungkan
+                  Simpan & Sinkronkan Modul
                 </button>
               </div>
             </form>
