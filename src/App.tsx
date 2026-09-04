@@ -31,6 +31,7 @@ import {
   InvestmentRecord
 } from './types/finance';
 import { storageService } from './services/storageService';
+import { supabaseService } from './services/supabaseService';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
@@ -147,14 +148,28 @@ export default function App() {
     }
   }, [projects, selectedProjectId]);
 
-  // Initial Load from storage & listen to reset events
+  // Initial Load from storage & listen to real-time sync / reset events
   useEffect(() => {
     loadAllData();
-    const handleReset = () => {
+
+    const handleDataReload = () => {
       loadAllData();
     };
-    window.addEventListener('app_data_reset', handleReset);
-    return () => window.removeEventListener('app_data_reset', handleReset);
+
+    window.addEventListener('app_data_reset', handleDataReload);
+    window.addEventListener('rajawali_remote_update', handleDataReload);
+    window.addEventListener('rajawali_data_synced', handleDataReload);
+    window.addEventListener('storage', handleDataReload);
+
+    // Initialize Supabase Realtime Channel & silent cloud sync
+    supabaseService.initRealtime();
+
+    return () => {
+      window.removeEventListener('app_data_reset', handleDataReload);
+      window.removeEventListener('rajawali_remote_update', handleDataReload);
+      window.removeEventListener('rajawali_data_synced', handleDataReload);
+      window.removeEventListener('storage', handleDataReload);
+    };
   }, []);
 
   // Update handlers with persistent storage

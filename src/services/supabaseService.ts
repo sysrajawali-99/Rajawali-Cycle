@@ -208,9 +208,14 @@ export interface SupabaseSyncEventDetail {
 const AUTO_SYNC_KEY = 'rajawali_supabase_auto_sync_enabled';
 const LAST_SYNC_KEY = 'rajawali_supabase_last_synced_at';
 
+// Unique client identifier per session/browser tab to prevent broadcast echo loop
+const CLIENT_SESSION_ID = 'client_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+
 let currentSyncState: SupabaseSyncState = 'idle';
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSyncKeys = new Set<string>();
+let realtimeChannel: any = null;
+let isRealtimeInitialized = false;
 
 export const supabaseService = {
   testConnection: testSupabaseConnection,
@@ -256,12 +261,233 @@ export const supabaseService = {
   },
 
   /**
+   * Initializes Supabase Realtime Channel and subscriptions so all clients
+   * receive database updates instantly without needing to refresh or click sync.
+   * Subscribes to all main tables (debts, receivables, projects, finance_transactions, etc.)
+   */
+  initRealtime() {
+    if (isRealtimeInitialized) return;
+    isRealtimeInitialized = true;
+
+    try {
+      // Create dedicated Realtime Channel
+      realtimeChannel = supabase.channel('rajawali-realtime-global', {
+        config: {
+          broadcast: { self: false }
+        }
+      });
+
+      // 1. Instant P2P / Multi-User Broadcast Channel (0ms Latency)
+      realtimeChannel.on('broadcast', { event: 'data_changed' }, (payload: any) => {
+        const { key, data, senderId } = payload?.payload || {};
+        if (senderId && senderId !== CLIENT_SESSION_ID && key && data !== undefined) {
+          storageService.saveFromRemote(key, data);
+          this.triggerLocalChangeEvent(key, data);
+          this.broadcastSyncStatus('synced', key, `Pembaruan realtime diterima (${key})`);
+        }
+      });
+
+      // 2. Direct PostgreSQL Realtime Subscriptions for PRIMARY TABLES:
+      // A. Table DEBTS (Hutang Usaha)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'debts' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('debts', payload);
+        }
+      );
+
+      // B. Table RECEIVABLES (Piutang Usaha)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'receivables' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('receivables', payload);
+        }
+      );
+
+      // C. Table PROJECTS (Proyek & Operasional)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'projects' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('projects', payload);
+        }
+      );
+
+      // D. Table FINANCE_TRANSACTIONS (Jurnal Kas & Transaksi Keuangan)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'finance_transactions' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('finance_transactions', payload);
+        }
+      );
+
+      // E. Table EMPLOYEES (Data Karyawan)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'employees' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('employees', payload);
+        }
+      );
+
+      // F. Table TASKS (Kanban & Quality Control)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('tasks', payload);
+        }
+      );
+
+      // G. Table INVENTORY_ITEMS & STOCKS
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'inventory_items' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('inventory_items', payload);
+        }
+      );
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'project_stocks' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('project_stocks', payload);
+        }
+      );
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'inventory_logs' },
+        (payload: any) => {
+          this.handleTableRealtimeChange('inventory_logs', payload);
+        }
+      );
+
+      // H. Table APP_SYNC_STORE (Dokumen JSON Lengkap)
+      realtimeChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_sync_store' },
+        (payload: any) => {
+          if (payload?.new && payload.new.key && payload.new.data) {
+            storageService.saveFromRemote(payload.new.key, payload.new.data);
+            this.triggerLocalChangeEvent(payload.new.key, payload.new.data);
+          }
+        }
+      );
+
+      // Subscribe to active channel
+      realtimeChannel.subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Supabase Realtime] Subscribed to debts, receivables, projects, finance_transactions & app_sync_store');
+        }
+      });
+    } catch (err) {
+      console.warn('[Supabase Realtime Init Warning]:', err);
+    }
+
+    // Perform silent initial pull from Supabase so fresh sessions/devices
+    // immediately have the latest data without manual clicks
+    this.pullLatestFromSupabaseQuietly();
+  },
+
+  /**
+   * Handles postgres_changes on individual relational tables (INSERT, UPDATE, DELETE)
+   * updates local state and fires custom events without requiring a page refresh.
+   */
+  async handleTableRealtimeChange(tableName: string, payload: any) {
+    try {
+      // 1. Re-pull the updated structured module from app_sync_store or table
+      await this.pullModuleFromSupabase(tableName);
+
+      // 2. Dispatch table-specific and global real-time events
+      this.triggerLocalChangeEvent(tableName, payload);
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * Dispatches instant DOM events to notify all React components across the app
+   */
+  triggerLocalChangeEvent(key: string, data?: any) {
+    try {
+      // Dispatch specific table events
+      window.dispatchEvent(new CustomEvent(`${key}_updated`, { detail: { key, data } }));
+      window.dispatchEvent(new CustomEvent('rajawali_remote_update', { detail: { key, data } }));
+      window.dispatchEvent(new CustomEvent('rajawali_data_synced', { detail: { key, data, source: 'remote_sync' } }));
+      window.dispatchEvent(new Event('storage'));
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * Silently pulls latest data from Supabase in the background on startup
+   */
+  async pullLatestFromSupabaseQuietly() {
+    try {
+      const { data, error } = await supabase.from('app_sync_store').select('*');
+      if (error || !data || data.length === 0) return;
+
+      data.forEach((item: { key: string; data: any }) => {
+        if (item.data && item.key) {
+          storageService.saveFromRemote(item.key as any, item.data);
+        }
+      });
+      this.broadcastSyncStatus('synced', undefined, 'Data awal tersinkronisasi dari Supabase Cloud');
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * Pull single module from Supabase JSON store
+   */
+  async pullModuleFromSupabase(moduleKey: string) {
+    try {
+      const { data, error } = await supabase
+        .from('app_sync_store')
+        .select('data')
+        .eq('key', moduleKey)
+        .single();
+
+      if (!error && data && data.data) {
+        storageService.saveFromRemote(moduleKey as any, data.data);
+      }
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
    * Automatically triggered when any data is modified / posted.
-   * Batches modifications with a 500ms debounce to prevent request spamming.
+   * Instantly broadcasts to other connected users via Realtime Channel with 0ms delay,
+   * then batches Supabase DB upsert with a fast 150ms buffer.
    */
   notifyDataChanged(moduleKey: string, data?: any) {
     if (!this.isAutoSyncEnabled()) return;
 
+    // 1. INSTANT BROADCAST TO ALL CONNECTED USERS (0 delay)
+    if (realtimeChannel && data !== undefined) {
+      try {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'data_changed',
+          payload: {
+            key: moduleKey,
+            data,
+            senderId: CLIENT_SESSION_ID,
+            timestamp: Date.now()
+          }
+        }).catch((err: any) => console.debug('Broadcast notice:', err));
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2. FAST DB UPSERT TO SUPABASE CLOUD (150ms)
     pendingSyncKeys.add(moduleKey);
     this.broadcastSyncStatus('syncing', moduleKey, `Menyinkronkan posting ${moduleKey} ke Supabase...`);
 
@@ -273,7 +499,7 @@ export const supabaseService = {
       const keysToSync = Array.from(pendingSyncKeys);
       pendingSyncKeys.clear();
       await this.syncSpecificModules(keysToSync);
-    }, 600);
+    }, 150);
   },
 
   /**

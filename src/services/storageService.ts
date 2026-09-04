@@ -100,12 +100,36 @@ export type StorageActionType =
   | 'currency_rates'
   | 'investments';
 
+export const ACTION_TO_STORAGE_KEY_MAP: Record<StorageActionType, string> = {
+  projects: STORAGE_KEYS.PROJECTS,
+  debts: STORAGE_KEYS.DEBTS,
+  receivables: STORAGE_KEYS.RECEIVABLES,
+  finance_transactions: STORAGE_KEYS.FINANCE_TRANSACTIONS,
+  employees: STORAGE_KEYS.EMPLOYEES,
+  timesheets: STORAGE_KEYS.TIMESHEETS,
+  mutations: STORAGE_KEYS.MUTATIONS,
+  inventory_items: STORAGE_KEYS.INVENTORY_ITEMS,
+  project_stocks: STORAGE_KEYS.PROJECT_STOCKS,
+  inventory_logs: STORAGE_KEYS.INVENTORY_LOGS,
+  tasks: STORAGE_KEYS.TASKS,
+  blasts: STORAGE_KEYS.BLASTS,
+  sops: STORAGE_KEYS.SOPS,
+  users: STORAGE_KEYS.USERS,
+  company_profile: STORAGE_KEYS.COMPANY_PROFILE,
+  chart_of_accounts: STORAGE_KEYS.CHART_OF_ACCOUNTS,
+  bank_statements: STORAGE_KEYS.BANK_STATEMENTS,
+  period_closings: STORAGE_KEYS.PERIOD_CLOSINGS,
+  audit_trails: STORAGE_KEYS.AUDIT_TRAILS,
+  currency_rates: STORAGE_KEYS.CURRENCY_RATES,
+  investments: STORAGE_KEYS.INVESTMENTS
+};
+
 export interface StorageMiddlewareContext<T = any> {
   key: StorageActionType;
   storageKey: string;
   data: T;
   timestamp: string;
-  source?: 'user_action' | 'system_sync' | 'reset';
+  source?: 'user_action' | 'system_sync' | 'remote_sync' | 'reset';
 }
 
 export type StorageMiddleware = (context: StorageMiddlewareContext) => void | Promise<void>;
@@ -122,7 +146,11 @@ export function registerStorageMiddleware(middleware: StorageMiddleware) {
 
 // Backward compatibility alias
 export function registerDataChangeListener(listener: (key: string, data: any) => void) {
-  registerStorageMiddleware((ctx) => listener(ctx.key, ctx.data));
+  registerStorageMiddleware((ctx) => {
+    if (ctx.source !== 'remote_sync') {
+      listener(ctx.key, ctx.data);
+    }
+  });
 }
 
 /**
@@ -134,7 +162,8 @@ function applyStorageUpdate<T>(
   actionKey: StorageActionType,
   storageKey: string,
   data: T,
-  customEventName?: string
+  customEventName?: string,
+  source: 'user_action' | 'system_sync' | 'remote_sync' | 'reset' = 'user_action'
 ): void {
   // 1. Instant local persistence
   localStorage.setItem(storageKey, JSON.stringify(data));
@@ -148,13 +177,24 @@ function applyStorageUpdate<T>(
     }
   }
 
-  // 3. Execute middleware pipeline (Supabase Auto Upsert, Audit, etc.)
+  // 3. Dispatch global sync event for any active view/tab
+  try {
+    window.dispatchEvent(
+      new CustomEvent('rajawali_data_synced', {
+        detail: { key: actionKey, data, source }
+      })
+    );
+  } catch {
+    // ignore
+  }
+
+  // 4. Execute middleware pipeline (Supabase Auto Upsert, Realtime Broadcast, etc.)
   const context: StorageMiddlewareContext<T> = {
     key: actionKey,
     storageKey,
     data,
     timestamp: new Date().toISOString(),
-    source: 'user_action'
+    source
   };
 
   storageMiddlewares.forEach((middleware) => {
@@ -653,6 +693,27 @@ export const storageService = {
     // Keep active user or reset to superadmin
     try {
       window.dispatchEvent(new Event('app_data_reset'));
+    } catch {
+      // ignore
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // REAL-TIME REMOTE DATA RECONCILIATION
+  // -------------------------------------------------------------------------
+  // Disimpan dari broadcast/postgres event Supabase tanpa memicu push keluar berulang (mencegah echo loop)
+  saveFromRemote(actionKey: StorageActionType, data: any) {
+    const storageKey = ACTION_TO_STORAGE_KEY_MAP[actionKey];
+    if (!storageKey || data === undefined || data === null) return;
+
+    applyStorageUpdate(actionKey, storageKey, data, `${actionKey}_updated`, 'remote_sync');
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('rajawali_remote_update', {
+          detail: { key: actionKey, data }
+        })
+      );
     } catch {
       // ignore
     }
