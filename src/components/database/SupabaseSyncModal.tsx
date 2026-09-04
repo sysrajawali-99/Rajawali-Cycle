@@ -13,7 +13,9 @@ import {
   ExternalLink,
   Code2,
   ShieldCheck,
-  Zap
+  Zap,
+  Terminal,
+  Layers
 } from 'lucide-react';
 import { supabaseService, SUPABASE_SQL_SCHEMA } from '../../services/supabaseService';
 import { supabaseUrl, supabaseAnonKey } from '../../utils/supabase';
@@ -29,7 +31,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   onClose,
   onDataRestored
 }) => {
-  const [activeTab, setActiveTab] = useState<'STATUS' | 'SCHEMA' | 'CODE'>('STATUS');
+  const [activeTab, setActiveTab] = useState<'STATUS' | 'SCHEMA' | 'CLI' | 'CODE'>('STATUS');
   const [isTesting, setIsTesting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
@@ -37,6 +39,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(supabaseService.getLastSyncTime());
   const [liveSyncState, setLiveSyncState] = useState<string>(supabaseService.getSyncState());
   const [lastSyncedModule, setLastSyncedModule] = useState<string>('');
+  const [copiedCli, setCopiedCli] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
     tested: boolean;
     ok: boolean;
@@ -254,6 +257,17 @@ supabase
           >
             <Database className="w-4 h-4" />
             <span>Skema Tabel SQL</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('CLI')}
+            className={`py-3 px-4 text-xs sm:text-sm font-semibold border-b-2 transition-colors flex items-center space-x-2 ${
+              activeTab === 'CLI'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Terminal className="w-4 h-4" />
+            <span>Supabase CLI & Migrasi</span>
           </button>
           <button
             onClick={() => setActiveTab('CODE')}
@@ -486,6 +500,122 @@ supabase
 
               <div className="relative bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-emerald-400 max-h-80 overflow-y-auto">
                 <pre className="whitespace-pre">{SUPABASE_SQL_SCHEMA}</pre>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'CLI' && (
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/80 border border-slate-800 rounded-xl p-4">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <h4 className="text-sm font-bold text-white">Instruksi Terminal Supabase CLI</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Gunakan perintah berikut di terminal untuk menghubungkan project ref <code className="text-emerald-400 font-mono">trytwqpigfswkumpbfrp</code> dan mengeksekusi migrasi database.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const cliText = `# 1. Hubungkan project Supabase\nsupabase link --project-ref trytwqpigfswkumpbfrp\n\n# 2. Buat file migrasi baru (sudah disiapkan di /supabase/migrations)\nsupabase migration new new-migration\n\n# 3. Jalankan migrasi ke Supabase Cloud\nsupabase db push`;
+                    navigator.clipboard.writeText(cliText);
+                    setCopiedCli(true);
+                    setTimeout(() => setCopiedCli(false), 2500);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors shadow shrink-0 cursor-pointer"
+                >
+                  {copiedCli ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedCli ? 'Semua Perintah Tersalin!' : 'Salin Perintah CLI'}</span>
+                </button>
+              </div>
+
+              {/* Step by step cards */}
+              <div className="space-y-3">
+                <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center space-x-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px]">1</span>
+                      <span>Link your project</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('supabase link --project-ref trytwqpigfswkumpbfrp');
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-slate-700"
+                    >
+                      Salin
+                    </button>
+                  </div>
+                  <pre className="bg-slate-900/90 p-3 rounded-lg text-xs font-mono text-cyan-300 overflow-x-auto border border-slate-800">
+                    $ supabase link --project-ref trytwqpigfswkumpbfrp
+                  </pre>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center space-x-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px]">2</span>
+                      <span>Create a new migration called &quot;new-migration&quot;</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('supabase migration new new-migration');
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-slate-700"
+                    >
+                      Salin
+                    </button>
+                  </div>
+                  <pre className="bg-slate-900/90 p-3 rounded-lg text-xs font-mono text-cyan-300 overflow-x-auto border border-slate-800">
+                    $ supabase migration new new-migration
+                  </pre>
+                  <p className="text-[11px] text-slate-400">
+                    File migrasi SQL lengkap telah dibuat di folder <code className="text-amber-300 font-mono">/supabase/migrations/20260904000000_new-migration.sql</code>
+                  </p>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center space-x-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px]">3</span>
+                      <span>Run all migrations for this project</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('supabase db push');
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-slate-700"
+                    >
+                      Salin
+                    </button>
+                  </div>
+                  <pre className="bg-slate-900/90 p-3 rounded-lg text-xs font-mono text-cyan-300 overflow-x-auto border border-slate-800">
+                    $ supabase db push
+                  </pre>
+                </div>
+              </div>
+
+              {/* NPM Scripts alternative */}
+              <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 rounded-xl p-4">
+                <h5 className="text-xs font-bold text-white mb-2 flex items-center space-x-2">
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Shortcut NPM Scripts (Terdaftar di package.json)</span>
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono">
+                  <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Link project:</span>
+                    npm run supabase:link
+                  </div>
+                  <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">New migration:</span>
+                    npm run supabase:migration
+                  </div>
+                  <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Push migration:</span>
+                    npm run supabase:push
+                  </div>
+                </div>
               </div>
             </div>
           )}
