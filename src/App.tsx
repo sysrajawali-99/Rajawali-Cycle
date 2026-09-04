@@ -274,6 +274,13 @@ export default function App() {
     storageService.saveFinanceTransactions(updated);
   };
 
+  const handleBatchDeleteFinanceTransactions = (trxIds: string[]) => {
+    const idSet = new Set(trxIds);
+    const updated = financeTransactions.filter((t) => !idSet.has(t.id));
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
   const handleAddAccount = (account: ChartOfAccount) => {
     const updated = [...accounts, account];
     setAccounts(updated);
@@ -293,6 +300,13 @@ export default function App() {
 
   const handleDeleteAccount = (accountCode: string) => {
     const updated = accounts.filter((a) => a.code !== accountCode);
+    setAccounts(updated);
+    storageService.saveChartOfAccounts(updated);
+  };
+
+  const handleBatchDeleteAccounts = (accountCodes: string[]) => {
+    const codeSet = new Set(accountCodes);
+    const updated = accounts.filter((a) => !codeSet.has(a.code));
     setAccounts(updated);
     storageService.saveChartOfAccounts(updated);
   };
@@ -755,9 +769,11 @@ export default function App() {
                 onAddTransaction={handleAddFinanceTransaction}
                 onUpdateTransaction={handleUpdateFinanceTransaction}
                 onDeleteTransaction={handleDeleteFinanceTransaction}
+                onBatchDeleteTransactions={handleBatchDeleteFinanceTransactions}
                 onAddAccount={handleAddAccount}
                 onUpdateAccount={handleUpdateAccount}
                 onDeleteAccount={handleDeleteAccount}
+                onBatchDeleteAccounts={handleBatchDeleteAccounts}
                 onLogAudit={handleAddAuditLog}
               />
             )}
