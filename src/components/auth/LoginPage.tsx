@@ -9,9 +9,12 @@ import {
   ArrowRight,
   KeyRound,
   Building2,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { UserAccount, CompanyProfile } from '../../types';
+import { themeService, ThemeMode } from '../../services/themeService';
 
 interface LoginPageProps {
   users: UserAccount[];
@@ -30,6 +33,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => themeService.getResolvedTheme());
+
+  React.useEffect(() => {
+    const handleThemeChange = () => {
+      setResolvedTheme(themeService.getResolvedTheme());
+    };
+    window.addEventListener('theme_changed', handleThemeChange);
+    return () => window.removeEventListener('theme_changed', handleThemeChange);
+  }, []);
 
   const compName = companyProfile?.name || 'PT RAJAWALI CYCLE INDONESIA';
   const brandName = companyProfile?.brandName || 'RAJAWALI CYCLE';
@@ -79,6 +91,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden selection:bg-amber-500 selection:text-slate-950">
+      {/* Top Floating Theme Switcher */}
+      <div className="absolute top-4 right-4 z-20">
+        <button
+          id="login-theme-toggle-btn"
+          type="button"
+          onClick={() => themeService.toggleTheme()}
+          className="flex items-center space-x-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white shadow-lg backdrop-blur-md transition-all cursor-pointer"
+          title={`Ganti Tema (${resolvedTheme === 'dark' ? 'Klik untuk Mode Terang' : 'Klik untuk Mode Gelap'})`}
+        >
+          {resolvedTheme === 'dark' ? (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span>Mode Terang</span>
+            </>
+          ) : (
+            <>
+              <Moon className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Mode Gelap</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Subtle architectural ambient lights */}
       <div className="absolute top-1/4 -left-32 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />

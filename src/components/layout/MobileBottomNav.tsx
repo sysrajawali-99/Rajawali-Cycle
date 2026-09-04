@@ -19,9 +19,13 @@ import {
   Lock,
   LogOut,
   Briefcase,
-  Layers
+  Layers,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 import { AppView, Project, UserAccount } from '../../types';
+import { themeService, ThemeMode } from '../../services/themeService';
 
 interface MobileBottomNavProps {
   currentView: AppView;
@@ -54,6 +58,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const [isHrmSheetOpen, setIsHrmSheetOpen] = useState(true);
   const [isOmSheetOpen, setIsOmSheetOpen] = useState(true);
   const [isFinanceSheetOpen, setIsFinanceSheetOpen] = useState(true);
+  const [themePref, setThemePref] = useState<ThemeMode>(() => themeService.getThemePreference());
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => themeService.getResolvedTheme());
+
+  React.useEffect(() => {
+    const handleThemeChange = () => {
+      setThemePref(themeService.getThemePreference());
+      setResolvedTheme(themeService.getResolvedTheme());
+    };
+    window.addEventListener('theme_changed', handleThemeChange);
+    return () => window.removeEventListener('theme_changed', handleThemeChange);
+  }, []);
 
   const currentProject = (projects || []).find((p) => p.id === selectedProjectId);
 
@@ -614,8 +629,56 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </div>
             )}
 
-            {/* Logout and Reset Action */}
+            {/* Theme Selector for Mobile */}
             <div className="pt-2 border-t border-slate-800 space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-bold text-slate-300">Tema Tampilan</span>
+                <span className="text-[11px] text-amber-400 font-semibold uppercase">
+                  {resolvedTheme === 'dark' ? 'Mode Gelap' : 'Mode Terang'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('dark')}
+                  className={`flex items-center justify-center space-x-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    themePref === 'dark'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Moon className="w-4 h-4" />
+                  <span>Gelap</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('light')}
+                  className={`flex items-center justify-center space-x-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    themePref === 'light'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Sun className="w-4 h-4" />
+                  <span>Terang</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('system')}
+                  className={`flex items-center justify-center space-x-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    themePref === 'system'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Monitor className="w-4 h-4" />
+                  <span>Otomatis</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Logout and Reset Action */}
+            <div className="pt-1 space-y-2">
               {onLogout && (
                 <button
                   id="mobile-sheet-logout-btn"

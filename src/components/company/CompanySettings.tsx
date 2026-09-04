@@ -23,11 +23,15 @@ import {
   KeyRound,
   Database,
   Lock,
-  RefreshCw
+  RefreshCw,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 import { CompanyProfile, UserAccount } from '../../types';
 import { INITIAL_COMPANY_PROFILE } from '../../data/initialData';
 import { storageService } from '../../services/storageService';
+import { themeService, ThemeMode } from '../../services/themeService';
 
 interface CompanySettingsProps {
   companyProfile: CompanyProfile;
@@ -46,6 +50,17 @@ export const CompanySettings: React.FC<CompanySettingsProps> = ({
   const [activeTab, setActiveTab] = useState<'profile' | 'contact' | 'signees' | 'bank' | 'preview' | 'danger'>('profile');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [themePref, setThemePref] = useState<ThemeMode>(() => themeService.getThemePreference());
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => themeService.getResolvedTheme());
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setThemePref(themeService.getThemePreference());
+      setResolvedTheme(themeService.getResolvedTheme());
+    };
+    window.addEventListener('theme_changed', handleThemeChange);
+    return () => window.removeEventListener('theme_changed', handleThemeChange);
+  }, []);
 
   // Reset All System Data states (Super Admin)
   const [isResetAllModalOpen, setIsResetAllModalOpen] = useState<boolean>(false);
@@ -433,6 +448,102 @@ export const CompanySettings: React.FC<CompanySettingsProps> = ({
                     Format gambar ideal: PNG transparan atau JPG persegi (maks 2MB).
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Pengaturan Tema Tampilan Aplikasi (Dark / Light Theme) */}
+            <div className="space-y-3 md:col-span-2 pt-4 border-t border-slate-800">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                <span>Tema & Kontras Visual Antarmuka (PC & Ponsel)</span>
+                <span className="text-[11px] text-amber-400 font-semibold normal-case">
+                  Aktif: {resolvedTheme === 'dark' ? 'Mode Gelap (Dark)' : 'Mode Terang (Light)'}
+                </span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Dark Mode Card */}
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('dark')}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                    themePref === 'dark'
+                      ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 shadow-lg'
+                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-amber-400">
+                      <Moon className="w-5 h-5" />
+                    </div>
+                    {themePref === 'dark' && (
+                      <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-bold">
+                        Dipilih
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-white">Mode Gelap (Dark Mode)</div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Latar belakang gelap pekat hemat baterai OLED, kontras tinggi & nyaman di mata malam hari.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Light Mode Card */}
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('light')}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                    themePref === 'light'
+                      ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 shadow-lg'
+                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-amber-400">
+                      <Sun className="w-5 h-5" />
+                    </div>
+                    {themePref === 'light' && (
+                      <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-bold">
+                        Dipilih
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-white">Mode Terang (Light Mode)</div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Latar belakang putih bersih, teks tajam kontras tinggi, ideal di bawah sinar matahari/siang hari.
+                    </p>
+                  </div>
+                </button>
+
+                {/* System Mode Card */}
+                <button
+                  type="button"
+                  onClick={() => themeService.setTheme('system')}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                    themePref === 'system'
+                      ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 shadow-lg'
+                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-amber-400">
+                      <Monitor className="w-5 h-5" />
+                    </div>
+                    {themePref === 'system' && (
+                      <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-bold">
+                        Dipilih
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-white">Otomatis (Sesuai OS)</div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Menyesuaikan otomatis dengan pengaturan tema perangkat PC / Ponsel Android / iOS Anda.
+                    </p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>

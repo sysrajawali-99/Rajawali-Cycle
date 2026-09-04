@@ -12,10 +12,14 @@ import {
   Shield,
   Sparkles,
   Cloud,
-  Database
+  Database,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 import { Project, UserAccount, AppView, CompanyProfile } from '../../types';
 import { storageService } from '../../services/storageService';
+import { themeService, ThemeMode } from '../../services/themeService';
 
 interface NavbarProps {
   projects?: Project[];
@@ -53,6 +57,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<{ state: string; moduleKey?: string }>({
     state: 'idle'
   });
+  const [themePref, setThemePref] = useState<ThemeMode>(() => themeService.getThemePreference());
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => themeService.getResolvedTheme());
 
   useEffect(() => {
     const handleProfileUpdate = () => {
@@ -66,14 +72,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         });
       }
     };
+    const handleThemeChange = (e: any) => {
+      setThemePref(themeService.getThemePreference());
+      setResolvedTheme(themeService.getResolvedTheme());
+    };
 
     window.addEventListener('company_profile_updated', handleProfileUpdate);
     window.addEventListener('storage', handleProfileUpdate);
     window.addEventListener('supabase_sync_status', handleSyncStatus as EventListener);
+    window.addEventListener('theme_changed', handleThemeChange as EventListener);
     return () => {
       window.removeEventListener('company_profile_updated', handleProfileUpdate);
       window.removeEventListener('storage', handleProfileUpdate);
       window.removeEventListener('supabase_sync_status', handleSyncStatus as EventListener);
+      window.removeEventListener('theme_changed', handleThemeChange as EventListener);
     };
   }, []);
 
@@ -213,6 +225,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Quick Theme Toggle Button */}
+            <button
+              id="navbar-theme-toggle-btn"
+              onClick={() => {
+                themeService.toggleTheme();
+              }}
+              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-slate-200 hover:text-white"
+              title={`Ganti Tema (${resolvedTheme === 'dark' ? 'Mode Gelap aktif. Klik untuk Mode Terang' : 'Mode Terang aktif. Klik untuk Mode Gelap'})`}
+              aria-label="Toggle Theme"
+            >
+              {resolvedTheme === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400 animate-in spin-in-180 duration-300" />
+                  <span className="hidden xl:inline text-[11px] text-amber-300 font-medium">Terang</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-500 animate-in spin-in-180 duration-300" />
+                  <span className="hidden xl:inline text-[11px] text-indigo-600 font-medium">Gelap</span>
+                </>
+              )}
+            </button>
+
             {/* User Session Profile Chip */}
             {currentUser && (
               <div className="relative">
@@ -319,6 +354,57 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <span>Supabase Cloud Database</span>
                         </button>
                       )}
+
+                      {/* Theme Mode Selector in Profile Dropdown */}
+                      <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                        <div className="text-[11px] font-bold text-slate-400 flex items-center justify-between px-0.5">
+                          <span>Tema Tampilan:</span>
+                          <span className="text-[10px] text-amber-400 font-semibold uppercase">
+                            {resolvedTheme === 'dark' ? 'Mode Gelap' : 'Mode Terang'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+                          <button
+                            id="theme-select-dark-btn"
+                            type="button"
+                            onClick={() => themeService.setTheme('dark')}
+                            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              themePref === 'dark'
+                                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Moon className="w-3.5 h-3.5 mb-0.5" />
+                            <span>Gelap</span>
+                          </button>
+                          <button
+                            id="theme-select-light-btn"
+                            type="button"
+                            onClick={() => themeService.setTheme('light')}
+                            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              themePref === 'light'
+                                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Sun className="w-3.5 h-3.5 mb-0.5" />
+                            <span>Terang</span>
+                          </button>
+                          <button
+                            id="theme-select-system-btn"
+                            type="button"
+                            onClick={() => themeService.setTheme('system')}
+                            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              themePref === 'system'
+                                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Monitor className="w-3.5 h-3.5 mb-0.5" />
+                            <span>Otomatis</span>
+                          </button>
+                        </div>
+                      </div>
 
                       <div className="pt-2 border-t border-slate-800">
                         <button
