@@ -249,8 +249,21 @@ export default function App() {
     storageService.saveFinanceTransactions(updated);
   };
 
+  const handleBatchAddFinanceTransactions = (newTrxs: FinanceTransaction[]) => {
+    const updated = [...newTrxs, ...financeTransactions];
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
   const handleUpdateFinanceTransaction = (trx: FinanceTransaction) => {
     const updated = financeTransactions.map((t) => (t.id === trx.id ? trx : t));
+    setFinanceTransactions(updated);
+    storageService.saveFinanceTransactions(updated);
+  };
+
+  const handleBatchUpdateFinanceTransactions = (updatedTrxs: FinanceTransaction[]) => {
+    const updateMap = new Map(updatedTrxs.map((t) => [t.id, t]));
+    const updated = financeTransactions.map((t) => (updateMap.has(t.id) ? updateMap.get(t.id)! : t));
     setFinanceTransactions(updated);
     storageService.saveFinanceTransactions(updated);
   };
@@ -816,7 +829,9 @@ export default function App() {
                 currentUser={currentUser}
                 onUpdateStatements={handleUpdateBankStatements}
                 onAddTransaction={handleAddFinanceTransaction}
+                onBatchAddTransactions={handleBatchAddFinanceTransactions}
                 onUpdateTransaction={handleUpdateFinanceTransaction}
+                onBatchUpdateTransactions={handleBatchUpdateFinanceTransactions}
                 onLogAudit={handleAddAuditLog}
               />
             )}

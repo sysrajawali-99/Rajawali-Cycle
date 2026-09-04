@@ -771,54 +771,116 @@ export const financeService = {
     return items;
   },
 
-  // Auto-matching algorithm between Bank Items and Internal Transactions
+  // Auto-matching algorithm between Bank Items and Internal Transactions with smart multi-factor matching
   autoMatchBankStatements(
     bankItems: BankStatementItem[],
-    transactions: FinanceTransaction[]
+    transactions: FinanceTransaction[],
+    options?: {
+      minConfidence?: number;
+      toleranceDays?: number;
+      exactAmountTolerance?: number;
+      forceRematch?: boolean;
+    }
   ): BankStatementItem[] {
+    const minConfidence = options?.minConfidence ?? 70;
+    const toleranceDays = options?.toleranceDays ?? 5;
+    const amountTolerance = options?.exactAmountTolerance ?? 1;
+    const forceRematch = options?.forceRematch ?? false;
+
+    // Track assigned transactions to prevent duplicate matching
+    const usedTransactionIds = new Set<string>();
+
+    // If transactions already reconciled to an existing bank item, mark them used unless forceRematch
+    if (!forceRematch) {
+      bankItems.forEach((item) => {
+        if (item.matchStatus === 'MATCHED' && item.matchedTransactionId) {
+          usedTransactionIds.add(item.matchedTransactionId);
+        }
+      });
+    }
+
     return bankItems.map((item) => {
-      if (item.matchStatus === 'MATCHED' && item.matchedTransactionId) {
+      if (!forceRematch && item.matchStatus === 'MATCHED' && item.matchedTransactionId) {
         return item;
       }
 
-      // Find best match in transactions
+      // Find candidate matches in transactions
       let bestScore = 0;
       let matchedTrx: FinanceTransaction | null = null;
 
-      transactions.forEach((t) => {
+      // Filter available candidates
+      const candidates = transactions.filter(
+        (t) => forceRematch || !usedTransactionIds.has(t.id) || t.bankStatementItemId === item.id
+      );
+
+      candidates.forEach((t) => {
         let score = 0;
 
-        // Same amount exact match (+50 pts)
-        if (Math.abs(t.amount - item.amount) < 1) {
+        // 1. Amount matching (up to 50 pts)
+        const diffAmount = Math.abs(t.amount - item.amount);
+        if (diffAmount <= amountTolerance) {
           score += 50;
+        } else if (diffAmount <= 1000) {
+          score += 35;
+        } else if (diffAmount / Math.max(t.amount, item.amount) < 0.01) {
+          // Less than 1% variance (e.g., admin fee deducted)
+          score += 25;
+        } else {
+          // If amounts don't match closely, skip candidate
+          return;
         }
 
-        // Direction match (+20 pts)
-        if ((item.type === 'CR' && t.type === 'IN') || (item.type === 'DB' && t.type === 'OUT')) {
+        // 2. Direction match (20 pts)
+        const isDirectionMatch =
+          (item.type === 'CR' && t.type === 'IN') ||
+          (item.type === 'DB' && t.type === 'OUT');
+        if (isDirectionMatch) {
           score += 20;
+        } else {
+          // Wrong direction reduces candidate score drastically
+          score -= 30;
         }
 
-        // Date proximity (+20 pts for exact date, +10 pts for within 3 days)
+        // 3. Date proximity (up to 20 pts)
         if (t.date === item.date) {
           score += 20;
         } else {
-          const diffDays = Math.abs(
-            (new Date(t.date).getTime() - new Date(item.date).getTime()) / (1000 * 3600 * 24)
-          );
-          if (diffDays <= 3) {
-            score += 10;
+          try {
+            const tTime = new Date(t.date).getTime();
+            const iTime = new Date(item.date).getTime();
+            const diffDays = Math.abs((tTime - iTime) / (1000 * 3600 * 24));
+            if (diffDays <= 1) {
+              score += 15;
+            } else if (diffDays <= toleranceDays) {
+              score += 10;
+            } else if (diffDays <= toleranceDays + 3) {
+              score += 5;
+            }
+          } catch {
+            // fallback
           }
         }
 
-        // Description similarity (+10 pts)
-        const tDesc = (t.title + ' ' + t.description + ' ' + (t.referenceNumber || '')).toLowerCase();
-        const bDesc = item.description.toLowerCase();
-        if (
-          (t.referenceNumber && bDesc.includes(t.referenceNumber.toLowerCase())) ||
-          (t.payeeOrPayer && bDesc.includes(t.payeeOrPayer.toLowerCase())) ||
-          (t.projectName && bDesc.includes(t.projectName.toLowerCase()))
-        ) {
+        // 4. Description & reference similarity (up to 20 pts)
+        const tSearchText = `${t.title} ${t.description} ${t.referenceNumber || ''} ${t.payeeOrPayer || ''} ${t.projectName || ''}`.toLowerCase();
+        const bSearchText = `${item.description} ${item.referenceNumber || ''}`.toLowerCase();
+
+        // Exact reference match
+        if (t.referenceNumber && t.referenceNumber.length >= 4 && bSearchText.includes(t.referenceNumber.toLowerCase())) {
           score += 20;
+        } else if (t.code && bSearchText.includes(t.code.toLowerCase())) {
+          score += 20;
+        } else if (t.payeeOrPayer && t.payeeOrPayer.length >= 3 && bSearchText.includes(t.payeeOrPayer.toLowerCase())) {
+          score += 15;
+        } else {
+          // Check common significant keywords
+          const keywords = tSearchText.split(/\s+/).filter((k) => k.length >= 4 && !['biaya', 'bank', 'transfer', 'pt', 'cv'].includes(k));
+          let keywordHits = 0;
+          keywords.forEach((kw) => {
+            if (bSearchText.includes(kw)) keywordHits++;
+          });
+          if (keywordHits >= 2) score += 15;
+          else if (keywordHits === 1) score += 8;
         }
 
         if (score > bestScore) {
@@ -827,20 +889,21 @@ export const financeService = {
         }
       });
 
-      if (bestScore >= 80 && matchedTrx) {
+      if (bestScore >= minConfidence && matchedTrx) {
+        usedTransactionIds.add((matchedTrx as FinanceTransaction).id);
         return {
           ...item,
           matchStatus: 'MATCHED',
           matchedTransactionId: (matchedTrx as FinanceTransaction).id,
           matchedTransactionCode: (matchedTrx as FinanceTransaction).code,
-          confidenceScore: bestScore,
-          notes: `Cocok otomatis dengan ${(matchedTrx as FinanceTransaction).code} (${bestScore}% confidence)`
+          confidenceScore: Math.min(100, bestScore),
+          notes: `Cocok otomatis dengan ${(matchedTrx as FinanceTransaction).code} (${Math.min(100, bestScore)}% confidence)`
         };
       }
 
       return {
         ...item,
-        confidenceScore: bestScore
+        confidenceScore: Math.min(100, bestScore)
       };
     });
   },

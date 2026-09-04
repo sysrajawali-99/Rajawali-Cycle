@@ -104,6 +104,13 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
 
+  // Auto-Match Settings (Activated by Default)
+  const [isAutoMatchEnabled, setIsAutoMatchEnabled] = useState<boolean>(true);
+  const [autoMatchThreshold, setAutoMatchThreshold] = useState<number>(70);
+  const [autoMatchToleranceDays, setAutoMatchToleranceDays] = useState<number>(5);
+  const [autoSyncBukuKas, setAutoSyncBukuKas] = useState<boolean>(true);
+  const [isShowingAutoMatchConfig, setIsShowingAutoMatchConfig] = useState<boolean>(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Handle Bank Selection Change
@@ -275,35 +282,51 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
     );
   };
 
+  // Computed Items with Real-time Auto-Match
+  const processedItems = useMemo(() => {
+    if (!isAutoMatchEnabled) {
+      return editableItems;
+    }
+    return financeService.autoMatchBankStatements(editableItems, transactions, {
+      minConfidence: autoMatchThreshold,
+      toleranceDays: autoMatchToleranceDays
+    });
+  }, [editableItems, transactions, isAutoMatchEnabled, autoMatchThreshold, autoMatchToleranceDays]);
+
   // Calculate live preview metrics
   const previewStats = useMemo(() => {
-    const totalCount = editableItems.length;
-    const totalCredit = editableItems
+    const totalCount = processedItems.length;
+    const totalCredit = processedItems
       .filter((i) => i.type === 'CR')
       .reduce((sum, i) => sum + i.amount, 0);
-    const totalDebit = editableItems
+    const totalDebit = processedItems
       .filter((i) => i.type === 'DB')
       .reduce((sum, i) => sum + i.amount, 0);
     const netFlow = totalCredit - totalDebit;
-    const endingBal = previewResult?.endingBalance || editableItems[editableItems.length - 1]?.balance || 0;
+    const endingBal = previewResult?.endingBalance || processedItems[processedItems.length - 1]?.balance || 0;
 
-    return { totalCount, totalCredit, totalDebit, netFlow, endingBal };
-  }, [editableItems, previewResult]);
+    const matchedCount = processedItems.filter((i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED').length;
+    const unmatchedCount = totalCount - matchedCount;
+    const matchPct = totalCount > 0 ? Math.round((matchedCount / totalCount) * 100) : 0;
+
+    return { totalCount, totalCredit, totalDebit, netFlow, endingBal, matchedCount, unmatchedCount, matchPct };
+  }, [processedItems, previewResult]);
 
   // Filtered Items for Preview Table
   const filteredItems = useMemo(() => {
-    return editableItems.filter((item) => {
+    return processedItems.filter((item) => {
       const matchesType = typeFilter === 'ALL' || item.type === typeFilter;
       const matchesSearch =
         searchQuery.trim() === '' ||
         item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.date.includes(searchQuery) ||
         (item.referenceNumber && item.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.matchedTransactionCode && item.matchedTransactionCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
         item.amount.toString().includes(searchQuery);
 
       return matchesType && matchesSearch;
     });
-  }, [editableItems, typeFilter, searchQuery]);
+  }, [processedItems, typeFilter, searchQuery]);
 
   // Paginated Items
   const paginatedItems = useMemo(() => {
@@ -340,17 +363,13 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
 
   // Finalize Import & Run Auto-matching
   const handleCommitImport = () => {
-    if (editableItems.length === 0) {
+    if (processedItems.length === 0) {
       alert('Tidak ada transaksi untuk diimport.');
       return;
     }
 
-    // Run auto matching against internal transactions
-    const matchedItems = financeService.autoMatchBankStatements(editableItems, transactions);
-    const matchedCount = matchedItems.filter(
-      (i) => i.matchStatus === 'MATCHED' || i.matchStatus === 'MANUAL_MATCHED'
-    ).length;
-    const unmatchedCount = matchedItems.length - matchedCount;
+    const matchedCount = previewStats.matchedCount;
+    const unmatchedCount = previewStats.unmatchedCount;
 
     const filePrefix = activeTab === 'pdf' ? 'PDF_Statement' : activeTab === 'excel' ? 'Excel_Statement' : 'Text_Import';
     const finalFileName =
@@ -364,12 +383,12 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
       periodMonth,
       fileName: finalFileName,
       uploadDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      totalTransactions: matchedItems.length,
+      totalTransactions: processedItems.length,
       totalCredit: previewStats.totalCredit,
       totalDebit: previewStats.totalDebit,
       matchedCount,
       unmatchedCount,
-      items: matchedItems
+      items: processedItems
     };
 
     onImportSuccess(newImport);
@@ -384,7 +403,7 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
         module: 'Rekonsiliasi Bank',
         recordId: newImport.id,
         recordCode: newImport.fileName,
-        description: `Import e-Statement ${bankName} (${accountNumber}) - ${matchedItems.length} transaksi (${matchedCount} auto-matched)`,
+        description: `Import e-Statement ${bankName} (${accountNumber}) - ${processedItems.length} transaksi (${matchedCount} auto-matched, ${previewStats.matchPct}% match rate)`,
         amount: previewStats.totalCredit + previewStats.totalDebit
       });
     }
@@ -855,6 +874,142 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
                 </div>
               </div>
 
+              {/* AUTO-MATCH OTOMATIS MASAL BANNER & CONTROLS */}
+              <div className="p-4 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-blue-950/60 rounded-2xl border border-emerald-500/40 shadow-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <Sparkles className="w-5 h-5 animate-pulse text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="text-sm font-extrabold text-white">
+                          Auto-Match Otomatis Masal
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-500/40">
+                          {isAutoMatchEnabled ? '⚡ AKTIF' : 'NONAKTIF'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Pencocokan multi-faktor cerdas (Nominal, Arah DB/CR, Toleransi Tanggal & Kata Kunci Keterangan)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsShowingAutoMatchConfig(!isShowingAutoMatchConfig)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer flex items-center space-x-1.5"
+                    >
+                      <Filter className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{isShowingAutoMatchConfig ? 'Tutup Pengaturan' : 'Pengaturan Match'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAutoMatchEnabled(!isAutoMatchEnabled)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isAutoMatchEnabled
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30'
+                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {isAutoMatchEnabled ? 'Auto-Match Aktif' : 'Aktifkan'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Auto Match Results Banner */}
+                {isAutoMatchEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800">
+                    <div className="flex items-center space-x-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <div className="text-xs">
+                        <span className="text-slate-400 block text-[10px]">COCOK OTOMATIS:</span>
+                        <span className="font-bold text-emerald-300 font-mono">
+                          {previewStats.matchedCount} dari {previewStats.totalCount} mutasi ({previewStats.matchPct}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div className="text-xs">
+                        <span className="text-slate-400 block text-[10px]">BELUM DI BUKU KAS:</span>
+                        <span className="font-bold text-amber-300 font-mono">
+                          {previewStats.unmatchedCount} mutasi
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                      <div className="text-xs">
+                        <span className="text-slate-400 block text-[10px]">STATUS INTEGRASI:</span>
+                        <span className="font-bold text-blue-300">
+                          {autoSyncBukuKas ? 'Sinkron 2-Arah Aktif' : 'Hanya Rekening Koran'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Advanced Auto-Match Config Panel */}
+                {isShowingAutoMatchConfig && (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3 animate-in fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                          Ambang Batas Skor Kecocokan:
+                        </label>
+                        <select
+                          value={autoMatchThreshold}
+                          onChange={(e) => setAutoMatchThreshold(Number(e.target.value))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        >
+                          <option value={60}>60% (Fleksibel - Saran Lebih Luas)</option>
+                          <option value={70}>70% (Standar Rekomendasi)</option>
+                          <option value={85}>85% (Ketat - Akurasi Tinggi)</option>
+                          <option value={95}>95% (Hampir Sempurna)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                          Toleransi Selisih Tanggal:
+                        </label>
+                        <select
+                          value={autoMatchToleranceDays}
+                          onChange={(e) => setAutoMatchToleranceDays(Number(e.target.value))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        >
+                          <option value={0}>0 Hari (Tanggal Harus Sama Persis)</option>
+                          <option value={3}>± 3 Hari (Standar Kliring Bank)</option>
+                          <option value={5}>± 5 Hari (Rekomendasi Mutasi Akhir Pekan)</option>
+                          <option value={7}>± 7 Hari (Toleransi Luas 1 Minggu)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col justify-center">
+                        <label className="flex items-center space-x-2 text-xs text-slate-200 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={autoSyncBukuKas}
+                            onChange={(e) => setAutoSyncBukuKas(e.target.checked)}
+                            className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="font-semibold">Otomatis Perbarui Rekonsiliasi Buku Kas</span>
+                        </label>
+                        <span className="text-[10px] text-slate-500 ml-6 mt-0.5">
+                          Tandai status transaksi kas terkait sebagai 'Sudah Direkonsiliasi'
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* RECONCILIATION SUMMARY VALIDATION BANNER */}
               {(previewResult.startingBalance !== undefined || previewResult.endingBalance !== undefined) && (
                 <div className="p-3.5 bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 rounded-2xl border border-blue-800/40 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -1017,14 +1172,15 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
                         <th className="py-2.5 px-3">Uraian / Deskripsi Mutasi</th>
                         <th className="py-2.5 px-3 w-24 text-center">Jenis</th>
                         <th className="py-2.5 px-3 w-32 text-right">Nominal</th>
-                        <th className="py-2.5 px-3 w-32 text-right">Saldo</th>
+                        <th className="py-2.5 px-3 w-36 text-center">Status Auto-Match</th>
+                        <th className="py-2.5 px-3 w-28 text-right">Saldo</th>
                         <th className="py-2.5 px-3 w-12 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-900 text-[11px]">
                       {paginatedItems.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-8 text-center text-slate-500">
+                          <td colSpan={9} className="py-8 text-center text-slate-500">
                             Tidak ada data mutasi yang cocok dengan pencarian atau filter.
                           </td>
                         </tr>
@@ -1032,12 +1188,13 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
                         paginatedItems.map((item, idx) => {
                           const globalIdx = (currentPage - 1) * (pageSize === -1 ? 0 : pageSize) + idx + 1;
                           const isSelected = selectedItemIds.has(item.id);
+                          const isMatched = item.matchStatus === 'MATCHED' || item.matchStatus === 'MANUAL_MATCHED';
 
                           return (
                             <tr
                               key={item.id}
                               className={`transition-colors ${
-                                isSelected ? 'bg-blue-950/30' : 'hover:bg-slate-900/60'
+                                isSelected ? 'bg-blue-950/30' : isMatched ? 'bg-emerald-950/10 hover:bg-emerald-950/20' : 'hover:bg-slate-900/60'
                               }`}
                             >
                               <td className="py-2 px-3 text-center">
@@ -1089,6 +1246,26 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
                                 }`}
                               >
                                 {financeService.formatRupiah(item.amount)}
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                {isMatched ? (
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                      <span>Matched ({item.confidenceScore || 100}%)</span>
+                                    </span>
+                                    {item.matchedTransactionCode && (
+                                      <span className="text-[9px] font-mono text-emerald-400/90 font-semibold mt-0.5">
+                                        {item.matchedTransactionCode}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 text-[10px] font-medium border border-amber-500/20">
+                                    <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                                    <span>Belum di Kas</span>
+                                  </span>
+                                )}
                               </td>
                               <td className="py-2 px-3 text-right font-mono text-slate-400 whitespace-nowrap">
                                 {item.balance ? financeService.formatRupiah(item.balance) : '-'}
@@ -1183,10 +1360,12 @@ export const BankStatementUploadModal: React.FC<BankStatementUploadModalProps> =
               <button
                 type="button"
                 onClick={handleCommitImport}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-blue-900/40 transition-all flex items-center space-x-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:via-teal-500 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-emerald-950/50 transition-all flex items-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Proses & Simpan Rekening Koran ({editableItems.length.toLocaleString()})</span>
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>
+                  Proses e-Statement ({processedItems.length}) & Auto-Match ({previewStats.matchedCount} Cocok)
+                </span>
               </button>
             ) : null}
           </div>
